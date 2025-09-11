@@ -146,6 +146,9 @@ static ComPtr<ID3D11Buffer>           g_vb, g_ib;
 static ComPtr<ID3D11Buffer>           g_cbView, g_cbProj, g_cbFrame;
 static ComPtr<ID3D11ShaderResourceView> g_srv; // textura 1x1 blanca
 static ComPtr<ID3D11SamplerState>     g_samp;
+// --- Rasterizer (wireframe/solid) ---
+static ComPtr<ID3D11RasterizerState>  g_rsSolid, g_rsWire;
+static bool                           g_wire = false;
 
 static XMMATRIX gWorld, gView, gProj;
 static XMFLOAT4 gMeshColor(0.7f, 0.7f, 0.7f, 1.0f);
@@ -271,9 +274,7 @@ static HRESULT InitDevice() {
       14,12,13, 15,12,14, 19,17,16, 18,17,19, 22,20,21, 23,20,22
   };
 
-  D3D11_BUFFER_DESC bd{};
-  D3D11_SUBRESOURCE_DATA srd{};
-
+  D3D11_BUFFER_DESC bd{}; D3D11_SUBRESOURCE_DATA srd{};
   bd.Usage = D3D11_USAGE_DEFAULT;
   bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
   bd.ByteWidth = (UINT)sizeof(vertices);
@@ -306,10 +307,7 @@ static HRESULT InitDevice() {
     td.Usage = D3D11_USAGE_IMMUTABLE;
     td.BindFlags = D3D11_BIND_SHADER_RESOURCE;
 
-    D3D11_SUBRESOURCE_DATA texSRD{};
-    texSRD.pSysMem = &white;
-    texSRD.SysMemPitch = sizeof(white);
-
+    D3D11_SUBRESOURCE_DATA texSRD{}; texSRD.pSysMem = &white; texSRD.SysMemPitch = sizeof(white);
     ComPtr<ID3D11Texture2D> tex;
     if (FAILED(g_device->CreateTexture2D(&td, &texSRD, &tex))) return E_FAIL;
     if (FAILED(g_device->CreateShaderResourceView(tex.Get(), nullptr, &g_srv))) return E_FAIL;
@@ -322,6 +320,15 @@ static HRESULT InitDevice() {
   sdsc.ComparisonFunc = D3D11_COMPARISON_NEVER;
   sdsc.MinLOD = 0; sdsc.MaxLOD = D3D11_FLOAT32_MAX;
   if (FAILED(g_device->CreateSamplerState(&sdsc, &g_samp))) return E_FAIL;
+
+  // Rasterizer states: solid y wireframe (F1 para alternar)
+  D3D11_RASTERIZER_DESC rs{};
+  rs.FillMode = D3D11_FILL_SOLID;
+  rs.CullMode = D3D11_CULL_BACK;
+  g_device->CreateRasterizerState(&rs, &g_rsSolid);
+  rs.FillMode = D3D11_FILL_WIREFRAME;
+  g_device->CreateRasterizerState(&rs, &g_rsWire);
+  g_ctx->RSSetState(g_rsSolid.Get()); // estado inicial
 
   // Matrices iniciales
   gWorld = XMMatrixIdentity();
@@ -346,6 +353,7 @@ static HRESULT InitDevice() {
 // =============================
 static void CleanupDevice() {
   if (g_ctx) g_ctx->ClearState();
+  g_rsWire.Reset(); g_rsSolid.Reset();
   g_samp.Reset(); g_srv.Reset();
   g_cbFrame.Reset(); g_cbProj.Reset(); g_cbView.Reset();
   g_ib.Reset(); g_vb.Reset(); g_layout.Reset();
@@ -373,9 +381,7 @@ static void Render() {
   g_ctx->ClearDepthStencilView(g_dsv.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0);
 
   // Actualiza CBuffer frame
-  CBChangesEveryFrame cbF{};
-  cbF.mWorld = XMMatrixTranspose(gWorld);
-  cbF.vMeshColor = gMeshColor;
+  CBChangesEveryFrame cbF{}; cbF.mWorld = XMMatrixTranspose(gWorld); cbF.vMeshColor = gMeshColor;
   g_ctx->UpdateSubresource(g_cbFrame.Get(), 0, nullptr, &cbF, 0, 0);
 
   // Pipeline
@@ -397,7 +403,7 @@ static void Render() {
   { ID3D11SamplerState* s = g_samp.Get(); g_ctx->PSSetSamplers(0, 1, &s); }
 
   g_ctx->DrawIndexed(36, 0, 0);
-  g_swap->Present(0, 0);
+  g_swap->Present(1, 0); // VSync ON
 }
 
 // =============================
@@ -407,6 +413,13 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
   switch (msg) {
   case WM_SIZE:
     // (Opcional) re-crear backbuffer/DSV y reproyección aquí.
+    break;
+  case WM_KEYDOWN:
+    if (wParam == VK_ESCAPE) PostQuitMessage(0);
+    if (wParam == VK_F1) {
+      g_wire = !g_wire;
+      g_ctx->RSSetState(g_wire ? g_rsWire.Get() : g_rsSolid.Get());
+    }
     break;
   case WM_DESTROY:
     PostQuitMessage(0);
