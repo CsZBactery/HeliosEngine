@@ -20,16 +20,16 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Prerequisites.h">
-      <Filter>include</Filter>
-    </ClInclude>
     <ClInclude Include="include\Window.h">
       <Filter>include</Filter>
     </ClInclude>
-    <CLInclude Include="resource.h">
-      <Filter>include</Filter>
-    </CLInclude>
     <ClInclude Include="include\Device.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Prerequisites.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Resource.h">
       <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>
@@ -37,7 +37,10 @@
     <ClCompile Include="source\Window.cpp">
       <Filter>source</Filter>
     </ClCompile>
-    <ClCompile Include="Tutorial07.cpp">
+    <ClCompile Include="source\Device.cpp">
+      <Filter>source</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Tutorial07.cpp">
       <Filter>source</Filter>
     </ClCompile>
   </ItemGroup>

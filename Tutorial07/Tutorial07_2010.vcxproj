@@ -373,17 +373,18 @@
   </ItemDefinitionGroup>
   <ItemGroup />
   <ItemGroup>
+    <ClCompile Include="source\Device.cpp" />
+    <ClCompile Include="source\Tutorial07.cpp" />
     <ClCompile Include="source\Window.cpp" />
-    <ClCompile Include="Tutorial07.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Tutorial07.fx" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\Device.h" />
+    <ClInclude Include="include\Prerequisites.h" />
+    <ClInclude Include="include\Resource.h" />
     <ClInclude Include="include\Window.h" />
-    <ClInclude Include="Prerequisites.h" />
-    <CLInclude Include="resource.h" />
     <ResourceCompile Include="Tutorial07.rc" />
   </ItemGroup>
   <ItemGroup>
