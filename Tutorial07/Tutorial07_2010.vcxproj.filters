@@ -34,9 +34,6 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="source\Window.cpp">
-      <Filter>source</Filter>
-    </ClCompile>
     <ClCompile Include="source\Device.cpp">
       <Filter>source</Filter>
     </ClCompile>

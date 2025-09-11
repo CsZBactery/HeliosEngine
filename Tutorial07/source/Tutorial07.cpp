@@ -1,4 +1,4 @@
-// Main.cpp — DX11 minimal (sin D3DX / sin headers propios / shaders embebidos)
+// Tutorial07.cpp — DX11 minimal (sin D3DX / sin headers propios / shaders embebidos)
 
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
@@ -11,6 +11,7 @@
 #include <DirectXMath.h>
 #include <cstdint>
 #include <string>
+#include <cstring>  // strlen
 
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "dxgi.lib")
@@ -43,7 +44,7 @@ public:
     RECT rc{ 0,0,1200,950 };
     AdjustWindowRect(&rc, WS_OVERLAPPEDWINDOW, FALSE);
 
-    const wchar_t* title = L"Tutorial07_2010 (modernizado)";
+    const wchar_t* title = L"Tutorial07 (modernizado)";
     m_hWnd = CreateWindowExW(0, kClass, title, WS_OVERLAPPEDWINDOW,
       CW_USEDEFAULT, CW_USEDEFAULT,
       rc.right - rc.left, rc.bottom - rc.top,
@@ -110,9 +111,8 @@ static HRESULT CompileFromSource(const char* src, const char* entry, const char*
 #if defined(_DEBUG)
   flags |= D3DCOMPILE_DEBUG;
 #endif
-  ComPtr<ID3DBlob> err;
-  ComPtr<ID3DBlob> blob;
-  HRESULT hr = D3DCompile(src, (UINT)strlen(src), nullptr, nullptr, nullptr, entry, target, flags, 0, &blob, &err);
+  ComPtr<ID3DBlob> err, blob;
+  HRESULT hr = D3DCompile(src, (UINT)std::strlen(src), nullptr, nullptr, nullptr, entry, target, flags, 0, &blob, &err);
   if (FAILED(hr)) {
     if (err) OutputDebugStringA((const char*)err->GetBufferPointer());
     return hr;
@@ -132,20 +132,20 @@ struct CBChangesEveryFrame { XMMATRIX mWorld; XMFLOAT4 vMeshColor; };
 // =============================
 // Globals DX
 // =============================
-static Window                    g_window;
-static ComPtr<ID3D11Device>      g_device;
-static ComPtr<ID3D11DeviceContext> g_ctx;
-static ComPtr<IDXGISwapChain>    g_swap;
+static Window                         g_window;
+static ComPtr<ID3D11Device>           g_device;
+static ComPtr<ID3D11DeviceContext>    g_ctx;
+static ComPtr<IDXGISwapChain>         g_swap;
 static ComPtr<ID3D11RenderTargetView> g_rtv;
-static ComPtr<ID3D11Texture2D>   g_depth;
+static ComPtr<ID3D11Texture2D>        g_depth;
 static ComPtr<ID3D11DepthStencilView> g_dsv;
-static ComPtr<ID3D11VertexShader> g_vs;
-static ComPtr<ID3D11PixelShader>  g_ps;
-static ComPtr<ID3D11InputLayout>  g_layout;
-static ComPtr<ID3D11Buffer>       g_vb, g_ib;
-static ComPtr<ID3D11Buffer>       g_cbView, g_cbProj, g_cbFrame;
+static ComPtr<ID3D11VertexShader>     g_vs;
+static ComPtr<ID3D11PixelShader>      g_ps;
+static ComPtr<ID3D11InputLayout>      g_layout;
+static ComPtr<ID3D11Buffer>           g_vb, g_ib;
+static ComPtr<ID3D11Buffer>           g_cbView, g_cbProj, g_cbFrame;
 static ComPtr<ID3D11ShaderResourceView> g_srv; // textura 1x1 blanca
-static ComPtr<ID3D11SamplerState> g_samp;
+static ComPtr<ID3D11SamplerState>     g_samp;
 
 static XMMATRIX gWorld, gView, gProj;
 static XMFLOAT4 gMeshColor(0.7f, 0.7f, 0.7f, 1.0f);
@@ -200,13 +200,13 @@ static HRESULT InitDevice() {
 #if defined(_DEBUG)
   flags |= D3D11_CREATE_DEVICE_DEBUG;
 #endif
-  D3D_FEATURE_LEVEL flsReq[] = { D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_10_1, D3D_FEATURE_LEVEL_10_0 };
-  D3D_FEATURE_LEVEL flOut{};
+  D3D_FEATURE_LEVEL req[] = { D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_10_1, D3D_FEATURE_LEVEL_10_0 };
+  D3D_FEATURE_LEVEL out{};
 
   HRESULT hr = D3D11CreateDeviceAndSwapChain(
     nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, flags,
-    flsReq, (UINT)(sizeof(flsReq) / sizeof(flsReq[0])),
-    D3D11_SDK_VERSION, &sd, &g_swap, &g_device, &flOut, &g_ctx);
+    req, (UINT)(sizeof(req) / sizeof(req[0])),
+    D3D11_SDK_VERSION, &sd, &g_swap, &g_device, &out, &g_ctx);
   if (FAILED(hr)) return hr;
 
   // RTV
@@ -249,7 +249,6 @@ static HRESULT InitDevice() {
       { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,    0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
   };
   if (FAILED(g_device->CreateInputLayout(il, 2, vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), &g_layout))) return E_FAIL;
-
   g_ctx->IASetInputLayout(g_layout.Get());
 
   // Geometría: cubo
@@ -407,7 +406,7 @@ static void Render() {
 static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
   switch (msg) {
   case WM_SIZE:
-    // (Opcional) Podrías re-crear backbuffer/DSV y reproyección aquí.
+    // (Opcional) re-crear backbuffer/DSV y reproyección aquí.
     break;
   case WM_DESTROY:
     PostQuitMessage(0);
