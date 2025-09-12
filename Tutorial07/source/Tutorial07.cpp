@@ -1,4 +1,4 @@
-// Tutorial07.cpp — DX11 minimal (sin D3DX / sin headers propios / shaders embebidos)
+// Tutorial07.cpp — DX11 minimal + Device + DeviceContext (sin D3DX, sin xnamath)
 
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
@@ -11,14 +11,17 @@
 #include <DirectXMath.h>
 #include <cstdint>
 #include <string>
-#include <cstring>  // strlen
+#include <cstring>  // std::strlen
+
+// Wrappers propios
+#include "../include/Device.h"
+#include "../include/DeviceContext.h"
 
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "d3dcompiler.lib")
 
 using Microsoft::WRL::ComPtr;
-using namespace DirectX;
 
 // =============================
 // Ventana (mínima, Unicode)
@@ -44,7 +47,7 @@ public:
     RECT rc{ 0,0,1200,950 };
     AdjustWindowRect(&rc, WS_OVERLAPPEDWINDOW, FALSE);
 
-    const wchar_t* title = L"Tutorial07 (modernizado)";
+    const wchar_t* title = L"Tutorial07 (Device + DeviceContext)";
     m_hWnd = CreateWindowExW(0, kClass, title, WS_OVERLAPPEDWINDOW,
       CW_USEDEFAULT, CW_USEDEFAULT,
       rc.right - rc.left, rc.bottom - rc.top,
@@ -107,7 +110,7 @@ float4 PS(VS_OUTPUT i) : SV_Target {
 
 // Compilación desde memoria
 static HRESULT CompileFromSource(const char* src, const char* entry, const char* target, ID3DBlob** blobOut) {
-  UINT flags = D3DCOMPILE_ENABLE_STRICTNESS;
+  UINT flags = D3D_COMPILE_STANDARD_FILE_INCLUDE ? D3DCOMPILE_ENABLE_STRICTNESS : D3DCOMPILE_ENABLE_STRICTNESS;
 #if defined(_DEBUG)
   flags |= D3DCOMPILE_DEBUG;
 #endif
@@ -124,34 +127,34 @@ static HRESULT CompileFromSource(const char* src, const char* entry, const char*
 // =============================
 // Estructuras
 // =============================
-struct SimpleVertex { XMFLOAT3 Pos; XMFLOAT2 Tex; };
-struct CBNeverChanges { XMMATRIX mView; };
-struct CBChangeOnResize { XMMATRIX mProjection; };
-struct CBChangesEveryFrame { XMMATRIX mWorld; XMFLOAT4 vMeshColor; };
+struct SimpleVertex { DirectX::XMFLOAT3 Pos; DirectX::XMFLOAT2 Tex; };
+struct CBNeverChanges { DirectX::XMMATRIX mView; };
+struct CBChangeOnResize { DirectX::XMMATRIX mProjection; };
+struct CBChangesEveryFrame { DirectX::XMMATRIX mWorld; DirectX::XMFLOAT4 vMeshColor; };
 
 // =============================
 // Globals DX
 // =============================
-static Window                         g_window;
-static ComPtr<ID3D11Device>           g_device;
-static ComPtr<ID3D11DeviceContext>    g_ctx;
-static ComPtr<IDXGISwapChain>         g_swap;
-static ComPtr<ID3D11RenderTargetView> g_rtv;
-static ComPtr<ID3D11Texture2D>        g_depth;
-static ComPtr<ID3D11DepthStencilView> g_dsv;
-static ComPtr<ID3D11VertexShader>     g_vs;
-static ComPtr<ID3D11PixelShader>      g_ps;
-static ComPtr<ID3D11InputLayout>      g_layout;
-static ComPtr<ID3D11Buffer>           g_vb, g_ib;
-static ComPtr<ID3D11Buffer>           g_cbView, g_cbProj, g_cbFrame;
+static Window                           g_window;
+static Device                           g_device;     // contiene: ID3D11Device* m_device
+static DeviceContext                    g_devctx;     // wrapper del contexto inmediato
+static ComPtr<ID3D11DeviceContext>      g_ctx;        // dueño real del contexto
+static ComPtr<IDXGISwapChain>           g_swap;
+static ComPtr<ID3D11RenderTargetView>   g_rtv;
+static ComPtr<ID3D11Texture2D>          g_depth;
+static ComPtr<ID3D11DepthStencilView>   g_dsv;
+static ComPtr<ID3D11VertexShader>       g_vs;
+static ComPtr<ID3D11PixelShader>        g_ps;
+static ComPtr<ID3D11InputLayout>        g_layout;
+static ComPtr<ID3D11Buffer>             g_vb, g_ib;
+static ComPtr<ID3D11Buffer>             g_cbView, g_cbProj, g_cbFrame;
 static ComPtr<ID3D11ShaderResourceView> g_srv; // textura 1x1 blanca
-static ComPtr<ID3D11SamplerState>     g_samp;
-// --- Rasterizer (wireframe/solid) ---
-static ComPtr<ID3D11RasterizerState>  g_rsSolid, g_rsWire;
-static bool                           g_wire = false;
+static ComPtr<ID3D11SamplerState>       g_samp;
+static ComPtr<ID3D11RasterizerState>    g_rsSolid, g_rsWire;
+static bool                             g_wire = false;
 
-static XMMATRIX gWorld, gView, gProj;
-static XMFLOAT4 gMeshColor(0.7f, 0.7f, 0.7f, 1.0f);
+static DirectX::XMMATRIX gWorld, gView, gProj;
+static DirectX::XMFLOAT4 gMeshColor(0.7f, 0.7f, 0.7f, 1.0f);
 
 // =============================
 // Prototipos
@@ -183,7 +186,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPWSTR, int nCmdShow) {
 }
 
 // =============================
-// InitDevice (sin D3DX)
+// InitDevice
 // =============================
 static HRESULT InitDevice() {
   // SwapChain
@@ -203,19 +206,25 @@ static HRESULT InitDevice() {
 #if defined(_DEBUG)
   flags |= D3D11_CREATE_DEVICE_DEBUG;
 #endif
-  D3D_FEATURE_LEVEL req[] = { D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_10_1, D3D_FEATURE_LEVEL_10_0 };
+  D3D_FEATURE_LEVEL req[] = {
+    D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_10_1, D3D_FEATURE_LEVEL_10_0
+  };
   D3D_FEATURE_LEVEL out{};
 
+  // Crear device + swapchain
   HRESULT hr = D3D11CreateDeviceAndSwapChain(
     nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, flags,
     req, (UINT)(sizeof(req) / sizeof(req[0])),
-    D3D11_SDK_VERSION, &sd, &g_swap, &g_device, &out, &g_ctx);
+    D3D11_SDK_VERSION, &sd, &g_swap, &g_device.m_device, &out, &g_ctx);
   if (FAILED(hr)) return hr;
 
-  // RTV
+  // DeviceContext (adjunta al inmediato)
+  g_devctx.attach(g_ctx.Get());
+
+  // RTV (usando tu wrapper)
   ComPtr<ID3D11Texture2D> back;
   if (FAILED(g_swap->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)back.GetAddressOf()))) return E_FAIL;
-  if (FAILED(g_device->CreateRenderTargetView(back.Get(), nullptr, &g_rtv))) return E_FAIL;
+  if (FAILED(g_device.CreateRenderTargetView(back.Get(), nullptr, g_rtv.ReleaseAndGetAddressOf()))) return E_FAIL;
 
   // Depth + DSV
   D3D11_TEXTURE2D_DESC d{};
@@ -226,10 +235,14 @@ static HRESULT InitDevice() {
   d.Usage = D3D11_USAGE_DEFAULT;
   d.BindFlags = D3D11_BIND_DEPTH_STENCIL;
 
-  if (FAILED(g_device->CreateTexture2D(&d, nullptr, &g_depth))) return E_FAIL;
-  if (FAILED(g_device->CreateDepthStencilView(g_depth.Get(), nullptr, &g_dsv))) return E_FAIL;
+  if (FAILED(g_device.m_device->CreateTexture2D(&d, nullptr, &g_depth))) return E_FAIL;
+  if (FAILED(g_device.m_device->CreateDepthStencilView(g_depth.Get(), nullptr, &g_dsv))) return E_FAIL;
 
-  g_ctx->OMSetRenderTargets(1, g_rtv.GetAddressOf(), g_dsv.Get());
+  // OMSetRenderTargets a través del wrapper de contexto
+  {
+    ID3D11RenderTargetView* rtv = g_rtv.Get();
+    g_devctx.OMSetRenderTargets(1, &rtv, g_dsv.Get());
+  }
 
   // Viewport
   D3D11_VIEWPORT vp{};
@@ -243,31 +256,31 @@ static HRESULT InitDevice() {
   if (FAILED(CompileFromSource(g_HLSL, "VS", "vs_4_0", &vsBlob))) return E_FAIL;
   if (FAILED(CompileFromSource(g_HLSL, "PS", "ps_4_0", &psBlob))) return E_FAIL;
 
-  if (FAILED(g_device->CreateVertexShader(vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), nullptr, &g_vs))) return E_FAIL;
-  if (FAILED(g_device->CreatePixelShader(psBlob->GetBufferPointer(), psBlob->GetBufferSize(), nullptr, &g_ps))) return E_FAIL;
+  if (FAILED(g_device.m_device->CreateVertexShader(vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), nullptr, &g_vs))) return E_FAIL;
+  if (FAILED(g_device.m_device->CreatePixelShader(psBlob->GetBufferPointer(), psBlob->GetBufferSize(), nullptr, &g_ps))) return E_FAIL;
 
   // Input Layout
   D3D11_INPUT_ELEMENT_DESC il[] = {
       { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0,  0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
       { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,    0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
   };
-  if (FAILED(g_device->CreateInputLayout(il, 2, vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), &g_layout))) return E_FAIL;
+  if (FAILED(g_device.m_device->CreateInputLayout(il, 2, vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), &g_layout))) return E_FAIL;
   g_ctx->IASetInputLayout(g_layout.Get());
 
   // Geometría: cubo
   SimpleVertex vertices[] = {
-      { XMFLOAT3(-1,  1, -1), XMFLOAT2(0,0) }, { XMFLOAT3(1,  1, -1), XMFLOAT2(1,0) },
-      { XMFLOAT3(1,  1,  1), XMFLOAT2(1,1) }, { XMFLOAT3(-1,  1,  1), XMFLOAT2(0,1) },
-      { XMFLOAT3(-1, -1, -1), XMFLOAT2(0,0) }, { XMFLOAT3(1, -1, -1), XMFLOAT2(1,0) },
-      { XMFLOAT3(1, -1,  1), XMFLOAT2(1,1) }, { XMFLOAT3(-1, -1,  1), XMFLOAT2(0,1) },
-      { XMFLOAT3(-1, -1,  1), XMFLOAT2(0,0) }, { XMFLOAT3(-1, -1, -1), XMFLOAT2(1,0) },
-      { XMFLOAT3(-1,  1, -1), XMFLOAT2(1,1) }, { XMFLOAT3(-1,  1,  1), XMFLOAT2(0,1) },
-      { XMFLOAT3(1, -1,  1), XMFLOAT2(0,0) }, { XMFLOAT3(1, -1, -1), XMFLOAT2(1,0) },
-      { XMFLOAT3(1,  1, -1), XMFLOAT2(1,1) }, { XMFLOAT3(1,  1,  1), XMFLOAT2(0,1) },
-      { XMFLOAT3(-1, -1, -1), XMFLOAT2(0,0) }, { XMFLOAT3(1, -1, -1), XMFLOAT2(1,0) },
-      { XMFLOAT3(1,  1, -1), XMFLOAT2(1,1) }, { XMFLOAT3(-1,  1, -1), XMFLOAT2(0,1) },
-      { XMFLOAT3(-1, -1,  1), XMFLOAT2(0,0) }, { XMFLOAT3(1, -1,  1), XMFLOAT2(1,0) },
-      { XMFLOAT3(1,  1,  1), XMFLOAT2(1,1) }, { XMFLOAT3(-1,  1,  1), XMFLOAT2(0,1) },
+      { DirectX::XMFLOAT3(-1,  1, -1), DirectX::XMFLOAT2(0,0) }, { DirectX::XMFLOAT3(1,  1, -1), DirectX::XMFLOAT2(1,0) },
+      { DirectX::XMFLOAT3(1,  1,  1), DirectX::XMFLOAT2(1,1) },  { DirectX::XMFLOAT3(-1,  1,  1), DirectX::XMFLOAT2(0,1) },
+      { DirectX::XMFLOAT3(-1, -1, -1), DirectX::XMFLOAT2(0,0) }, { DirectX::XMFLOAT3(1, -1, -1), DirectX::XMFLOAT2(1,0) },
+      { DirectX::XMFLOAT3(1, -1,  1),  DirectX::XMFLOAT2(1,1) }, { DirectX::XMFLOAT3(-1, -1,  1), DirectX::XMFLOAT2(0,1) },
+      { DirectX::XMFLOAT3(-1, -1,  1), DirectX::XMFLOAT2(0,0) }, { DirectX::XMFLOAT3(-1, -1, -1), DirectX::XMFLOAT2(1,0) },
+      { DirectX::XMFLOAT3(-1,  1, -1), DirectX::XMFLOAT2(1,1) }, { DirectX::XMFLOAT3(-1,  1,  1), DirectX::XMFLOAT2(0,1) },
+      { DirectX::XMFLOAT3(1, -1,  1),  DirectX::XMFLOAT2(0,0) }, { DirectX::XMFLOAT3(1, -1, -1), DirectX::XMFLOAT2(1,0) },
+      { DirectX::XMFLOAT3(1,  1, -1),  DirectX::XMFLOAT2(1,1) }, { DirectX::XMFLOAT3(1,  1,  1), DirectX::XMFLOAT2(0,1) },
+      { DirectX::XMFLOAT3(-1, -1, -1), DirectX::XMFLOAT2(0,0) }, { DirectX::XMFLOAT3(1, -1, -1), DirectX::XMFLOAT2(1,0) },
+      { DirectX::XMFLOAT3(1,  1, -1),  DirectX::XMFLOAT2(1,1) }, { DirectX::XMFLOAT3(-1,  1, -1), DirectX::XMFLOAT2(0,1) },
+      { DirectX::XMFLOAT3(-1, -1,  1), DirectX::XMFLOAT2(0,0) }, { DirectX::XMFLOAT3(1, -1,  1), DirectX::XMFLOAT2(1,0) },
+      { DirectX::XMFLOAT3(1,  1,  1),  DirectX::XMFLOAT2(1,1) }, { DirectX::XMFLOAT3(-1,  1,  1), DirectX::XMFLOAT2(0,1) },
   };
   WORD indices[] = {
       3,1,0,  2,1,3,  6,4,5,  7,4,6,  11,9,8, 10,9,11,
@@ -279,25 +292,25 @@ static HRESULT InitDevice() {
   bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
   bd.ByteWidth = (UINT)sizeof(vertices);
   srd.pSysMem = vertices;
-  if (FAILED(g_device->CreateBuffer(&bd, &srd, &g_vb))) return E_FAIL;
+  if (FAILED(g_device.m_device->CreateBuffer(&bd, &srd, &g_vb))) return E_FAIL;
 
   bd.BindFlags = D3D11_BIND_INDEX_BUFFER;
   bd.ByteWidth = (UINT)sizeof(indices);
   srd.pSysMem = indices;
-  if (FAILED(g_device->CreateBuffer(&bd, &srd, &g_ib))) return E_FAIL;
+  if (FAILED(g_device.m_device->CreateBuffer(&bd, &srd, &g_ib))) return E_FAIL;
 
   // Constant buffers
   bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
   bd.ByteWidth = sizeof(CBNeverChanges);
-  if (FAILED(g_device->CreateBuffer(&bd, nullptr, &g_cbView))) return E_FAIL;
+  if (FAILED(g_device.m_device->CreateBuffer(&bd, nullptr, &g_cbView))) return E_FAIL;
 
   bd.ByteWidth = sizeof(CBChangeOnResize);
-  if (FAILED(g_device->CreateBuffer(&bd, nullptr, &g_cbProj))) return E_FAIL;
+  if (FAILED(g_device.m_device->CreateBuffer(&bd, nullptr, &g_cbProj))) return E_FAIL;
 
   bd.ByteWidth = sizeof(CBChangesEveryFrame);
-  if (FAILED(g_device->CreateBuffer(&bd, nullptr, &g_cbFrame))) return E_FAIL;
+  if (FAILED(g_device.m_device->CreateBuffer(&bd, nullptr, &g_cbFrame))) return E_FAIL;
 
-  // Textura 1x1 blanca (evita dependencias externas)
+  // Textura 1x1 blanca
   {
     UINT32 white = 0xFFFFFFFF;
     D3D11_TEXTURE2D_DESC td{};
@@ -309,8 +322,8 @@ static HRESULT InitDevice() {
 
     D3D11_SUBRESOURCE_DATA texSRD{}; texSRD.pSysMem = &white; texSRD.SysMemPitch = sizeof(white);
     ComPtr<ID3D11Texture2D> tex;
-    if (FAILED(g_device->CreateTexture2D(&td, &texSRD, &tex))) return E_FAIL;
-    if (FAILED(g_device->CreateShaderResourceView(tex.Get(), nullptr, &g_srv))) return E_FAIL;
+    if (FAILED(g_device.m_device->CreateTexture2D(&td, &texSRD, &tex))) return E_FAIL;
+    if (FAILED(g_device.m_device->CreateShaderResourceView(tex.Get(), nullptr, &g_srv))) return E_FAIL;
   }
 
   // Sampler
@@ -319,30 +332,31 @@ static HRESULT InitDevice() {
   sdsc.AddressU = sdsc.AddressV = sdsc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
   sdsc.ComparisonFunc = D3D11_COMPARISON_NEVER;
   sdsc.MinLOD = 0; sdsc.MaxLOD = D3D11_FLOAT32_MAX;
-  if (FAILED(g_device->CreateSamplerState(&sdsc, &g_samp))) return E_FAIL;
+  if (FAILED(g_device.m_device->CreateSamplerState(&sdsc, &g_samp))) return E_FAIL;
 
-  // Rasterizer states: solid y wireframe (F1 para alternar)
+  // Rasterizer states
   D3D11_RASTERIZER_DESC rs{};
   rs.FillMode = D3D11_FILL_SOLID;
   rs.CullMode = D3D11_CULL_BACK;
-  g_device->CreateRasterizerState(&rs, &g_rsSolid);
+  g_device.m_device->CreateRasterizerState(&rs, &g_rsSolid);
   rs.FillMode = D3D11_FILL_WIREFRAME;
-  g_device->CreateRasterizerState(&rs, &g_rsWire);
-  g_ctx->RSSetState(g_rsSolid.Get()); // estado inicial
+  g_device.m_device->CreateRasterizerState(&rs, &g_rsWire);
+  g_ctx->RSSetState(g_rsSolid.Get());
 
   // Matrices iniciales
-  gWorld = XMMatrixIdentity();
+  gWorld = DirectX::XMMatrixIdentity();
 
-  XMVECTOR Eye = XMVectorSet(0.0f, 3.0f, -6.0f, 0.0f);
-  XMVECTOR At = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-  XMVECTOR Up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-  gView = XMMatrixLookAtLH(Eye, At, Up);
+  DirectX::XMVECTOR Eye = DirectX::XMVectorSet(0.0f, 3.0f, -6.0f, 0.0f);
+  DirectX::XMVECTOR At = DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+  DirectX::XMVECTOR Up = DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+  gView = DirectX::XMMatrixLookAtLH(Eye, At, Up);
 
-  CBNeverChanges cbV{ XMMatrixTranspose(gView) };
+  CBNeverChanges cbV{ DirectX::XMMatrixTranspose(gView) };
   g_ctx->UpdateSubresource(g_cbView.Get(), 0, nullptr, &cbV, 0, 0);
 
-  gProj = XMMatrixPerspectiveFovLH(XM_PIDIV4, (float)g_window.width() / (float)g_window.height(), 0.01f, 100.0f);
-  CBChangeOnResize cbP{ XMMatrixTranspose(gProj) };
+  gProj = DirectX::XMMatrixPerspectiveFovLH(DirectX::XM_PIDIV4,
+    (float)g_window.width() / (float)g_window.height(), 0.01f, 100.0f);
+  CBChangeOnResize cbP{ DirectX::XMMatrixTranspose(gProj) };
   g_ctx->UpdateSubresource(g_cbProj.Get(), 0, nullptr, &cbP, 0, 0);
 
   return S_OK;
@@ -359,7 +373,12 @@ static void CleanupDevice() {
   g_ib.Reset(); g_vb.Reset(); g_layout.Reset();
   g_ps.Reset(); g_vs.Reset();
   g_dsv.Reset(); g_depth.Reset(); g_rtv.Reset();
-  g_swap.Reset(); g_ctx.Reset(); g_device.Reset();
+  g_swap.Reset();
+
+  g_devctx.destroy();
+  g_ctx.Reset();
+
+  g_device.destroy(); // libera m_device
 }
 
 // =============================
@@ -372,8 +391,13 @@ static void Render() {
   float secs = (t - t0) / 1000.0f;
 
   // Animación
-  gWorld = XMMatrixRotationY(secs);
-  gMeshColor = XMFLOAT4((sinf(secs * 1.0f) + 1.f) * 0.5f, (cosf(secs * 3.0f) + 1.f) * 0.5f, (sinf(secs * 5.0f) + 1.f) * 0.5f, 1.0f);
+  gWorld = DirectX::XMMatrixRotationY(secs);
+  gMeshColor = DirectX::XMFLOAT4(
+    (sinf(secs * 1.0f) + 1.f) * 0.5f,
+    (cosf(secs * 3.0f) + 1.f) * 0.5f,
+    (sinf(secs * 5.0f) + 1.f) * 0.5f,
+    1.0f
+  );
 
   // Clear
   float clear[4] = { 0.0f, 0.125f, 0.3f, 1.0f };
@@ -381,7 +405,9 @@ static void Render() {
   g_ctx->ClearDepthStencilView(g_dsv.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0);
 
   // Actualiza CBuffer frame
-  CBChangesEveryFrame cbF{}; cbF.mWorld = XMMatrixTranspose(gWorld); cbF.vMeshColor = gMeshColor;
+  CBChangesEveryFrame cbF{};
+  cbF.mWorld = DirectX::XMMatrixTranspose(gWorld);
+  cbF.vMeshColor = gMeshColor;
   g_ctx->UpdateSubresource(g_cbFrame.Get(), 0, nullptr, &cbF, 0, 0);
 
   // Pipeline
@@ -412,7 +438,7 @@ static void Render() {
 static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
   switch (msg) {
   case WM_SIZE:
-    // (Opcional) re-crear backbuffer/DSV y reproyección aquí.
+    // (Opcional) recrear backbuffer/DSV y reproyección aquí.
     break;
   case WM_KEYDOWN:
     if (wParam == VK_ESCAPE) PostQuitMessage(0);
