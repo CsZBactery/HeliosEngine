@@ -110,12 +110,16 @@ float4 PS(VS_OUTPUT i) : SV_Target {
 
 // Compilación desde memoria
 static HRESULT CompileFromSource(const char* src, const char* entry, const char* target, ID3DBlob** blobOut) {
-  UINT flags = D3D_COMPILE_STANDARD_FILE_INCLUDE ? D3DCOMPILE_ENABLE_STRICTNESS : D3DCOMPILE_ENABLE_STRICTNESS;
+  UINT flags = D3DCOMPILE_ENABLE_STRICTNESS;
 #if defined(_DEBUG)
   flags |= D3DCOMPILE_DEBUG;
 #endif
-  ComPtr<ID3DBlob> err, blob;
-  HRESULT hr = D3DCompile(src, (UINT)std::strlen(src), nullptr, nullptr, nullptr, entry, target, flags, 0, &blob, &err);
+  Microsoft::WRL::ComPtr<ID3DBlob> err, blob;
+  HRESULT hr = D3DCompile(src, (UINT)std::strlen(src),
+    nullptr, nullptr, nullptr,
+    entry, target,
+    flags, 0,
+    &blob, &err);
   if (FAILED(hr)) {
     if (err) OutputDebugStringA((const char*)err->GetBufferPointer());
     return hr;
@@ -123,6 +127,7 @@ static HRESULT CompileFromSource(const char* src, const char* entry, const char*
   *blobOut = blob.Detach();
   return S_OK;
 }
+
 
 // =============================
 // Estructuras
