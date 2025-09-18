@@ -5,24 +5,34 @@
 
 #include <d3d11.h>
 #include <d3dx11.h>
-#include <cassert>
+#include <string>
 
 #ifndef ERROR
-// Si ya tienes tu macro, elimina esto.
+// Usa tu propio logger si ya tienes uno
 #define ERROR(MOD, FUNC, MSG) OutputDebugStringA(("[ERROR][" MOD "][" FUNC "] " MSG "\n"))
 #endif
 
-template<typename T>
-static void SafeRelease(T*& p) { if (p) { p->Release(); p = nullptr; } }
+#ifndef SAFE_RELEASE
+#define SAFE_RELEASE(x) do { if (x) { (x)->Release(); (x) = nullptr; } } while(0)
+#endif
 
-// ==============================
-// 1) init() desde archivo
-// ==============================
+// ------------------------------------------------------------
+// Helpers internos
+// ------------------------------------------------------------
+static DXGI_FORMAT ToSrvFormatForMsaa(DXGI_FORMAT fmt) {
+  // Para la mayoría de formatos no necesitas convertir; si alguna vez usas
+  // typeless para RTV/DSV, ajusta aquí a la variante UNORM/TYPELESS adecuada.
+  return fmt;
+}
+
+// ------------------------------------------------------------
+// init(): cargar desde archivo (DDS/WIC)
+// ------------------------------------------------------------
 HRESULT Texture::init(Device& device,
   const std::string& textureName,
   ExtensionType /*extensionType*/)
 {
-  if (!device.m_device) { // <-- cambia si tu Device usa otro nombre
+  if (!device.m_device) { // ajusta si tu Device tiene otro nombre
     ERROR("Texture", "init(file)", "Device is null.");
     return E_POINTER;
   }
@@ -31,17 +41,17 @@ HRESULT Texture::init(Device& device,
   destroy();
   m_textureName = textureName;
 
-  // Crea SRV directamente desde archivo
+  // Carga SRV directamente desde archivo (D3DX11 soporta DDS y WIC)
   D3DX11_IMAGE_LOAD_INFO loadInfo = {};
-  loadInfo.Format = DXGI_FORMAT_FROM_FILE;
-  loadInfo.MipLevels = 0;                        // permitir cadena de mips si aplica
+  loadInfo.Format = DXGI_FORMAT_FROM_FILE;              // autodetect
+  loadInfo.MipLevels = 0;                                  // genera cadena si aplica
   loadInfo.BindFlags = D3D11_BIND_SHADER_RESOURCE;
 
   HRESULT hr = D3DX11CreateShaderResourceViewFromFileA(
-    device.m_device,                           // <-- cambia si tu Device usa otro nombre
+    device.m_device,
     textureName.c_str(),
     &loadInfo,
-    nullptr,
+    nullptr,                 // no necesitamos device context aquí
     &m_textureFromImg,
     nullptr
   );
@@ -50,7 +60,7 @@ HRESULT Texture::init(Device& device,
     return hr;
   }
 
-  // (Opcional) obtener el ID3D11Texture2D real detrás del SRV y guardarlo en m_texture
+  // Si quieres guardar también el ID3D11Texture2D subyacente, lo consultamos:
   {
     ID3D11Resource* res = nullptr;
     m_textureFromImg->GetResource(&res);
@@ -63,13 +73,13 @@ HRESULT Texture::init(Device& device,
   return S_OK;
 }
 
-// ===========================================
-// 2) init() creando textura vacía con params
-// ===========================================
+// ------------------------------------------------------------
+// init(): crear textura vacía con parámetros
+// ------------------------------------------------------------
 HRESULT Texture::init(Device& device,
   unsigned int width,
   unsigned int height,
-  DXGI_FORMAT format,
+  DXGI_FORMAT Format,
   unsigned int BindFlags,
   unsigned int sampleCount,
   unsigned int qualityLevels)
@@ -87,31 +97,32 @@ HRESULT Texture::init(Device& device,
   destroy();
   m_textureName.clear();
 
-  D3D11_TEXTURE2D_DESC td = {};
-  td.Width = width;
-  td.Height = height;
-  td.MipLevels = 1;                      // 1 mip (ajusta si necesitas más)
-  td.ArraySize = 1;
-  td.Format = format;
-  td.SampleDesc.Count = sampleCount == 0 ? 1u : sampleCount;
-  td.SampleDesc.Quality = qualityLevels;
-  td.Usage = D3D11_USAGE_DEFAULT;
-  td.BindFlags = BindFlags;              // p.ej. D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET
-  td.CPUAccessFlags = 0;
-  td.MiscFlags = 0;
+  // Descripción de la textura
+  D3D11_TEXTURE2D_DESC desc = {};
+  desc.Width = width;
+  desc.Height = height;
+  desc.MipLevels = 1; // si quieres cadena de mips, cambia a 0 + GenerateMips
+  desc.ArraySize = 1;
+  desc.Format = Format;
+  desc.SampleDesc.Count = (sampleCount == 0) ? 1u : sampleCount;
+  desc.SampleDesc.Quality = qualityLevels;
+  desc.Usage = D3D11_USAGE_DEFAULT;
+  desc.BindFlags = BindFlags;  // p.ej. D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET
+  desc.CPUAccessFlags = 0;
+  desc.MiscFlags = 0;
 
-  HRESULT hr = device.m_device->CreateTexture2D(&td, nullptr, &m_texture);
+  HRESULT hr = device.m_device->CreateTexture2D(&desc, nullptr, &m_texture);
   if (FAILED(hr)) {
     ERROR("Texture", "init(params)", "CreateTexture2D failed.");
     return hr;
   }
 
-  // Si se desea muestrear en shader, creamos su SRV
+  // Crear SRV si la textura será muestreada en shaders
   if (BindFlags & D3D11_BIND_SHADER_RESOURCE) {
     D3D11_SHADER_RESOURCE_VIEW_DESC srvd = {};
-    srvd.Format = format;
+    srvd.Format = ToSrvFormatForMsaa(Format);
 
-    if (td.SampleDesc.Count > 1) {
+    if (desc.SampleDesc.Count > 1) {
       srvd.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2DMS;
     }
     else {
@@ -130,9 +141,9 @@ HRESULT Texture::init(Device& device,
   return S_OK;
 }
 
-// ========================================================
-// 3) init() envolviendo una textura existente (crear SRV)
-// ========================================================
+// ------------------------------------------------------------
+// init(): envolver textura existente y crear SRV compatible
+// ------------------------------------------------------------
 HRESULT Texture::init(Device& device,
   Texture& textureRef,
   DXGI_FORMAT format)
@@ -150,15 +161,16 @@ HRESULT Texture::init(Device& device,
   destroy();
   m_textureName.clear();
 
-  // No clonamos el recurso; lo referenciamos (AddRef implícito en SRV)
+  // Referenciamos el recurso existente
   m_texture = textureRef.m_texture;
   if (m_texture) m_texture->AddRef();
 
   D3D11_TEXTURE2D_DESC td = {};
   m_texture->GetDesc(&td);
 
+  // Creamos SRV si el formato y flags lo permiten
   D3D11_SHADER_RESOURCE_VIEW_DESC srvd = {};
-  srvd.Format = format;
+  srvd.Format = (format == DXGI_FORMAT_UNKNOWN) ? td.Format : format;
 
   if (td.SampleDesc.Count > 1) {
     srvd.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2DMS;
@@ -166,7 +178,7 @@ HRESULT Texture::init(Device& device,
   else {
     srvd.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
     srvd.Texture2D.MostDetailedMip = 0;
-    srvd.Texture2D.MipLevels = td.MipLevels;
+    srvd.Texture2D.MipLevels = td.MipLevels ? td.MipLevels : 1;
   }
 
   HRESULT hr = device.m_device->CreateShaderResourceView(m_texture, &srvd, &m_textureFromImg);
@@ -178,29 +190,34 @@ HRESULT Texture::init(Device& device,
   return S_OK;
 }
 
-// ==============================
-// update() (placeholder)
-// ==============================
+// ------------------------------------------------------------
+// update(): placeholder por si haces streaming/anim
+// ------------------------------------------------------------
 void Texture::update()
 {
-  // vacío por ahora; útil si haces streaming/animación, etc.
+  // Intencionalmente vacío
 }
 
-// ==============================
-// render(): bind de SRV al PS
-// ==============================
-void Texture::render(DeviceContext& ctx, unsigned StartSlot, unsigned NumViews) {
+// ------------------------------------------------------------
+// render(): bindea SRV al Pixel Shader (usa wrappers públicos)
+// ------------------------------------------------------------
+void Texture::render(DeviceContext& deviceContext,
+  unsigned int StartSlot,
+  unsigned int NumViews)
+{
   if (!m_textureFromImg) return;
+
   ID3D11ShaderResourceView* views[1] = { m_textureFromImg };
-  ctx.PSSetShaderResources(StartSlot, NumViews, views);
+  deviceContext.PSSetShaderResources(StartSlot, NumViews, views);
+  // Si gestionas samplers en otra clase, aquí también puedes llamar:
+  // deviceContext.PSSetSamplers(StartSlot, NumSamplers, ppSamplers);
 }
 
-
-// ==============================
-// destroy(): liberar recursos
-// ==============================
+// ------------------------------------------------------------
+// destroy(): libera recursos
+// ------------------------------------------------------------
 void Texture::destroy()
 {
-  SafeRelease(m_textureFromImg);
-  SafeRelease(m_texture);
+  SAFE_RELEASE(m_textureFromImg);
+  SAFE_RELEASE(m_texture);
 }

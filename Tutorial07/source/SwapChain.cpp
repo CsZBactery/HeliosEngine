@@ -1,22 +1,34 @@
-#include "../include/Prerequisites.h"
+﻿#include "../include/Prerequisites.h"
 #include "../include/SwapChain.h"
 #include "../include/Device.h"
 #include "../include/DeviceContext.h"
 #include "../include/Window.h"
 
-// ---------- helpers internos ----------
+// --- Fallbacks de utilería (si ya los tienes, quítalos) ---
+#ifndef SAFE_RELEASE
+#define SAFE_RELEASE(p) do { if (p) { (p)->Release(); (p) = nullptr; } } while(0)
+#endif
+
+#ifndef ERROR
+#define ERROR(MOD, FUNC, WMSG) OutputDebugStringW(L"[ERROR][" L#MOD L"][" L#FUNC L"] " WMSG L"\n")
+#endif
+
+#ifndef MESSAGE
+#define MESSAGE(MOD, FUNC, WMSG) OutputDebugStringW(L"[INFO ][" L#MOD L"][" L#FUNC L"] " WMSG L"\n")
+#endif
+// -----------------------------------------------------------
+
 void SwapChain::destroyRTV_() {
   SAFE_RELEASE(m_rtv);
 }
 
-// ---------- ciclo de vida ----------
 void SwapChain::destroy() {
   destroyRTV_();
   SAFE_RELEASE(m_swap);
   m_width = 0;
   m_height = 0;
   m_format = DXGI_FORMAT_R8G8B8A8_UNORM;
-  MESSAGE(SwapChain, destroy, Released);
+  MESSAGE(SwapChain, destroy, L"Released");
 }
 
 // ---------- LOW-LEVEL API ----------
@@ -27,7 +39,7 @@ HRESULT SwapChain::create(ID3D11Device* device,
   DXGI_FORMAT format,
   UINT bufferCount,
   BOOL windowed,
-  UINT sampleCount)
+  UINT /*sampleCount*/)
 {
   if (!device) { ERROR(SwapChain, create, L"device is nullptr"); return E_POINTER; }
   if (!hwnd) { ERROR(SwapChain, create, L"hwnd is nullptr");   return E_POINTER; }
@@ -36,14 +48,12 @@ HRESULT SwapChain::create(ID3D11Device* device,
     return E_INVALIDARG;
   }
 
-  // limpia si ya exist�a
   destroy();
 
   m_width = width;
   m_height = height;
   m_format = format;
 
-  // Necesitamos la f�brica de DXGI desde el device
   IDXGIDevice* dxgiDev = nullptr;
   IDXGIAdapter* adapter = nullptr;
   IDXGIFactory* factory = nullptr;
@@ -57,20 +67,19 @@ HRESULT SwapChain::create(ID3D11Device* device,
   hr = adapter->GetParent(__uuidof(IDXGIFactory), (void**)&factory);
   if (FAILED(hr)) { ERROR(SwapChain, create, L"GetParent IDXGIFactory failed"); goto Cleanup; }
 
-  // Describe la swap chain (DXGI 1.0 estilo DISCARD para compatibilidad amplia)
   DXGI_SWAP_CHAIN_DESC sd{};
   sd.BufferDesc.Width = width;
   sd.BufferDesc.Height = height;
   sd.BufferDesc.Format = format;
-  sd.BufferDesc.RefreshRate.Numerator = 0; // let DXGI choose
+  sd.BufferDesc.RefreshRate.Numerator = 0; // DXGI elige
   sd.BufferDesc.RefreshRate.Denominator = 1;
-  sd.SampleDesc.Count = sampleCount;
+  sd.SampleDesc.Count = 1;   // ← backbuffer sin MSAA
   sd.SampleDesc.Quality = 0;
   sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-  sd.BufferCount = bufferCount;
+  sd.BufferCount = bufferCount;       // 1 backbuffer (o 2 si quieres doble buffer)
   sd.OutputWindow = hwnd;
   sd.Windowed = windowed;
-  sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
+  sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD; // DXGI 1.0 clásico
   sd.Flags = 0;
 
   hr = factory->CreateSwapChain(device, &sd, &m_swap);
@@ -79,8 +88,7 @@ HRESULT SwapChain::create(ID3D11Device* device,
   hr = recreateRTV(device);
   if (FAILED(hr)) goto Cleanup;
 
-  MESSAGE(SwapChain, create, Created);
-  // fall-through
+  MESSAGE(SwapChain, create, L"Created");
 
 Cleanup:
   SAFE_RELEASE(factory);
@@ -104,7 +112,7 @@ HRESULT SwapChain::recreateRTV(ID3D11Device* device) {
 
   if (FAILED(hr)) { ERROR(SwapChain, recreateRTV, L"CreateRenderTargetView failed"); return hr; }
 
-  MESSAGE(SwapChain, recreateRTV, RTV_Recreated);
+  MESSAGE(SwapChain, recreateRTV, L"RTV_Recreated");
   return S_OK;
 }
 
@@ -118,7 +126,6 @@ HRESULT SwapChain::resize(ID3D11Device* device, UINT width, UINT height) {
 
   destroyRTV_(); // RTV debe liberarse antes del ResizeBuffers
 
-  // Count=0 y Format=DXGI_FORMAT_UNKNOWN => conservar valores actuales
   HRESULT hr = m_swap->ResizeBuffers(0, width, height, DXGI_FORMAT_UNKNOWN, 0);
   if (FAILED(hr)) { ERROR(SwapChain, resize, L"ResizeBuffers failed"); return hr; }
 
@@ -128,7 +135,7 @@ HRESULT SwapChain::resize(ID3D11Device* device, UINT width, UINT height) {
   hr = recreateRTV(device);
   if (FAILED(hr)) return hr;
 
-  MESSAGE(SwapChain, resize, Resized);
+  MESSAGE(SwapChain, resize, L"Resized");
   return S_OK;
 }
 
@@ -137,12 +144,9 @@ HRESULT SwapChain::present(UINT syncInterval, UINT flags) {
   return m_swap->Present(syncInterval, flags);
 }
 
-void SwapChain::bindAsRenderTarget(ID3D11DeviceContext* ctx,
-  ID3D11DepthStencilView* dsv) const
-{
+void SwapChain::bindAsRenderTarget(ID3D11DeviceContext* ctx, ID3D11DepthStencilView* dsv) const {
   if (!ctx) { ERROR(SwapChain, bindAsRenderTarget, L"ctx is nullptr"); return; }
   if (!m_rtv) { ERROR(SwapChain, bindAsRenderTarget, L"RTV is nullptr"); return; }
-
   ID3D11RenderTargetView* rtv = m_rtv;
   ctx->OMSetRenderTargets(1, &rtv, dsv);
 }
@@ -157,6 +161,7 @@ HRESULT SwapChain::create(Device& device,
   BOOL windowed,
   UINT sampleCount)
 {
+  // Si Device/Window exponen getters, usa: device.get(), window.hwnd()
   return create(device.m_device, window.m_hWnd, width, height,
     format, bufferCount, windowed, sampleCount);
 }
@@ -169,11 +174,8 @@ HRESULT SwapChain::resize(Device& device, UINT width, UINT height) {
   return resize(device.m_device, width, height);
 }
 
-void SwapChain::bindAsRenderTarget(DeviceContext& ctx,
-  ID3D11DepthStencilView* dsv) const
-{
+void SwapChain::bindAsRenderTarget(DeviceContext& ctx, ID3D11DepthStencilView* dsv) const {
   if (!m_rtv) { ERROR(SwapChain, bindAsRenderTarget, L"RTV is nullptr"); return; }
   ID3D11RenderTargetView* rtv = m_rtv;
-  // Usa tu wrapper para hacer el OMSetRenderTargets
   ctx.OMSetRenderTargets(1, &rtv, dsv);
 }
