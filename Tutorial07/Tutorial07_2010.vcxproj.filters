@@ -35,6 +35,12 @@
     <ClInclude Include="include\DeviceContext.h">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\SwapChain.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Texture.h">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="source\Device.cpp">
@@ -44,6 +50,12 @@
       <Filter>source</Filter>
     </ClCompile>
     <ClCompile Include="source\DeviceContext.cpp">
+      <Filter>source</Filter>
+    </ClCompile>
+    <ClCompile Include="source\SwapChain.cpp">
+      <Filter>source</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Texture.cpp">
       <Filter>source</Filter>
     </ClCompile>
   </ItemGroup>
