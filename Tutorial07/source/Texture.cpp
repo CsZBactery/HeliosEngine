@@ -8,7 +8,6 @@
 #include <string>
 
 #ifndef ERROR
-// Usa tu propio logger si ya tienes uno
 #define ERROR(MOD, FUNC, MSG) OutputDebugStringA(("[ERROR][" MOD "][" FUNC "] " MSG "\n"))
 #endif
 
@@ -19,10 +18,18 @@
 // ------------------------------------------------------------
 // Helpers internos
 // ------------------------------------------------------------
-static DXGI_FORMAT ToSrvFormatForMsaa(DXGI_FORMAT fmt) {
-  // Para la mayoría de formatos no necesitas convertir; si alguna vez usas
-  // typeless para RTV/DSV, ajusta aquí a la variante UNORM/TYPELESS adecuada.
-  return fmt;
+
+// Mapea formatos TYPELESS al equivalente tipado para usar en SRV.
+// Agrega aquí los que uses en tu engine.
+static DXGI_FORMAT ChooseSrvFormat(DXGI_FORMAT f) {
+  switch (f) {
+  case DXGI_FORMAT_R8G8B8A8_TYPELESS:   return DXGI_FORMAT_R8G8B8A8_UNORM;
+  case DXGI_FORMAT_B8G8R8A8_TYPELESS:   return DXGI_FORMAT_B8G8R8A8_UNORM;
+  case DXGI_FORMAT_R16_TYPELESS:        return DXGI_FORMAT_R16_UNORM;
+  case DXGI_FORMAT_R24G8_TYPELESS:      return DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
+  case DXGI_FORMAT_R32_TYPELESS:        return DXGI_FORMAT_R32_FLOAT;
+  default:                              return f; // ya es tipado usable
+  }
 }
 
 // ------------------------------------------------------------
@@ -32,7 +39,7 @@ HRESULT Texture::init(Device& device,
   const std::string& textureName,
   ExtensionType /*extensionType*/)
 {
-  if (!device.m_device) { // ajusta si tu Device tiene otro nombre
+  if (!device.m_device) {
     ERROR("Texture", "init(file)", "Device is null.");
     return E_POINTER;
   }
@@ -43,15 +50,15 @@ HRESULT Texture::init(Device& device,
 
   // Carga SRV directamente desde archivo (D3DX11 soporta DDS y WIC)
   D3DX11_IMAGE_LOAD_INFO loadInfo = {};
-  loadInfo.Format = DXGI_FORMAT_FROM_FILE;              // autodetect
-  loadInfo.MipLevels = 0;                                  // genera cadena si aplica
+  loadInfo.Format = DXGI_FORMAT_FROM_FILE;     // autodetect
+  loadInfo.MipLevels = 0;                         // generar cadena si aplica
   loadInfo.BindFlags = D3D11_BIND_SHADER_RESOURCE;
 
   HRESULT hr = D3DX11CreateShaderResourceViewFromFileA(
     device.m_device,
     textureName.c_str(),
     &loadInfo,
-    nullptr,                 // no necesitamos device context aquí
+    nullptr,
     &m_textureFromImg,
     nullptr
   );
@@ -60,7 +67,7 @@ HRESULT Texture::init(Device& device,
     return hr;
   }
 
-  // Si quieres guardar también el ID3D11Texture2D subyacente, lo consultamos:
+  // Guardar el ID3D11Texture2D subyacente (opcional pero útil)
   {
     ID3D11Resource* res = nullptr;
     m_textureFromImg->GetResource(&res);
@@ -101,13 +108,13 @@ HRESULT Texture::init(Device& device,
   D3D11_TEXTURE2D_DESC desc = {};
   desc.Width = width;
   desc.Height = height;
-  desc.MipLevels = 1; // si quieres cadena de mips, cambia a 0 + GenerateMips
+  desc.MipLevels = 1; // si quieres cadena de mips, usa 0 + GenerateMips
   desc.ArraySize = 1;
   desc.Format = Format;
   desc.SampleDesc.Count = (sampleCount == 0) ? 1u : sampleCount;
   desc.SampleDesc.Quality = qualityLevels;
   desc.Usage = D3D11_USAGE_DEFAULT;
-  desc.BindFlags = BindFlags;  // p.ej. D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET
+  desc.BindFlags = BindFlags;  // ej: D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET
   desc.CPUAccessFlags = 0;
   desc.MiscFlags = 0;
 
@@ -120,15 +127,16 @@ HRESULT Texture::init(Device& device,
   // Crear SRV si la textura será muestreada en shaders
   if (BindFlags & D3D11_BIND_SHADER_RESOURCE) {
     D3D11_SHADER_RESOURCE_VIEW_DESC srvd = {};
-    srvd.Format = ToSrvFormatForMsaa(Format);
+    srvd.Format = ChooseSrvFormat(Format);
 
     if (desc.SampleDesc.Count > 1) {
+      // Multisample
       srvd.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2DMS;
     }
     else {
       srvd.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
       srvd.Texture2D.MostDetailedMip = 0;
-      srvd.Texture2D.MipLevels = 1;
+      srvd.Texture2D.MipLevels = 1; // si desc.MipLevels==0, podrías usar UINT(-1) y luego GenerateMips
     }
 
     hr = device.m_device->CreateShaderResourceView(m_texture, &srvd, &m_textureFromImg);
@@ -168,9 +176,20 @@ HRESULT Texture::init(Device& device,
   D3D11_TEXTURE2D_DESC td = {};
   m_texture->GetDesc(&td);
 
-  // Creamos SRV si el formato y flags lo permiten
+  // 1) Validar que la textura soporte SRV
+  if ((td.BindFlags & D3D11_BIND_SHADER_RESOURCE) == 0) {
+    ERROR("Texture", "init(ref)", "Source texture lacks D3D11_BIND_SHADER_RESOURCE.");
+    return E_FAIL;
+  }
+
+  // 2) Elegir formato SRV correcto (resolver TYPELESS si aplica)
+  DXGI_FORMAT srvFormat = (format == DXGI_FORMAT_UNKNOWN)
+    ? ChooseSrvFormat(td.Format)
+    : format;
+
+  // 3) Describir la SRV (usar todos los mips si hay cadena disponible)
   D3D11_SHADER_RESOURCE_VIEW_DESC srvd = {};
-  srvd.Format = (format == DXGI_FORMAT_UNKNOWN) ? td.Format : format;
+  srvd.Format = srvFormat;
 
   if (td.SampleDesc.Count > 1) {
     srvd.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2DMS;
@@ -178,7 +197,11 @@ HRESULT Texture::init(Device& device,
   else {
     srvd.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
     srvd.Texture2D.MostDetailedMip = 0;
-    srvd.Texture2D.MipLevels = td.MipLevels ? td.MipLevels : 1;
+
+    // Si td.MipLevels == 0 (algunas cargas) o quieres exponer todos:
+    srvd.Texture2D.MipLevels = (td.MipLevels && td.MipLevels != 0xFFFFFFFF)
+      ? td.MipLevels
+      : UINT(-1); // "todos los mips disponibles"
   }
 
   HRESULT hr = device.m_device->CreateShaderResourceView(m_texture, &srvd, &m_textureFromImg);
@@ -191,33 +214,34 @@ HRESULT Texture::init(Device& device,
 }
 
 // ------------------------------------------------------------
-// update(): placeholder por si haces streaming/anim
-// ------------------------------------------------------------
-void Texture::update()
-{
-  // Intencionalmente vacío
-}
-
-// ------------------------------------------------------------
 // render(): bindea SRV al Pixel Shader (usa wrappers públicos)
 // ------------------------------------------------------------
-void Texture::render(DeviceContext& deviceContext,
+void Texture::render(DeviceContext& ctx,
   unsigned int StartSlot,
   unsigned int NumViews)
 {
-  if (!m_textureFromImg) return;
+  if (!m_textureFromImg) {
+    ERROR("Texture", "render", "SRV is null.");
+    return;
+  }
 
+  // La API espera un array; para 1 vista, arma el arreglo local:
+  if (NumViews == 0) NumViews = 1;     // sanidad
   ID3D11ShaderResourceView* views[1] = { m_textureFromImg };
-  deviceContext.PSSetShaderResources(StartSlot, NumViews, views);
-  // Si gestionas samplers en otra clase, aquí también puedes llamar:
-  // deviceContext.PSSetSamplers(StartSlot, NumSamplers, ppSamplers);
+  ctx.PSSetShaderResources(StartSlot, NumViews, views);
+
+  // Si gestionas samplers en otra clase, podrías también:
+  // ctx.PSSetSamplers(StartSlot, NumSamplers, ppSamplers);
 }
+
 
 // ------------------------------------------------------------
 // destroy(): libera recursos
 // ------------------------------------------------------------
 void Texture::destroy()
 {
+  // Libera primero la SRV y luego el recurso base
   SAFE_RELEASE(m_textureFromImg);
   SAFE_RELEASE(m_texture);
 }
+
