@@ -6,24 +6,11 @@
 #include "../include/Window.h"
 #include "../include/Texture.h"
 
-#ifndef SAFE_RELEASE
-#define SAFE_RELEASE(p) do { if (p) { (p)->Release(); (p) = nullptr; } } while(0)
-#endif
-#ifndef ERROR
-#define ERROR(MOD, FUNC, WMSG) OutputDebugStringW(L"[ERROR][" L#MOD L"][" L#FUNC L"] " WMSG L"\n")
-#endif
-#ifndef MESSAGE
-#define MESSAGE(MOD, FUNC, WMSG) OutputDebugStringW(L"[INFO ][" L#MOD L"][" L#FUNC L"] " WMSG L"\n")
-#endif
-
 void SwapChain::destroyRTV_() { SAFE_RELEASE(m_rtv); }
 
 void SwapChain::destroy()
 {
-  // Si estuviera en fullscreen, vuelve a windowed antes de liberar
   if (m_swap) { m_swap->SetFullscreenState(FALSE, nullptr); }
-
-  // RTV primero, luego swap chain
   destroyRTV_();
   SAFE_RELEASE(m_swap);
 
@@ -42,7 +29,6 @@ HRESULT SwapChain::init(Device& device,
 {
   if (!window.m_hWnd) { ERROR(SwapChain, init, L"Invalid window handle"); return E_POINTER; }
 
-  // 1) Crear Device + Immediate Context (sin swap chain)
   UINT createDeviceFlags = 0;
 #ifdef _DEBUG
   createDeviceFlags |= D3D11_CREATE_DEVICE_DEBUG;
@@ -64,24 +50,21 @@ HRESULT SwapChain::init(Device& device,
 
   ID3D11Device* d3dDevice = nullptr;
   ID3D11DeviceContext* immContext = nullptr;
-  D3D_FEATURE_LEVEL    obtainedFL = {};
+  D3D_FEATURE_LEVEL obtainedFL = {};
   HRESULT hr = E_FAIL;
 
   for (UINT i = 0; i < numDriverTypes; ++i) {
-    hr = D3D11CreateDevice(
-      nullptr, driverTypes[i], nullptr, createDeviceFlags,
+    hr = D3D11CreateDevice(nullptr, driverTypes[i], nullptr, createDeviceFlags,
       featureLevels, numFeatureLevels,
-      D3D11_SDK_VERSION, &d3dDevice, &obtainedFL, &immContext
-    );
+      D3D11_SDK_VERSION, &d3dDevice, &obtainedFL, &immContext);
     if (SUCCEEDED(hr)) break;
   }
   if (FAILED(hr)) { ERROR(SwapChain, init, L"D3D11CreateDevice failed"); return hr; }
 
-  // Conectar wrappers
-  device.m_device = d3dDevice;          // si tienes attach(), úsalo
-  deviceContext.attach(immContext);     // tu wrapper hace AddRef/Release
+  device.m_device = d3dDevice;         // si tienes attach(), úsalo en su lugar
+  deviceContext.attach(immContext);    // tu wrapper hace AddRef/Release
 
-  // 2) Obtener Factory vía IDXGIDevice -> IDXGIAdapter -> IDXGIFactory
+  // Factory: IDXGIDevice -> IDXGIAdapter -> IDXGIFactory
   IDXGIDevice* dxgiDev = nullptr;
   IDXGIAdapter* adapter = nullptr;
   IDXGIFactory* factory = nullptr;
@@ -95,27 +78,26 @@ HRESULT SwapChain::init(Device& device,
   hr = adapter->GetParent(__uuidof(IDXGIFactory), (void**)&factory);
   if (FAILED(hr)) { ERROR(SwapChain, init, L"IDXGIAdapter::GetParent IDXGIFactory failed"); goto FactoryCleanup; }
 
-  // 3) Crear Swap Chain (DXGI 1.0, backbuffer sin MSAA)
   DXGI_SWAP_CHAIN_DESC sd{};
-  sd.BufferDesc.Width = 0; // usar tamaño de ventana
+  sd.BufferDesc.Width = 0;
   sd.BufferDesc.Height = 0;
   sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
   sd.BufferDesc.RefreshRate.Numerator = 0;
   sd.BufferDesc.RefreshRate.Denominator = 1;
-  sd.SampleDesc.Count = 1; // backbuffer sin MSAA (compat max)
+  sd.SampleDesc.Count = 1; // sin MSAA para backbuffer
   sd.SampleDesc.Quality = 0;
   sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-  sd.BufferCount = 1;       // cambia a 2 si quieres doble buffer
+  sd.BufferCount = 1;
   sd.OutputWindow = window.m_hWnd;
   sd.Windowed = TRUE;
   sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
   sd.Flags = 0;
 
-  SAFE_RELEASE(m_swap); // por si acaso
+  SAFE_RELEASE(m_swap);
   hr = factory->CreateSwapChain(d3dDevice, &sd, &m_swap);
   if (FAILED(hr)) { ERROR(SwapChain, init, L"CreateSwapChain failed"); goto FactoryCleanup; }
 
-  // 4) RTV del backbuffer y exponer el recurso en backBuffer
+  // RTV y backBuffer
   ID3D11Texture2D* bbTex = nullptr;
   hr = m_swap->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&bbTex);
   if (FAILED(hr)) { ERROR(SwapChain, init, L"GetBuffer(0) failed"); goto FactoryCleanup; }
@@ -125,9 +107,8 @@ HRESULT SwapChain::init(Device& device,
   if (FAILED(hr)) { SAFE_RELEASE(bbTex); ERROR(SwapChain, init, L"CreateRenderTargetView failed"); goto FactoryCleanup; }
 
   backBuffer.destroy();
-  backBuffer.m_texture = bbTex; // nos quedamos con la ref (no crear SRV del backbuffer)
+  backBuffer.m_texture = bbTex; // mantenemos la ref al recurso del backbuffer
 
-  // 5) Guardar tamaño/formato y configurar viewport inicial
   DXGI_SWAP_CHAIN_DESC got{};
   m_swap->GetDesc(&got);
   m_width = got.BufferDesc.Width;
@@ -249,7 +230,6 @@ HRESULT SwapChain::resize(ID3D11Device* device, UINT width, UINT height)
   hr = recreateRTV(device);
   if (FAILED(hr)) return hr;
 
-  // Nota: re-aplica viewport desde el caller usando DeviceContext::RSSetViewports.
   MESSAGE(SwapChain, resize, L"Resized");
   return S_OK;
 }
@@ -257,22 +237,7 @@ HRESULT SwapChain::resize(ID3D11Device* device, UINT width, UINT height)
 HRESULT SwapChain::present(UINT syncInterval, UINT flags)
 {
   if (!m_swap) { ERROR(SwapChain, present, L"swap chain is nullptr"); return E_FAIL; }
-
-  HRESULT hr = m_swap->Present(syncInterval, flags);
-
-  if (hr == DXGI_STATUS_OCCLUDED) {
-    // ventana oculta: no es fatal
-    return hr;
-  }
-  if (hr == DXGI_ERROR_DEVICE_REMOVED || hr == DXGI_ERROR_DEVICE_RESET) {
-    ERROR(SwapChain, present, L"Device removed/reset during Present()");
-    return hr;
-  }
-  if (FAILED(hr)) {
-    ERROR(SwapChain, present, L"Present failed");
-    return hr;
-  }
-  return S_OK;
+  return m_swap->Present(syncInterval, flags);
 }
 
 void SwapChain::bindAsRenderTarget(ID3D11DeviceContext* ctx,

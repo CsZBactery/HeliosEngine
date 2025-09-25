@@ -41,6 +41,24 @@
     <ClInclude Include="include\Texture.h">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\DDSTextureLoader.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\WICTextureLoader.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\DDS.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\DirectXHelpers.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\LoaderHelpers.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\PlatformHelpers.h">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="source\Device.cpp">
@@ -56,6 +74,12 @@
       <Filter>source</Filter>
     </ClCompile>
     <ClCompile Include="source\Texture.cpp">
+      <Filter>source</Filter>
+    </ClCompile>
+    <ClCompile Include="source\DDSTextureLoader.cpp">
+      <Filter>source</Filter>
+    </ClCompile>
+    <ClCompile Include="source\WICTextureLoader.cpp">
       <Filter>source</Filter>
     </ClCompile>
   </ItemGroup>

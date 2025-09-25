@@ -5,11 +5,11 @@
  *
  * @details
  * - Reúne includes estándar (STL), Win32 y Direct3D 11, más DirectXMath.
- * - Define macros utilitarias para liberar COM y para logging en la salida de depuración.
+ * - Define macros utilitarios para liberar COM y para logging en la salida de depuración.
  * - Pensado para usarse como “precompiled header” del proyecto o como cabecera común.
  *
- * @note Los macros de logging aquí definidos formatean mensajes a `OutputDebugStringW`.
- *       Asegúrate de tener una ventana de *Output* visible (Debug) para verlos.
+ * @note Los macros de logging formatean mensajes a `OutputDebugStringW`.
+ *       Abre la ventana *Output* (Debug) para verlos.
  */
 
  // ==============================
@@ -18,13 +18,12 @@
 
  /**
   * @defgroup PrereqSTD STL / C++ Standard Library
-  * @brief Incluye tipos y utilidades generales.
   * @{
   */
-#include <string>      ///< @brief `std::string`, `std::wstring` y utilidades de cadena.
-#include <sstream>     ///< @brief `std::ostringstream` / `std::wostringstream` para formateo.
-#include <vector>      ///< @brief Contenedor dinámico `std::vector`.
-#include <thread>      ///< @brief `std::thread` y utilidades de concurrencia.
+#include <string>      ///< `std::string`, `std::wstring`.
+#include <sstream>     ///< `std::wostringstream` para logs formateados.
+#include <vector>      ///< `std::vector`.
+#include <thread>      ///< `std::thread`, utilidades de concurrencia.
   /// @}
 
   // ==============================
@@ -36,10 +35,10 @@
    * @brief Cabeceras base del API de Windows y Direct3D 11.
    * @{
    */
-#include <windows.h>    ///< @brief Tipos/funciones Win32 (HWND, HINSTANCE, mensajes, etc.).
-#include <d3d11.h>      ///< @brief Interfaces D3D11 (ID3D11Device, ID3D11DeviceContext, etc.).
-#include <dxgi.h>       ///< @brief DXGI (swap chain, formatos, adaptadores).
-#include <d3dcompiler.h>///< @brief Compilador HLSL (D3DCompile, blobs).
+#include <Windows.h>     ///< Tipos/funciones Win32 (HWND, HINSTANCE, etc.).
+#include <d3d11.h>       ///< Interfaces D3D11 (ID3D11Device, ID3D11DeviceContext, ...).
+#include <dxgi.h>        ///< DXGI (swap chain, formatos, adaptadores).
+#include <d3dcompiler.h> ///< Compilador HLSL (D3DCompile, blobs).
    /// @}
 
    // ==============================
@@ -49,75 +48,79 @@
    /**
     * @defgroup PrereqDXM DirectXMath
     * @brief Tipos y funciones SIMD (XMFLOAT*, XMMATRIX, XMVector*).
-    * @details Usa espacios de nombres y funciones inline; no requiere d3dx.
+    * @details Usa espacios de nombres y funciones inline; no requiere D3DX.
     * @{
     */
-#include <DirectXMath.h> ///< @see https://learn.microsoft.com/windows/win32/dxmath/pg-xnamath-migration
+#include <DirectXMath.h>
     /// @}
+
+    // ==============================
+    // Macros utilitarios (seguros)
+    // ==============================
 
     /**
      * @defgroup PrereqMacros Macros utilitarios
      * @brief Macros para liberación segura y logging a la salida de depuración.
-     * @{
+    //  * @{
      */
 
-     /**
-      * @brief Libera de forma segura un puntero COM y lo pone a `nullptr`.
-      *
-      * @param x Puntero COM (por ejemplo, `ID3D11Buffer*`, `ID3D11Device*`, etc.).
-      *
-      * @warning El parámetro debe ser una **lvalue** (una variable asignable). No pases temporales.
-      * @code
-      * ID3D11Buffer* vb = nullptr;
-      * // ... vb creado ...
-      * SAFE_RELEASE(vb); // vb->Release() y luego vb = nullptr
-      * @endcode
-      */
-#define SAFE_RELEASE(x) if((x) != nullptr) { (x)->Release(); (x) = nullptr; }
+     // Algunas cabeceras del SDK definen macros con estos nombres.
+     // Los “desarmamos” para evitar colisiones.
+#ifdef ERROR
+#  undef ERROR
+#endif
+#ifdef MESSAGE
+#  undef MESSAGE
+#endif
 
-      /**
-       * @brief Escribe un mensaje informativo en la salida de depuración (Unicode).
-       *
-       * @param classObj Nombre del “módulo/clase” (macro tokenizado).
-       * @param method   Nombre del método/función (macro tokenizado).
-       * @param state    Texto corto del estado (macro tokenizado).
-       *
-       * @details Este macro **stringiza** los parámetros `classObj`, `method` y `state`
-       * (mediante `#`) y arma un mensaje con el formato:
-       * `Class::Method : [ State ]\n`
-       *
-       * @note Debido al stringizing, si pasas literales con `L"..."`, en el output
-       * verás los caracteres de literal (p.ej. `L"MiClase"`). Es normal con esta versión.
-       * Si prefieres pasar wstring directamente sin `#`, podemos darte una variante.
-       *
-       * @code
-       * // Ejemplo
-       * MESSAGE(Device, Init, OK);
-       * // Output: "Device::Init : [ OK ]"
-       * @endcode
-       */
-#define MESSAGE(classObj, method, state) \
-{ std::wostringstream os_; os_ << L#classObj L"::" L#method L" : " << L"[ " << L#state << L" ]\n"; \
-  OutputDebugStringW(os_.str().c_str()); }
+/**
+ * @brief Libera de forma segura un puntero COM y lo pone a `nullptr`.
+ * @param x Puntero COM (lvalue).
+ * @code
+ * ID3D11Buffer* vb = nullptr;
+ * // ... crear vb ...
+ * SAFE_RELEASE(vb); // vb->Release(); vb = nullptr;
+ * @endcode
+ */
+#ifndef SAFE_RELEASE
+#  define SAFE_RELEASE(x) do { if ((x)) { (x)->Release(); (x) = nullptr; } } while(0)
+#endif
 
-       /**
-        * @brief Escribe un mensaje de error en la salida de depuración (Unicode).
-        *
-        * @param classObj Nombre del “módulo/clase” (macro tokenizado).
-        * @param method   Nombre del método/función (macro tokenizado).
-        * @param errorMSG Mensaje de error detallado (expresión wide-string, p.ej. `L"...")`.
-        *
-        * @details Formato de salida:
-        * `ERROR : Class::Method : <mensaje>\n`
-        *
-        * @code
-        * // Ejemplo
-        * ERROR(Device, CreateBuffer, L"CreateBuffer() falló con E_FAIL");
-        * @endcode
-        */
-#define ERROR(classObj, method, errorMSG) \
-{ try { std::wostringstream os_; os_ << L"ERROR : " << L#classObj << L"::" L#method \
-  << L" : " << errorMSG << L"\n"; OutputDebugStringW(os_.str().c_str()); } \
-  catch (...) { OutputDebugStringW(L"Failed to log error message.\n"); } }
+ /// Funciones helper para escribir a la salida de depuración (Unicode/ANSI).
+inline void __helios_logw(const wchar_t* s) { ::OutputDebugStringW(s); }
+inline void __helios_loga(const char* s) { ::OutputDebugStringA(s); }
 
-        /// @} // end of group PrereqMacros
+/**
+ * @brief Escribe un mensaje informativo en la salida de depuración (Unicode).
+ * @param MOD   Nombre del módulo/clase (token, no string).
+ * @param FUNC  Nombre del método/función (token, no string).
+ * @param WMSG  Mensaje wide-string `L"..."`.
+ * @code
+ * MESSAGE(Device, Init, L"OK");
+ * @endcode
+ */
+#define MESSAGE(MOD, FUNC, WMSG) \
+  do { std::wostringstream __os; \
+       __os << L"[" L#MOD L"][" L#FUNC L"] " << WMSG << L"\n"; \
+       __helios_logw(__os.str().c_str()); } while(0)
+
+ /**
+  * @brief Escribe un mensaje de error en la salida de depuración (Unicode).
+  * @param MOD   Nombre del módulo/clase (token).
+  * @param FUNC  Nombre del método/función (token).
+  * @param WMSG  Mensaje wide-string `L"..."`.
+  * @code
+  * ERROR(Device, CreateBuffer, L"CreateBuffer() falló con E_FAIL");
+  * @endcode
+  */
+#define ERROR(MOD, FUNC, WMSG) \
+  do { std::wostringstream __os; \
+       __os << L"[ERROR][" L#MOD L"][" L#FUNC L"] " << WMSG << L"\n"; \
+       __helios_logw(__os.str().c_str()); } while(0)
+
+  // (Opcional) Autolink en MSVC. Si no te gusta, elimínalas y agrega libs en el Linker.
+  // #pragma comment(lib, "d3d11.lib")
+  // #pragma comment(lib, "dxgi.lib")
+  // #pragma comment(lib, "d3dcompiler.lib")
+
+  /** @} */ // end of group PrereqMacros
