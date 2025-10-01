@@ -1,5 +1,4 @@
 ﻿// HeliosEngine.cpp — DX11 minimal (Unicode, sin D3DX/DirectXTK) con RTV/DSV + WIC
-
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 
@@ -12,6 +11,7 @@
 #include <cstdint>
 #include <string>
 #include <cstring>
+#include <memory>
 #include <wincodec.h>                 // WIC
 
 // Wrappers/headers propios
@@ -29,6 +29,7 @@
 #pragma comment(lib, "ole32.lib")
 
 using Microsoft::WRL::ComPtr;
+using namespace DirectX;
 
 // =============================
 // HLSL embebido
@@ -80,7 +81,7 @@ static HRESULT CompileFromSource(const char* src, const char* entry, const char*
 // =============================
 // Carga de textura con WIC (helper global)
 // =============================
-// Reemplaza completamente tu LoadTextureWIC por esta versión.
+// Nota: esta versión hace CoInitializeEx/CoUninitialize internamente.
 static HRESULT LoadTextureWIC(
   ID3D11Device* device,
   ID3D11DeviceContext* ctx,
@@ -96,7 +97,8 @@ static HRESULT LoadTextureWIC(
     bool callUninit = false;
     CoInitGuard() {
       HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
-      callUninit = SUCCEEDED(hr) || hr == RPC_E_CHANGED_MODE;
+      // Si ya estaba inicializado en STA, dejamos pasar (no des-inicializamos).
+      if (SUCCEEDED(hr)) callUninit = true;
     }
     ~CoInitGuard() { if (callUninit) CoUninitialize(); }
   } co;
@@ -121,6 +123,7 @@ static HRESULT LoadTextureWIC(
   hr = factory->CreateFormatConverter(conv.GetAddressOf());
   if (FAILED(hr)) return hr;
 
+  // BGRA o RGBA: ambas válidas, usamos RGBA por costumbre
   hr = conv->Initialize(frame.Get(), GUID_WICPixelFormat32bppRGBA,
     WICBitmapDitherTypeNone, nullptr, 0.0, WICBitmapPaletteTypeCustom);
   if (FAILED(hr)) return hr;
@@ -154,6 +157,7 @@ static HRESULT LoadTextureWIC(
   if (generateMips) {
     hr = device->CreateTexture2D(&td, nullptr, tex.GetAddressOf());
     if (FAILED(hr)) return hr;
+    if (!ctx) return E_POINTER;
     ctx->UpdateSubresource(tex.Get(), 0, nullptr, pixels.get(), stride, 0);
   }
   else {
@@ -174,7 +178,7 @@ static HRESULT LoadTextureWIC(
   hr = device->CreateShaderResourceView(tex.Get(), &sd, srv.GetAddressOf());
   if (FAILED(hr)) return hr;
 
-  if (generateMips) ctx->GenerateMips(srv.Get());
+  if (generateMips && ctx) ctx->GenerateMips(srv.Get());
 
   *outSRV = srv.Detach();
   return S_OK;
@@ -183,10 +187,10 @@ static HRESULT LoadTextureWIC(
 // =============================
 // Datos / globals
 // =============================
-struct SimpleVertex { DirectX::XMFLOAT3 Pos; DirectX::XMFLOAT2 Tex; };
-struct CBNeverChanges { DirectX::XMMATRIX mView; };
-struct CBChangeOnResize { DirectX::XMMATRIX mProjection; };
-struct CBChangesEveryFrame { DirectX::XMMATRIX mWorld; DirectX::XMFLOAT4 vMeshColor; };
+struct SimpleVertex { XMFLOAT3 Pos; XMFLOAT2 Tex; };
+struct CBNeverChanges { XMMATRIX mView; };
+struct CBChangeOnResize { XMMATRIX mProjection; };
+struct CBChangesEveryFrame { XMMATRIX mWorld; XMFLOAT4 vMeshColor; };
 
 static Window                           g_window;
 static Device                           g_device;
@@ -207,8 +211,8 @@ static ComPtr<ID3D11SamplerState>       g_samp;
 static ComPtr<ID3D11RasterizerState>    g_rsSolid, g_rsWire;
 static bool                             g_wire = false;
 
-static DirectX::XMMATRIX g_world, g_view, g_proj;
-static DirectX::XMFLOAT4 g_meshColor(0.7f, 0.7f, 0.7f, 1.0f);
+static XMMATRIX g_world, g_view, g_proj;
+static XMFLOAT4 g_meshColor(0.7f, 0.7f, 0.7f, 1.0f);
 
 // =============================
 // RTV/DSV/Viewport helpers
@@ -221,7 +225,7 @@ static HRESULT CreateBackbufferTargets(UINT w, UINT h)
   HRESULT hr = g_swap->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)back.GetAddressOf());
   if (FAILED(hr)) return hr;
 
-  hr = g_device.CreateRenderTargetView(back.Get(), nullptr, g_rtv.ReleaseAndGetAddressOf());
+  hr = g_device.m_device->CreateRenderTargetView(back.Get(), nullptr, g_rtv.ReleaseAndGetAddressOf());
   if (FAILED(hr)) return hr;
 
   // Depth + DSV
@@ -277,8 +281,8 @@ static HRESULT ResizeBackbuffer(UINT w, UINT h)
   if (FAILED(hr)) return hr;
 
   // reproyección
-  g_proj = DirectX::XMMatrixPerspectiveFovLH(DirectX::XM_PIDIV4, (float)w / (float)h, 0.01f, 100.0f);
-  CBChangeOnResize cbP{ DirectX::XMMatrixTranspose(g_proj) };
+  g_proj = XMMatrixPerspectiveFovLH(XM_PIDIV4, (float)w / (float)h, 0.01f, 100.0f);
+  CBChangeOnResize cbP{ XMMatrixTranspose(g_proj) };
   g_ctx->UpdateSubresource(g_cbProj.Get(), 0, nullptr, &cbP, 0, 0);
 
   return S_OK;
@@ -298,6 +302,11 @@ static LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPWSTR, int nCmdShow) {
   if (FAILED(g_window.init(hInstance, nCmdShow, WndProc))) return 0;
   if (FAILED(InitDevice())) { CleanupDevice(); return 0; }
+
+  // (Opcional) Verifica WD real
+  wchar_t wd[MAX_PATH]{};
+  GetCurrentDirectoryW(MAX_PATH, wd);
+  OutputDebugStringW((std::wstring(L"[DBG] WD = ") + wd + L"\n").c_str());
 
   MSG msg{};
   while (msg.message != WM_QUIT) {
@@ -393,11 +402,13 @@ static HRESULT InitDevice() {
   bd.ByteWidth = sizeof(CBChangesEveryFrame);
   if (FAILED(g_device.m_device->CreateBuffer(&bd, nullptr, &g_cbFrame))) return E_FAIL;
 
-  // Textura (WIC) + fallback 1x1
+  // ===== Textura (WIC) usando checker_256.png =====
   g_srv.Reset();
-  HRESULT thr = LoadTextureWIC(g_device.m_device, g_ctx.Get(), L"Assets\\crate.png",
+  const wchar_t* kTexturePath = L"Assets\\Textures\\checker_256.png";
+  HRESULT thr = LoadTextureWIC(g_device.m_device, g_ctx.Get(), kTexturePath,
     g_srv.ReleaseAndGetAddressOf(), true);
-  if (FAILED(thr)) {
+  if (FAILED(thr) || !g_srv) {
+    OutputDebugStringW(L"[ERR] No pude cargar checker_256.png. Uso fallback 1x1 blanco.\n");
     UINT32 white = 0xFFFFFFFF;
     D3D11_TEXTURE2D_DESC td{}; td.Width = 1; td.Height = 1; td.MipLevels = 1; td.ArraySize = 1;
     td.Format = DXGI_FORMAT_R8G8B8A8_UNORM; td.SampleDesc.Count = 1; td.Usage = D3D11_USAGE_IMMUTABLE; td.BindFlags = D3D11_BIND_SHADER_RESOURCE;
@@ -405,6 +416,22 @@ static HRESULT InitDevice() {
     ComPtr<ID3D11Texture2D> tex;
     g_device.m_device->CreateTexture2D(&td, &texSRD, &tex);
     g_device.m_device->CreateShaderResourceView(tex.Get(), nullptr, &g_srv);
+  }
+  else {
+    // Log de verificación (debería decir 256x256 y mips > 1)
+    ComPtr<ID3D11Resource> res;
+    g_srv->GetResource(&res);
+    if (res) {
+      ComPtr<ID3D11Texture2D> t2d;
+      if (SUCCEEDED(res.As(&t2d)) && t2d) {
+        D3D11_TEXTURE2D_DESC td{};
+        t2d->GetDesc(&td);
+        char buf[256];
+        sprintf_s(buf, "[DBG] Texture loaded: %ux%u, mips=%u, fmt=%d\n",
+          td.Width, td.Height, td.MipLevels, (int)td.Format);
+        OutputDebugStringA(buf);
+      }
+    }
   }
 
   // Sampler
@@ -423,17 +450,17 @@ static HRESULT InitDevice() {
   g_ctx->RSSetState(g_rsSolid.Get());
 
   // Cámaras
-  g_world = DirectX::XMMatrixIdentity();
-  auto Eye = DirectX::XMVectorSet(0.0f, 3.0f, -6.0f, 0.0f);
-  auto At = DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-  auto Up = DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-  g_view = DirectX::XMMatrixLookAtLH(Eye, At, Up);
-  CBNeverChanges cbV{ DirectX::XMMatrixTranspose(g_view) };
+  g_world = XMMatrixIdentity();
+  auto Eye = XMVectorSet(0.0f, 3.0f, -6.0f, 0.0f);
+  auto At = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+  auto Up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+  g_view = XMMatrixLookAtLH(Eye, At, Up);
+  CBNeverChanges cbV{ XMMatrixTranspose(g_view) };
   g_ctx->UpdateSubresource(g_cbView.Get(), 0, nullptr, &cbV, 0, 0);
 
-  g_proj = DirectX::XMMatrixPerspectiveFovLH(DirectX::XM_PIDIV4,
+  g_proj = XMMatrixPerspectiveFovLH(XM_PIDIV4,
     (float)g_window.width() / (float)g_window.height(), 0.01f, 100.0f);
-  CBChangeOnResize cbP{ DirectX::XMMatrixTranspose(g_proj) };
+  CBChangeOnResize cbP{ XMMatrixTranspose(g_proj) };
   g_ctx->UpdateSubresource(g_cbProj.Get(), 0, nullptr, &cbP, 0, 0);
 
   return S_OK;
@@ -464,8 +491,8 @@ static void Render() {
   DWORD t = GetTickCount();
   float secs = (t - t0) / 1000.0f;
 
-  g_world = DirectX::XMMatrixRotationY(secs);
-  g_meshColor = DirectX::XMFLOAT4(
+  g_world = XMMatrixRotationY(secs);
+  g_meshColor = XMFLOAT4(
     (sinf(secs * 1.0f) + 1.f) * 0.5f,
     (cosf(secs * 3.0f) + 1.f) * 0.5f,
     (sinf(secs * 5.0f) + 1.f) * 0.5f,
@@ -476,7 +503,9 @@ static void Render() {
   g_ctx->ClearRenderTargetView(g_rtv.Get(), clear);
   g_ctx->ClearDepthStencilView(g_dsv.Get(), D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
 
-  CBChangesEveryFrame cbF{}; cbF.mWorld = DirectX::XMMatrixTranspose(g_world); cbF.vMeshColor = g_meshColor;
+  CBChangesEveryFrame cbF{};
+  cbF.mWorld = XMMatrixTranspose(g_world);
+  cbF.vMeshColor = g_meshColor;
   g_ctx->UpdateSubresource(g_cbFrame.Get(), 0, nullptr, &cbF, 0, 0);
 
   UINT stride = sizeof(SimpleVertex), offset = 0;
