@@ -11,7 +11,7 @@
 #define NOMINMAX
 #endif
 
-#include <windows.h>      // SAL annotations (_In_, etc.)
+#include <windows.h>      // SAL annotations (_In_, on un etc.)
 #include <d3d11.h>
 #include <dxgiformat.h>
 #include <cstddef>
