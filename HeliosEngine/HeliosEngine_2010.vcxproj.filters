@@ -44,6 +44,9 @@
     <ClCompile Include="source\Window.cpp">
       <Filter>source</Filter>
     </ClCompile>
+    <ClCompile Include="source\TextureLoaderWIC.cpp">
+      <Filter>source</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="HeliosEngine.fx">
@@ -81,6 +84,9 @@
       <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="include\Window.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\TextureLoaderWIC.h">
       <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>
