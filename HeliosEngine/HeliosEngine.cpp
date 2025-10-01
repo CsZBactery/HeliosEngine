@@ -1,9 +1,9 @@
-﻿// HeliosEngine.cpp — DX11 minimal + Device + DeviceContext (Unicode, sin D3DX, sin DirectXTK)
+﻿// HeliosEngine.cpp — DX11 minimal (Unicode, sin D3DX/DirectXTK) con RTV/DSV + WIC
 
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 
-
+#include <windows.h>
 #include <wrl/client.h>
 #include <d3d11.h>
 #include <dxgi.h>
@@ -12,72 +12,23 @@
 #include <cstdint>
 #include <string>
 #include <cstring>
+#include <wincodec.h>                 // WIC
 
+// Wrappers/headers propios
+#include "../include/Window.h"        // <--- tu clase Window (NO la declares aquí)
 #include "../include/Device.h"
 #include "../include/DeviceContext.h"
 
+// Libs
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "d3dcompiler.lib")
+#pragma comment(lib, "windowscodecs.lib")   // WIC
 #pragma comment(lib, "user32.lib")
 #pragma comment(lib, "gdi32.lib")
 #pragma comment(lib, "ole32.lib")
 
 using Microsoft::WRL::ComPtr;
-
-// =============================
-// Ventana (mínima, Unicode)
-// =============================
-class Window {
-public:
-  HRESULT init(HINSTANCE hInst, int nCmdShow, WNDPROC wndproc) {
-    m_hInst = hInst;
-    static const wchar_t* kClass = L"HeliosEngineWindowClass";
-
-    WNDCLASSEXW wc{};
-    wc.cbSize = sizeof(wc);
-    wc.style = CS_HREDRAW | CS_VREDRAW;
-    wc.lpfnWndProc = wndproc;
-    wc.hInstance = hInst;
-    wc.hIcon = LoadIconW(nullptr, IDI_APPLICATION);
-    wc.hCursor = LoadCursorW(nullptr, IDC_ARROW);
-    wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
-    wc.lpszClassName = kClass;
-    wc.hIconSm = LoadIconW(nullptr, IDI_APPLICATION);
-    if (!RegisterClassExW(&wc)) return HRESULT_FROM_WIN32(GetLastError());
-
-    RECT rc{ 0,0,1200,950 };
-    AdjustWindowRect(&rc, WS_OVERLAPPEDWINDOW, FALSE);
-
-    m_hWnd = CreateWindowExW(
-      0, kClass, L"HELIOSENGINE", WS_OVERLAPPEDWINDOW,
-      CW_USEDEFAULT, CW_USEDEFAULT,
-      rc.right - rc.left, rc.bottom - rc.top,
-      nullptr, nullptr, hInst, nullptr);
-    if (!m_hWnd) return HRESULT_FROM_WIN32(GetLastError());
-
-    ShowWindow(m_hWnd, nCmdShow);
-    UpdateWindow(m_hWnd);
-    updateClientSize();
-    return S_OK;
-  }
-
-  void updateClientSize() {
-    RECT r{}; GetClientRect(m_hWnd, &r);
-    m_width = r.right - r.left;
-    m_height = r.bottom - r.top;
-  }
-
-  HWND handle() const { return m_hWnd; }
-  int  width()  const { return m_width; }
-  int  height() const { return m_height; }
-
-private:
-  HINSTANCE m_hInst = nullptr;
-  HWND      m_hWnd = nullptr;
-  int       m_width = 0;
-  int       m_height = 0;
-};
 
 // =============================
 // HLSL embebido
@@ -109,23 +60,15 @@ float4 PS(VS_OUTPUT i) : SV_Target {
 }
 )";
 
-// Compilación desde memoria (FIX: usar macros D3DCOMPILE_*)
-static HRESULT CompileFromSource(const char* src,
-  const char* entry,
-  const char* target,
-  ID3DBlob** blobOut)
-{
+static HRESULT CompileFromSource(const char* src, const char* entry, const char* target, ID3DBlob** blobOut) {
   UINT flags = D3DCOMPILE_ENABLE_STRICTNESS;
 #if defined(_DEBUG)
   flags |= D3DCOMPILE_DEBUG;
 #endif
-
-  Microsoft::WRL::ComPtr<ID3DBlob> err, blob;
+  ComPtr<ID3DBlob> err, blob;
   HRESULT hr = D3DCompile(src, (UINT)std::strlen(src),
-    nullptr, nullptr, nullptr,
-    entry, target,
-    flags, 0,
-    &blob, &err);
+    nullptr, nullptr, nullptr, entry, target,
+    flags, 0, &blob, &err);
   if (FAILED(hr)) {
     if (err) OutputDebugStringA((const char*)err->GetBufferPointer());
     return hr;
@@ -134,9 +77,111 @@ static HRESULT CompileFromSource(const char* src,
   return S_OK;
 }
 
+// =============================
+// Carga de textura con WIC (helper global)
+// =============================
+// Reemplaza completamente tu LoadTextureWIC por esta versión.
+static HRESULT LoadTextureWIC(
+  ID3D11Device* device,
+  ID3D11DeviceContext* ctx,
+  const wchar_t* filename,
+  ID3D11ShaderResourceView** outSRV,
+  bool generateMips = true)
+{
+  if (!device || !outSRV || !filename) return E_INVALIDARG;
+  *outSRV = nullptr;
+
+  // RAII para COM init/uninit
+  struct CoInitGuard {
+    bool callUninit = false;
+    CoInitGuard() {
+      HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+      callUninit = SUCCEEDED(hr) || hr == RPC_E_CHANGED_MODE;
+    }
+    ~CoInitGuard() { if (callUninit) CoUninitialize(); }
+  } co;
+
+  using Microsoft::WRL::ComPtr;
+  ComPtr<IWICImagingFactory>     factory;
+  ComPtr<IWICBitmapDecoder>      decoder;
+  ComPtr<IWICBitmapFrameDecode>  frame;
+  ComPtr<IWICFormatConverter>    conv;
+
+  HRESULT hr = CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER,
+    IID_PPV_ARGS(factory.GetAddressOf()));
+  if (FAILED(hr)) return hr;
+
+  hr = factory->CreateDecoderFromFilename(filename, nullptr, GENERIC_READ,
+    WICDecodeMetadataCacheOnDemand, decoder.GetAddressOf());
+  if (FAILED(hr)) return hr;
+
+  hr = decoder->GetFrame(0, frame.GetAddressOf());
+  if (FAILED(hr)) return hr;
+
+  hr = factory->CreateFormatConverter(conv.GetAddressOf());
+  if (FAILED(hr)) return hr;
+
+  hr = conv->Initialize(frame.Get(), GUID_WICPixelFormat32bppRGBA,
+    WICBitmapDitherTypeNone, nullptr, 0.0, WICBitmapPaletteTypeCustom);
+  if (FAILED(hr)) return hr;
+
+  UINT w = 0, h = 0;
+  hr = conv->GetSize(&w, &h);
+  if (FAILED(hr) || w == 0 || h == 0) return E_FAIL;
+
+  const UINT stride = w * 4;
+  const UINT size = stride * h;
+
+  // buffer de la imagen
+  std::unique_ptr<BYTE[]> pixels(new (std::nothrow) BYTE[size]);
+  if (!pixels) return E_OUTOFMEMORY;
+
+  hr = conv->CopyPixels(nullptr, stride, size, pixels.get());
+  if (FAILED(hr)) return hr;
+
+  // Crear textura
+  D3D11_TEXTURE2D_DESC td{};
+  td.Width = w; td.Height = h; td.ArraySize = 1;
+  td.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+  td.SampleDesc.Count = 1;
+  td.MipLevels = generateMips ? 0u : 1u;
+  td.Usage = generateMips ? D3D11_USAGE_DEFAULT : D3D11_USAGE_IMMUTABLE;
+  td.BindFlags = D3D11_BIND_SHADER_RESOURCE | (generateMips ? D3D11_BIND_RENDER_TARGET : 0);
+  td.MiscFlags = generateMips ? D3D11_RESOURCE_MISC_GENERATE_MIPS : 0;
+
+  ComPtr<ID3D11Texture2D> tex;
+
+  if (generateMips) {
+    hr = device->CreateTexture2D(&td, nullptr, tex.GetAddressOf());
+    if (FAILED(hr)) return hr;
+    ctx->UpdateSubresource(tex.Get(), 0, nullptr, pixels.get(), stride, 0);
+  }
+  else {
+    D3D11_SUBRESOURCE_DATA srd{};
+    srd.pSysMem = pixels.get();
+    srd.SysMemPitch = stride;
+    hr = device->CreateTexture2D(&td, &srd, tex.GetAddressOf());
+    if (FAILED(hr)) return hr;
+  }
+
+  D3D11_SHADER_RESOURCE_VIEW_DESC sd{};
+  sd.Format = td.Format;
+  sd.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+  sd.Texture2D.MostDetailedMip = 0;
+  sd.Texture2D.MipLevels = generateMips ? -1 : 1;
+
+  ComPtr<ID3D11ShaderResourceView> srv;
+  hr = device->CreateShaderResourceView(tex.Get(), &sd, srv.GetAddressOf());
+  if (FAILED(hr)) return hr;
+
+  if (generateMips) ctx->GenerateMips(srv.Get());
+
+  *outSRV = srv.Detach();
+  return S_OK;
+}
 
 // =============================
-// Datos
+// Datos / globals
 // =============================
 struct SimpleVertex { DirectX::XMFLOAT3 Pos; DirectX::XMFLOAT2 Tex; };
 struct CBNeverChanges { DirectX::XMMATRIX mView; };
@@ -151,6 +196,7 @@ static ComPtr<IDXGISwapChain>           g_swap;
 static ComPtr<ID3D11RenderTargetView>   g_rtv;
 static ComPtr<ID3D11Texture2D>          g_depth;
 static ComPtr<ID3D11DepthStencilView>   g_dsv;
+static ComPtr<ID3D11DepthStencilState>  g_dss;
 static ComPtr<ID3D11VertexShader>       g_vs;
 static ComPtr<ID3D11PixelShader>        g_ps;
 static ComPtr<ID3D11InputLayout>        g_layout;
@@ -165,7 +211,7 @@ static DirectX::XMMATRIX g_world, g_view, g_proj;
 static DirectX::XMFLOAT4 g_meshColor(0.7f, 0.7f, 0.7f, 1.0f);
 
 // =============================
-// Helpers RTV/DSV/Viewport
+// RTV/DSV/Viewport helpers
 // =============================
 static HRESULT CreateBackbufferTargets(UINT w, UINT h)
 {
@@ -192,17 +238,16 @@ static HRESULT CreateBackbufferTargets(UINT w, UINT h)
   hr = g_device.m_device->CreateDepthStencilView(g_depth.Get(), nullptr, &g_dsv);
   if (FAILED(hr)) return hr;
 
-  // Depth State (una vez)
-  static ComPtr<ID3D11DepthStencilState> s_dss;
-  if (!s_dss) {
+  // Depth-stencil state (una vez)
+  if (!g_dss) {
     D3D11_DEPTH_STENCIL_DESC ds{};
     ds.DepthEnable = TRUE;
     ds.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
     ds.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
-    hr = g_device.m_device->CreateDepthStencilState(&ds, &s_dss);
+    hr = g_device.m_device->CreateDepthStencilState(&ds, &g_dss);
     if (FAILED(hr)) return hr;
   }
-  g_ctx->OMSetDepthStencilState(s_dss.Get(), 0);
+  g_ctx->OMSetDepthStencilState(g_dss.Get(), 0);
 
   // Bind a OM
   ID3D11RenderTargetView* rtv = g_rtv.Get();
@@ -299,7 +344,7 @@ static HRESULT InitDevice() {
 
   g_devctx.attach(g_ctx.Get());
 
-  // RTV/DSV/Viewport
+  // RTV / DSV / Viewport
   hr = CreateBackbufferTargets(g_window.width(), g_window.height());
   if (FAILED(hr)) return hr;
 
@@ -348,15 +393,18 @@ static HRESULT InitDevice() {
   bd.ByteWidth = sizeof(CBChangesEveryFrame);
   if (FAILED(g_device.m_device->CreateBuffer(&bd, nullptr, &g_cbFrame))) return E_FAIL;
 
-  // Textura 1x1 blanca
-  {
+  // Textura (WIC) + fallback 1x1
+  g_srv.Reset();
+  HRESULT thr = LoadTextureWIC(g_device.m_device, g_ctx.Get(), L"Assets\\crate.png",
+    g_srv.ReleaseAndGetAddressOf(), true);
+  if (FAILED(thr)) {
     UINT32 white = 0xFFFFFFFF;
     D3D11_TEXTURE2D_DESC td{}; td.Width = 1; td.Height = 1; td.MipLevels = 1; td.ArraySize = 1;
     td.Format = DXGI_FORMAT_R8G8B8A8_UNORM; td.SampleDesc.Count = 1; td.Usage = D3D11_USAGE_IMMUTABLE; td.BindFlags = D3D11_BIND_SHADER_RESOURCE;
     D3D11_SUBRESOURCE_DATA texSRD{}; texSRD.pSysMem = &white; texSRD.SysMemPitch = sizeof(white);
     ComPtr<ID3D11Texture2D> tex;
-    if (FAILED(g_device.m_device->CreateTexture2D(&td, &texSRD, &tex))) return E_FAIL;
-    if (FAILED(g_device.m_device->CreateShaderResourceView(tex.Get(), nullptr, &g_srv))) return E_FAIL;
+    g_device.m_device->CreateTexture2D(&td, &texSRD, &tex);
+    g_device.m_device->CreateShaderResourceView(tex.Get(), nullptr, &g_srv);
   }
 
   // Sampler
@@ -367,7 +415,7 @@ static HRESULT InitDevice() {
   sdsc.MinLOD = 0; sdsc.MaxLOD = D3D11_FLOAT32_MAX;
   if (FAILED(g_device.m_device->CreateSamplerState(&sdsc, &g_samp))) return E_FAIL;
 
-  // Rasterizer states
+  // Rasterizer
   D3D11_RASTERIZER_DESC rs{}; rs.FillMode = D3D11_FILL_SOLID; rs.CullMode = D3D11_CULL_BACK;
   g_device.m_device->CreateRasterizerState(&rs, &g_rsSolid);
   rs.FillMode = D3D11_FILL_WIREFRAME;
@@ -383,7 +431,8 @@ static HRESULT InitDevice() {
   CBNeverChanges cbV{ DirectX::XMMatrixTranspose(g_view) };
   g_ctx->UpdateSubresource(g_cbView.Get(), 0, nullptr, &cbV, 0, 0);
 
-  g_proj = DirectX::XMMatrixPerspectiveFovLH(DirectX::XM_PIDIV4, (float)g_window.width() / (float)g_window.height(), 0.01f, 100.0f);
+  g_proj = DirectX::XMMatrixPerspectiveFovLH(DirectX::XM_PIDIV4,
+    (float)g_window.width() / (float)g_window.height(), 0.01f, 100.0f);
   CBChangeOnResize cbP{ DirectX::XMMatrixTranspose(g_proj) };
   g_ctx->UpdateSubresource(g_cbProj.Get(), 0, nullptr, &cbP, 0, 0);
 
@@ -411,12 +460,10 @@ static void CleanupDevice() {
 // Render
 // =============================
 static void Render() {
-  // tiempo
   static DWORD t0 = GetTickCount();
   DWORD t = GetTickCount();
   float secs = (t - t0) / 1000.0f;
 
-  // animación
   g_world = DirectX::XMMatrixRotationY(secs);
   g_meshColor = DirectX::XMFLOAT4(
     (sinf(secs * 1.0f) + 1.f) * 0.5f,
@@ -425,18 +472,13 @@ static void Render() {
     1.0f
   );
 
-  // clear
   float clear[4] = { 0.02f, 0.07f, 0.16f, 1.0f };
   g_ctx->ClearRenderTargetView(g_rtv.Get(), clear);
   g_ctx->ClearDepthStencilView(g_dsv.Get(), D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
 
-  // actualiza cbuffer frame
-  CBChangesEveryFrame cbF{};
-  cbF.mWorld = DirectX::XMMatrixTranspose(g_world);
-  cbF.vMeshColor = g_meshColor;
+  CBChangesEveryFrame cbF{}; cbF.mWorld = DirectX::XMMatrixTranspose(g_world); cbF.vMeshColor = g_meshColor;
   g_ctx->UpdateSubresource(g_cbFrame.Get(), 0, nullptr, &cbF, 0, 0);
 
-  // pipeline
   UINT stride = sizeof(SimpleVertex), offset = 0;
   ID3D11Buffer* vb = g_vb.Get();
   g_ctx->IASetVertexBuffers(0, 1, &vb, &stride, &offset);

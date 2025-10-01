@@ -398,6 +398,7 @@
     <ClCompile Include="source\RenderTargetView.cpp" />
     <ClCompile Include="source\SwapChain.cpp" />
     <ClCompile Include="source\Texture.cpp" />
+    <ClCompile Include="source\Window.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="HeliosEngine.fx" />
@@ -411,6 +412,7 @@
     <ClInclude Include="include\Resource.h" />
     <ClInclude Include="include\SwapChain.h" />
     <ClInclude Include="include\Texture.h" />
+    <ClInclude Include="include\Window.h" />
     <ResourceCompile Include="HeliosEngine.rc" />
   </ItemGroup>
   <ItemGroup>

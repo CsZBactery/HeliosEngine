@@ -41,6 +41,9 @@
     <ClCompile Include="source\DepthStencilView.cpp">
       <Filter>source</Filter>
     </ClCompile>
+    <ClCompile Include="source\Window.cpp">
+      <Filter>source</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="HeliosEngine.fx">
@@ -75,6 +78,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\Resource.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Window.h">
       <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>
