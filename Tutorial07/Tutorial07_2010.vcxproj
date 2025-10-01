@@ -403,6 +403,7 @@
     <ClCompile Include="source\DeviceContext.cpp" />
     <ClCompile Include="source\SwapChain.cpp" />
     <ClCompile Include="source\Texture.cpp" />
+    <ClCompile Include="source\TextureLoaderBackfill.cpp" />
     <ClCompile Include="source\Tutorial07.cpp" />
     <ClCompile Include="source\WICTextureLoader.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>

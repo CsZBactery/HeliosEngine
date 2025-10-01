@@ -82,6 +82,9 @@
     <ClCompile Include="source\WICTextureLoader.cpp">
       <Filter>source</Filter>
     </ClCompile>
+    <ClCompile Include="source\TextureLoaderBackfill.cpp">
+      <Filter>source</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="Tutorial07.fx">
