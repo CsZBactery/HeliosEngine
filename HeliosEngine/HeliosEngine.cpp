@@ -15,7 +15,7 @@
 #include <wincodec.h>                 // WIC
 
 // Wrappers/headers propios
-#include "../include/Window.h"        // <--- tu clase Window (NO la declares aquí)
+#include "../include/Window.h"       
 #include "../include/Device.h"
 #include "../include/DeviceContext.h"
 
