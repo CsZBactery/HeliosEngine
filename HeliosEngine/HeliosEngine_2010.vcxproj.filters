@@ -59,6 +59,9 @@
     <ClCompile Include="include\ModelLoader.cpp">
       <Filter>source</Filter>
     </ClCompile>
+    <ClCompile Include="source\Buffer.cpp">
+      <Filter>source</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="HeliosEngine.fx">
@@ -111,6 +114,12 @@
       <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="include\ModelLoader.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Buffer.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\MeshComponent.h">
       <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>
