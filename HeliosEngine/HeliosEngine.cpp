@@ -1,4 +1,4 @@
-﻿// HeliosEngine.cpp — DX11 con Buffer/MeshComponent wrappers
+﻿// HeliosEngine.cpp — DX11 con wrappers del profe (Texture, SamplerState, Buffer, MeshComponent)
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 
@@ -11,21 +11,22 @@
 #include <cstdint>
 #include <string>
 #include <cstring>
-#include <memory>
-#include <wincodec.h>
+#include <vector>
 
 // Wrappers/headers propios
 #include "../include/Window.h"
 #include "../include/Device.h"
 #include "../include/DeviceContext.h"
-#include "../include/Buffer.h"          
-#include "../include/MeshComponent.h"   
+#include "../include/Buffer.h"
+#include "../include/MeshComponent.h"
+#include "../include/Texture.h"        // <-- usar DDS con el wrapper del profe
+#include "../include/SamplerState.h"    // <-- sampler wrapper
+#include "../include/Types.h"           // SimpleVertex + CBs
 
 // Libs
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "d3dcompiler.lib")
-#pragma comment(lib, "windowscodecs.lib")
 #pragma comment(lib, "user32.lib")
 #pragma comment(lib, "gdi32.lib")
 #pragma comment(lib, "ole32.lib")
@@ -34,7 +35,7 @@ using Microsoft::WRL::ComPtr;
 using namespace DirectX;
 
 // =============================
-// HLSL embebido
+// HLSL embebido (VS/PS simple con textura)
 // =============================
 static const char* g_HLSL = R"(
 cbuffer CBNeverChanges     : register(b0) { float4x4 gView;       };
@@ -81,137 +82,33 @@ static HRESULT CompileFromSource(const char* src, const char* entry, const char*
 }
 
 // =============================
-// Carga de textura con WIC (helper global)
+// Globals
 // =============================
-static HRESULT LoadTextureWIC(
-    ID3D11Device* device,
-    ID3D11DeviceContext* ctx,
-    const wchar_t* filename,
-    ID3D11ShaderResourceView** outSRV,
-    bool generateMips = true)
-{
-    if (!device || !outSRV || !filename) return E_INVALIDARG;
-    *outSRV = nullptr;
+static Window                         g_window;
+static Device                         g_device;
+static DeviceContext                  g_devctx;
+static ComPtr<ID3D11DeviceContext>    g_ctx;
+static ComPtr<IDXGISwapChain>         g_swap;
+static ComPtr<ID3D11RenderTargetView> g_rtv;
+static ComPtr<ID3D11Texture2D>        g_depth;
+static ComPtr<ID3D11DepthStencilView> g_dsv;
+static ComPtr<ID3D11DepthStencilState> g_dss;
+static ComPtr<ID3D11VertexShader>     g_vs;
+static ComPtr<ID3D11PixelShader>      g_ps;
+static ComPtr<ID3D11InputLayout>      g_layout;
 
-    struct CoInitGuard {
-        bool callUninit = false;
-        CoInitGuard() {
-            HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
-            if (SUCCEEDED(hr)) callUninit = true;
-        }
-        ~CoInitGuard() { if (callUninit) CoUninitialize(); }
-    } co;
+// Buffers (wrappers)
+static Buffer g_vb;
+static Buffer g_ib;
+static Buffer g_cbView, g_cbProj, g_cbFrame;
+static UINT   g_indexCount = 0;
 
-    ComPtr<IWICImagingFactory>     factory;
-    ComPtr<IWICBitmapDecoder>      decoder;
-    ComPtr<IWICBitmapFrameDecode>  frame;
-    ComPtr<IWICFormatConverter>    conv;
-
-    HRESULT hr = CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER,
-        IID_PPV_ARGS(factory.GetAddressOf()));
-    if (FAILED(hr)) return hr;
-
-    hr = factory->CreateDecoderFromFilename(filename, nullptr, GENERIC_READ,
-        WICDecodeMetadataCacheOnDemand, decoder.GetAddressOf());
-    if (FAILED(hr)) return hr;
-
-    hr = decoder->GetFrame(0, frame.GetAddressOf());
-    if (FAILED(hr)) return hr;
-
-    hr = factory->CreateFormatConverter(conv.GetAddressOf());
-    if (FAILED(hr)) return hr;
-
-    hr = conv->Initialize(frame.Get(), GUID_WICPixelFormat32bppRGBA,
-        WICBitmapDitherTypeNone, nullptr, 0.0, WICBitmapPaletteTypeCustom);
-    if (FAILED(hr)) return hr;
-
-    UINT w = 0, h = 0;
-    hr = conv->GetSize(&w, &h);
-    if (FAILED(hr) || w == 0 || h == 0) return E_FAIL;
-
-    const UINT stride = w * 4;
-    const UINT size = stride * h;
-
-    std::unique_ptr<BYTE[]> pixels(new (std::nothrow) BYTE[size]);
-    if (!pixels) return E_OUTOFMEMORY;
-
-    hr = conv->CopyPixels(nullptr, stride, size, pixels.get());
-    if (FAILED(hr)) return hr;
-
-    D3D11_TEXTURE2D_DESC td{};
-    td.Width = w; td.Height = h; td.ArraySize = 1;
-    td.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-    td.SampleDesc.Count = 1;
-    td.MipLevels = generateMips ? 0u : 1u;
-    td.Usage = generateMips ? D3D11_USAGE_DEFAULT : D3D11_USAGE_IMMUTABLE;
-    td.BindFlags = D3D11_BIND_SHADER_RESOURCE | (generateMips ? D3D11_BIND_RENDER_TARGET : 0);
-    td.MiscFlags = generateMips ? D3D11_RESOURCE_MISC_GENERATE_MIPS : 0;
-
-    ComPtr<ID3D11Texture2D> tex;
-
-    if (generateMips) {
-        hr = device->CreateTexture2D(&td, nullptr, tex.GetAddressOf());
-        if (FAILED(hr)) return hr;
-        if (!ctx) return E_POINTER;
-        ctx->UpdateSubresource(tex.Get(), 0, nullptr, pixels.get(), stride, 0);
-    }
-    else {
-        D3D11_SUBRESOURCE_DATA srd{};
-        srd.pSysMem = pixels.get();
-        srd.SysMemPitch = stride;
-        hr = device->CreateTexture2D(&td, &srd, tex.GetAddressOf());
-        if (FAILED(hr)) return hr;
-    }
-
-    D3D11_SHADER_RESOURCE_VIEW_DESC sd{};
-    sd.Format = td.Format;
-    sd.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-    sd.Texture2D.MostDetailedMip = 0;
-    sd.Texture2D.MipLevels = generateMips ? -1 : 1;
-
-    ComPtr<ID3D11ShaderResourceView> srv;
-    hr = device->CreateShaderResourceView(tex.Get(), &sd, srv.GetAddressOf());
-    if (FAILED(hr)) return hr;
-
-    if (generateMips && ctx) ctx->GenerateMips(srv.Get());
-
-    *outSRV = srv.Detach();
-    return S_OK;
-}
-
-// =============================
-// Datos / globals
-// =============================
-struct SimpleVertex { XMFLOAT3 Pos; XMFLOAT2 Tex; };
-struct CBNeverChanges { XMMATRIX mView; };
-struct CBChangeOnResize { XMMATRIX mProjection; };
-struct CBChangesEveryFrame { XMMATRIX mWorld; XMFLOAT4 vMeshColor; };
-
-static Window                           g_window;
-static Device                           g_device;
-static DeviceContext                    g_devctx;
-static ComPtr<ID3D11DeviceContext>      g_ctx;
-static ComPtr<IDXGISwapChain>           g_swap;
-static ComPtr<ID3D11RenderTargetView>   g_rtv;
-static ComPtr<ID3D11Texture2D>          g_depth;
-static ComPtr<ID3D11DepthStencilView>   g_dsv;
-static ComPtr<ID3D11DepthStencilState>  g_dss;
-static ComPtr<ID3D11VertexShader>       g_vs;
-static ComPtr<ID3D11PixelShader>        g_ps;
-static ComPtr<ID3D11InputLayout>        g_layout;
-// --- Buffers ahora son wrappers:
-static Buffer                           g_vb;
-static Buffer                           g_ib;
-static Buffer                           g_cbView, g_cbProj, g_cbFrame;
-static UINT                             g_indexCount = 0;
-
-static ComPtr<ID3D11ShaderResourceView> g_srv;
-static ComPtr<ID3D11SamplerState>       g_samp;
-static ComPtr<ID3D11RasterizerState>    g_rsSolid, g_rsWire;
-static bool                             g_wire = false;
+// Textura + Sampler (wrappers del profe)
+static Texture     g_texture;    // usa seafloor.dds
+static SamplerState g_sampler;
 
 static XMMATRIX g_world, g_view, g_proj;
-static XMFLOAT4 g_meshColor(0.7f, 0.7f, 0.7f, 1.0f);
+static XMFLOAT4 g_meshColor(0.9f, 0.9f, 0.9f, 1.0f);
 
 // =============================
 // RTV/DSV/Viewport helpers
@@ -301,9 +198,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPWSTR, int nCmdShow) {
     if (FAILED(g_window.init(hInstance, nCmdShow, WndProc))) return 0;
     if (FAILED(InitDevice())) { CleanupDevice(); return 0; }
 
-    wchar_t wd[MAX_PATH]{}; GetCurrentDirectoryW(MAX_PATH, wd);
-    OutputDebugStringW((std::wstring(L"[DBG] WD = ") + wd + L"\n").c_str());
-
     MSG msg{};
     while (msg.message != WM_QUIT) {
         if (PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE)) {
@@ -368,80 +262,55 @@ static HRESULT InitDevice() {
     if (FAILED(g_device.m_device->CreateInputLayout(il, 2, vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), &g_layout))) return E_FAIL;
     g_ctx->IASetInputLayout(g_layout.Get());
 
-    // ===== Geometría (cubo) vía MeshComponent + Buffer =====
+    // ===== Geometría (cubo) con MeshComponent =====
     SimpleVertex vertices[] = {
-        { {-1,  1, -1}, {0,0} }, { { 1,  1, -1}, {1,0} }, { { 1,  1,  1}, {1,1} }, { {-1,  1,  1}, {0,1} },
-        { {-1, -1, -1}, {0,0} }, { { 1, -1, -1}, {1,0} }, { { 1, -1,  1}, {1,1} }, { {-1, -1,  1}, {0,1} },
-        { {-1, -1,  1}, {0,0} }, { {-1, -1, -1}, {1,0} }, { {-1,  1, -1}, {1,1} }, { {-1,  1,  1}, {0,1} },
-        { { 1, -1,  1}, {0,0} }, { { 1, -1, -1}, {1,0} }, { { 1,  1, -1}, {1,1} }, { { 1,  1,  1}, {0,1} },
-        { {-1, -1, -1}, {0,0} }, { { 1, -1, -1}, {1,0} }, { { 1,  1, -1}, {1,1} }, { {-1,  1, -1}, {0,1} },
-        { {-1, -1,  1}, {0,0} }, { { 1, -1,  1}, {1,0} }, { { 1,  1,  1}, {1,1} }, { {-1,  1,  1}, {0,1} },
+        {{-1,  1, -1},{0,0}}, {{ 1,  1, -1},{1,0}}, {{ 1,  1,  1},{1,1}}, {{-1,  1,  1},{0,1}},
+        {{-1, -1, -1},{0,0}}, {{ 1, -1, -1},{1,0}}, {{ 1, -1,  1},{1,1}}, {{-1, -1,  1},{0,1}},
+        {{-1, -1,  1},{0,0}}, {{-1, -1, -1},{1,0}}, {{-1,  1, -1},{1,1}}, {{-1,  1,  1},{0,1}},
+        {{ 1, -1,  1},{0,0}}, {{ 1, -1, -1},{1,0}}, {{ 1,  1, -1},{1,1}}, {{ 1,  1,  1},{0,1}},
+        {{-1, -1, -1},{0,0}}, {{ 1, -1, -1},{1,0}}, {{ 1,  1, -1},{1,1}}, {{-1,  1, -1},{0,1}},
+        {{-1, -1,  1},{0,0}}, {{ 1, -1,  1},{1,0}}, {{ 1,  1,  1},{1,1}}, {{-1,  1,  1},{0,1}},
     };
-    uint16_t indices[] = {
+    // Índices de 32 bits -> DXGI_FORMAT_R32_UINT
+    unsigned int indices[] = {
         3,1,0,  2,1,3,  6,4,5,  7,4,6,  11,9,8, 10,9,11,
         14,12,13, 15,12,14, 19,17,16, 18,17,19, 22,20,21, 23,20,22
     };
 
     MeshComponent mesh;
-    {
-        std::vector<SimpleVertex> v(vertices, vertices + _countof(vertices));
-        std::vector<uint16_t>     i(indices, indices + _countof(indices));
-        mesh.setVertices(v);
-        mesh.setIndices(i);
-    }
-    g_indexCount = mesh.indexCount();
+    mesh.m_vertex.assign(vertices, vertices + 24);
+    mesh.m_index.assign(indices, indices + 36);
+    mesh.m_numVertex = 24;
+    mesh.m_numIndex = 36;
+    g_indexCount = mesh.m_numIndex;
 
     if (FAILED(g_vb.init(g_device, mesh, D3D11_BIND_VERTEX_BUFFER))) return E_FAIL;
     if (FAILED(g_ib.init(g_device, mesh, D3D11_BIND_INDEX_BUFFER)))  return E_FAIL;
 
-    // ===== Constant buffers vía Buffer =====
-    if (FAILED(g_cbView.init(g_device, sizeof(CBNeverChanges))))   return E_FAIL;
-    if (FAILED(g_cbProj.init(g_device, sizeof(CBChangeOnResize)))) return E_FAIL;
+    // ===== Constant buffers =====
+    if (FAILED(g_cbView.init(g_device, sizeof(CBNeverChanges))))       return E_FAIL;
+    if (FAILED(g_cbProj.init(g_device, sizeof(CBChangeOnResize))))     return E_FAIL;
     if (FAILED(g_cbFrame.init(g_device, sizeof(CBChangesEveryFrame)))) return E_FAIL;
 
-    // ===== Textura (WIC) =====
-    g_srv.Reset();
-    const wchar_t* kTexturePath = L"Assets\\Textures\\checker_256.png";
-    HRESULT thr = LoadTextureWIC(g_device.m_device, g_ctx.Get(), kTexturePath,
-        g_srv.ReleaseAndGetAddressOf(), true);
-    if (FAILED(thr) || !g_srv) {
-        OutputDebugStringW(L"[ERR] No pude cargar checker_256.png. Uso fallback 1x1 blanco.\n");
-        UINT32 white = 0xFFFFFFFF;
-        D3D11_TEXTURE2D_DESC td{}; td.Width = 1; td.Height = 1; td.MipLevels = 1; td.ArraySize = 1;
-        td.Format = DXGI_FORMAT_R8G8B8A8_UNORM; td.SampleDesc.Count = 1; td.Usage = D3D11_USAGE_IMMUTABLE; td.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-        D3D11_SUBRESOURCE_DATA texSRD{}; texSRD.pSysMem = &white; texSRD.SysMemPitch = sizeof(white);
-        ComPtr<ID3D11Texture2D> tex;
-        g_device.m_device->CreateTexture2D(&td, &texSRD, &tex);
-        g_device.m_device->CreateShaderResourceView(tex.Get(), nullptr, &g_srv);
+    // ===== Textura DDS + Sampler (wrappers) =====
+    // El wrapper busca "Assets/Textures/seafloor.dds" al pasar "seafloor" + ExtensionType::DDS.
+    if (FAILED(g_texture.init(g_device, "seafloor", ExtensionType::DDS))) {
+        OutputDebugStringW(L"[ERR] No pude cargar seafloor.dds (wrapper Texture).\n");
+        return E_FAIL;
     }
-    else {
-        ComPtr<ID3D11Resource> res; g_srv->GetResource(&res);
-        if (res) {
-            ComPtr<ID3D11Texture2D> t2d;
-            if (SUCCEEDED(res.As(&t2d)) && t2d) {
-                D3D11_TEXTURE2D_DESC td{}; t2d->GetDesc(&td);
-                char buf[256];
-                sprintf_s(buf, "[DBG] Texture loaded: %ux%u, mips=%u, fmt=%d\n",
-                    td.Width, td.Height, td.MipLevels, (int)td.Format);
-                OutputDebugStringA(buf);
-            }
-        }
+    if (FAILED(g_sampler.init(g_device))) {
+        OutputDebugStringW(L"[ERR] No pude crear SamplerState (wrapper).\n");
+        return E_FAIL;
     }
 
-    // Sampler
-    D3D11_SAMPLER_DESC sdsc{};
-    sdsc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-    sdsc.AddressU = sdsc.AddressV = sdsc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
-    sdsc.ComparisonFunc = D3D11_COMPARISON_NEVER;
-    sdsc.MinLOD = 0; sdsc.MaxLOD = D3D11_FLOAT32_MAX;
-    if (FAILED(g_device.m_device->CreateSamplerState(&sdsc, &g_samp))) return E_FAIL;
-
-    // Rasterizer
-    D3D11_RASTERIZER_DESC rs{}; rs.FillMode = D3D11_FILL_SOLID; rs.CullMode = D3D11_CULL_BACK;
-    g_device.m_device->CreateRasterizerState(&rs, &g_rsSolid);
-    rs.FillMode = D3D11_FILL_WIREFRAME;
-    g_device.m_device->CreateRasterizerState(&rs, &g_rsWire);
-    g_ctx->RSSetState(g_rsSolid.Get());
+    // Rasterizer (culling back)
+    D3D11_RASTERIZER_DESC rs{};
+    rs.FillMode = D3D11_FILL_SOLID;
+    rs.CullMode = D3D11_CULL_BACK;
+    ComPtr<ID3D11RasterizerState> rsSolid;
+    if (SUCCEEDED(g_device.m_device->CreateRasterizerState(&rs, &rsSolid))) {
+        g_ctx->RSSetState(rsSolid.Get());
+    }
 
     // Cámaras
     g_world = XMMatrixIdentity();
@@ -465,8 +334,9 @@ static HRESULT InitDevice() {
 // =============================
 static void CleanupDevice() {
     if (g_ctx) g_ctx->ClearState();
-    g_rsWire.Reset(); g_rsSolid.Reset();
-    g_samp.Reset(); g_srv.Reset();
+
+    g_texture.destroy();
+    g_sampler.destroy();
 
     g_cbFrame.destroy(); g_cbProj.destroy(); g_cbView.destroy();
     g_ib.destroy(); g_vb.destroy();
@@ -489,14 +359,9 @@ static void Render() {
     float secs = float(t - t0) / 1000.0f;
 
     g_world = XMMatrixRotationY(secs);
-    g_meshColor = XMFLOAT4(
-        (sinf(secs * 1.0f) + 1.f) * 0.5f,
-        (cosf(secs * 3.0f) + 1.f) * 0.5f,
-        (sinf(secs * 5.0f) + 1.f) * 0.5f,
-        1.0f
-    );
+    g_meshColor = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f); // que no tinte la textura
 
-    float clear[4] = { 0.02f, 0.07f, 0.16f, 1.0f };
+    const float clear[4] = { 0.05f, 0.05f, 0.07f, 1.0f };
     g_ctx->ClearRenderTargetView(g_rtv.Get(), clear);
     g_ctx->ClearDepthStencilView(g_dsv.Get(), D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
 
@@ -506,8 +371,8 @@ static void Render() {
     g_cbFrame.update(g_devctx, nullptr, 0, nullptr, &cbF, 0, 0);
 
     // IA
-    g_vb.render(g_devctx, 0, 1);                 // IASetVertexBuffers
-    g_ib.render(g_devctx, 0, 1, false);          // IASetIndexBuffer (usa formato del mesh)
+    g_vb.render(g_devctx, 0, 1);                                   // IASetVertexBuffers
+    g_ib.render(g_devctx, 0, 1, false, DXGI_FORMAT_R32_UINT);       // Índices de 32 bits
     g_devctx.IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
     // Shaders + CBs
@@ -517,8 +382,10 @@ static void Render() {
     g_cbFrame.render(g_devctx, 2, 1, true);      // b2 VS + PS
 
     g_ctx->PSSetShader(g_ps.Get(), nullptr, 0);
-    { ID3D11ShaderResourceView* s = g_srv.Get(); g_ctx->PSSetShaderResources(0, 1, &s); }
-    { ID3D11SamplerState* s = g_samp.Get(); g_ctx->PSSetSamplers(0, 1, &s); }
+
+    // Textura + Sampler (wrappers)
+    g_texture.render(g_devctx, 0, 1);            // PSSetShaderResources(t0)
+    g_sampler.render(g_devctx, 0, 1);            // PSSetSamplers(s0)
 
     // Draw
     g_devctx.DrawIndexed(g_indexCount, 0, 0);
@@ -538,7 +405,6 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         return 0;
     case WM_KEYDOWN:
         if (wParam == VK_ESCAPE) PostQuitMessage(0);
-        if (wParam == VK_F1) { g_wire = !g_wire; g_ctx->RSSetState(g_wire ? g_rsWire.Get() : g_rsSolid.Get()); }
         return 0;
     case WM_DESTROY:
         PostQuitMessage(0); return 0;

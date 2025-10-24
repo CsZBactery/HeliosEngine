@@ -1,87 +1,63 @@
 #pragma once
-// ../include/
 #include "../include/Prerequisites.h"
+#include "../include/Types.h"
 #include <vector>
+#include <string>
 #include <cstdint>
 #include <type_traits>
+#include <cstring>
 
 /**
- * @class MeshComponent
- * @brief Contenedor agnóstico de vértices/índices con stride configurable.
- *
- * Permite cargar cualquier tipo de vértice (tu struct) sin acoplarse al engine:
- * usa plantillas para guardar datos crudos y recordar el stride.
- * Soporta índices de 16 o 32 bits (DXGI_FORMAT_R16_UINT / R32_UINT).
+ * MeshComponent compatible con el código del profe (m_vertex/m_index públicos)
+ * + una capa de compatibilidad con setVertices/setIndices y accesores.
  */
 class MeshComponent {
 public:
-    MeshComponent() = default;
+    MeshComponent() : m_numVertex(0), m_numIndex(0) {}
     ~MeshComponent() = default;
 
-    MeshComponent(const MeshComponent&) = default;
-    MeshComponent& operator=(const MeshComponent&) = default;
-
-    // ----------------------------
-    // Carga de datos
-    // ----------------------------
-
-    /// Guarda un array de vértices de tipo arbitrario (p. ej. SimpleVertex)
+    // ---- Compat layer (opcional) ------------------------------------------
     template<typename TVertex>
-    void setVertices(const std::vector<TVertex>& verts)
-    {
-        static_assert(!std::is_pointer<TVertex>::value, "TVertex must be a POD struct, not a pointer.");
-        m_vertexStride = (UINT)sizeof(TVertex);
-        m_vertices.resize(m_vertexStride * verts.size());
+    void setVertices(const std::vector<TVertex>& verts) {
+        m_vertex.resize(verts.size());
         if (!verts.empty()) {
-            std::memcpy(m_vertices.data(), verts.data(), m_vertices.size());
+            // copia uno a uno para evitar aliasing en PODs
+            std::memcpy(m_vertex.data(), verts.data(), sizeof(TVertex) * verts.size());
         }
+        m_numVertex = static_cast<int>(m_vertex.size());
     }
 
-    /// Guarda índices de 16 o 32 bits; el formato DXGI se deduce automáticamente.
-    template<typename TIndex>
-    void setIndices(const std::vector<TIndex>& idx)
-    {
-        static_assert(std::is_same<TIndex, uint16_t>::value || std::is_same<TIndex, uint32_t>::value,
-            "Index type must be uint16_t or uint32_t");
-        const UINT elemSize = (UINT)sizeof(TIndex);
-        m_indexFormat = (elemSize == 2) ? DXGI_FORMAT_R16_UINT : DXGI_FORMAT_R32_UINT;
-        m_indices.resize(elemSize * idx.size());
-        if (!idx.empty()) {
-            std::memcpy(m_indices.data(), idx.data(), m_indices.size());
-        }
+   // template<typename TIndex>
+   // void setIndices(const std::vector<TIndex>& idx) {
+        //static_assert(std::is_same<TIndex, uint16_t>::value ||
+            //std::is_same<TIndex, uint32_t>::value,
+            //"Index type must be uint16_t or uint32_t");
+       // m_index.resize(idx.size());
+       //if (!idx.empty()) {
+            //for (size_t i = 0; i < idx.size(); ++i) m_index[i] = static_cast<unsigned int>(idx[i]);
+       // }
+       // m_numIndex = static_cast<int>(m_index.size());
+   // }
+
+    // Accesores compatibles con el código que espera API “genérica”
+    UINT vertexStride() const { return sizeof(SimpleVertex); }
+    UINT indexStride()  const { return sizeof(unsigned int); }
+    UINT vertexCount()  const { return static_cast<UINT>(m_vertex.size()); }
+    UINT indexCount()   const { return static_cast<UINT>(m_index.size()); }
+    const void* vertexData() const { return m_vertex.empty() ? nullptr : m_vertex.data(); }
+    const void* indexData()  const { return m_index.empty() ? nullptr : m_index.data(); }
+    DXGI_FORMAT indexFormat() const { return DXGI_FORMAT_R32_UINT; }
+
+    void clear() {
+        m_vertex.clear(); m_index.clear();
+        m_numVertex = 0;   m_numIndex = 0;
     }
+    // -----------------------------------------------------------------------
 
-    // ----------------------------
-    // Accesores
-    // ----------------------------
-    const void* vertexData() const { return m_vertices.empty() ? nullptr : m_vertices.data(); }
-    const void* indexData()  const { return m_indices.empty() ? nullptr : m_indices.data(); }
-
-    UINT vertexStride() const { return m_vertexStride; }
-    UINT indexStride()  const {
-        return (m_indexFormat == DXGI_FORMAT_R16_UINT) ? 2u :
-            (m_indexFormat == DXGI_FORMAT_R32_UINT) ? 4u : 0u;
-    }
-
-    UINT vertexCount() const { return (m_vertexStride ? (UINT)(m_vertices.size() / m_vertexStride) : 0u); }
-    UINT indexCount()  const { UINT is = indexStride(); return (is ? (UINT)(m_indices.size() / is) : 0u); }
-
-    DXGI_FORMAT indexFormat() const { return m_indexFormat; }
-
-    bool hasVertices() const { return vertexCount() > 0; }
-    bool hasIndices()  const { return indexCount() > 0; }
-
-    void clear()
-    {
-        m_vertices.clear();
-        m_indices.clear();
-        m_vertexStride = 0;
-        m_indexFormat = DXGI_FORMAT_UNKNOWN;
-    }
-
-private:
-    std::vector<uint8_t> m_vertices;
-    std::vector<uint8_t> m_indices;
-    UINT         m_vertexStride = 0;
-    DXGI_FORMAT  m_indexFormat = DXGI_FORMAT_UNKNOWN;
+public:
+    std::string                 m_name;
+    std::vector<SimpleVertex>   m_vertex;
+    std::vector<unsigned int>   m_index;
+    int                         m_numVertex;
+    int                         m_numIndex;
 };
