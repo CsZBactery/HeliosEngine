@@ -44,9 +44,6 @@
     <ClCompile Include="source\Window.cpp">
       <Filter>source</Filter>
     </ClCompile>
-    <ClCompile Include="source\TextureLoaderWIC.cpp">
-      <Filter>source</Filter>
-    </ClCompile>
     <ClCompile Include="source\Viewport.cpp">
       <Filter>source</Filter>
     </ClCompile>
@@ -66,6 +63,9 @@
       <Filter>source</Filter>
     </ClCompile>
     <ClCompile Include="source\SamplerState.cpp">
+      <Filter>source</Filter>
+    </ClCompile>
+    <ClCompile Include="source\DDSTextureLoader.cpp">
       <Filter>source</Filter>
     </ClCompile>
   </ItemGroup>
@@ -107,9 +107,6 @@
     <ClInclude Include="include\Window.h">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="include\TextureLoaderWIC.h">
-      <Filter>include</Filter>
-    </ClInclude>
     <ClInclude Include="include\Viewport.h">
       <Filter>include</Filter>
     </ClInclude>
@@ -137,5 +134,11 @@
     <ClInclude Include="include\Types.h">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\DDSTextureLoader.h">
+      <Filter>include</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="Assets\Textures\seafloor.dds" />
   </ItemGroup>
 </Project>

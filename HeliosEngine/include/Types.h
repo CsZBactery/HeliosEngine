@@ -1,5 +1,6 @@
 #pragma once
-// Types.h — tipos compartidos del engine (vértices y constant-buffers)
+
+enum class ExtensionType : unsigned int { DDS, PNG, JPG };
 
 #include <DirectXMath.h>
 using namespace DirectX;

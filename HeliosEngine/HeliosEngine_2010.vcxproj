@@ -389,12 +389,22 @@
       <AdditionalIncludeDirectories>$(ProjectDir)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
   </ItemDefinitionGroup>
-  <ItemGroup />
+  <ItemGroup>
+    <Image Include="Assets\Textures\seafloor.dds">
+      <DeploymentContent Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</DeploymentContent>
+      <DeploymentContent Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</DeploymentContent>
+      <DeploymentContent Condition="'$(Configuration)|$(Platform)'=='Profile|Win32'">true</DeploymentContent>
+      <DeploymentContent Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</DeploymentContent>
+      <DeploymentContent Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</DeploymentContent>
+      <DeploymentContent Condition="'$(Configuration)|$(Platform)'=='Profile|x64'">true</DeploymentContent>
+    </Image>
+  </ItemGroup>
   <ItemGroup>
     <ClCompile Include="HeliosEngine.cpp" />
     <ClCompile Include="include\ModelLoader.cpp" />
     <ClCompile Include="source\BaseApp.cpp" />
     <ClCompile Include="source\Buffer.cpp" />
+    <ClCompile Include="source\DDSTextureLoader.cpp" />
     <ClCompile Include="source\DepthStencilView.cpp" />
     <ClCompile Include="source\Device.cpp" />
     <ClCompile Include="source\DeviceContext.cpp" />
@@ -404,7 +414,6 @@
     <ClCompile Include="source\ShaderProgram.cpp" />
     <ClCompile Include="source\SwapChain.cpp" />
     <ClCompile Include="source\Texture.cpp" />
-    <ClCompile Include="source\TextureLoaderWIC.cpp" />
     <ClCompile Include="source\Viewport.cpp" />
     <ClCompile Include="source\Window.cpp" />
   </ItemGroup>
@@ -414,6 +423,7 @@
   <ItemGroup>
     <ClInclude Include="include\BaseApp.h" />
     <ClInclude Include="include\Buffer.h" />
+    <ClInclude Include="include\DDSTextureLoader.h" />
     <ClInclude Include="include\DepthStencilView.h" />
     <ClInclude Include="include\Device.h" />
     <ClInclude Include="include\DeviceContext.h" />
@@ -427,7 +437,6 @@
     <ClInclude Include="include\ShaderProgram.h" />
     <ClInclude Include="include\SwapChain.h" />
     <ClInclude Include="include\Texture.h" />
-    <ClInclude Include="include\TextureLoaderWIC.h" />
     <ClInclude Include="include\Types.h" />
     <ClInclude Include="include\Viewport.h" />
     <ClInclude Include="include\Window.h" />
