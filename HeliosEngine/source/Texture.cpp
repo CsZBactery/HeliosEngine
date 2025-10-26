@@ -1,7 +1,7 @@
 ﻿#include "../include/Texture.h"
 #include "../include/Device.h"
 #include "../include/DeviceContext.h"
-#include "../include/DDSTextureLoader.h"   // ../include/
+#include "DDSTextureLoader.h"   // ../include/
 
 // helper: std::string (UTF-8) -> std::wstring
 static std::wstring ToWide(const std::string& s) {

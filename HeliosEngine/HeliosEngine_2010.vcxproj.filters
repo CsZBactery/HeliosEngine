@@ -18,6 +18,15 @@
     <Filter Include="source">
       <UniqueIdentifier>{eab9a8f3-0d12-4059-aaf0-a2cfa1134429}</UniqueIdentifier>
     </Filter>
+    <Filter Include="third_party">
+      <UniqueIdentifier>{0636dca9-1f23-41f0-9c9c-1a6461185e80}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="third_party\include">
+      <UniqueIdentifier>{57f07cac-f917-4e3f-8cbe-56e81d91dadf}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="third_party\source">
+      <UniqueIdentifier>{fbd23ac0-3c1b-4b0d-8bdd-e859b32de716}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="HeliosEngine.cpp">
@@ -53,9 +62,6 @@
     <ClCompile Include="source\ShaderProgram.cpp">
       <Filter>source</Filter>
     </ClCompile>
-    <ClCompile Include="include\ModelLoader.cpp">
-      <Filter>source</Filter>
-    </ClCompile>
     <ClCompile Include="source\Buffer.cpp">
       <Filter>source</Filter>
     </ClCompile>
@@ -65,7 +71,7 @@
     <ClCompile Include="source\SamplerState.cpp">
       <Filter>source</Filter>
     </ClCompile>
-    <ClCompile Include="source\DDSTextureLoader.cpp">
+    <ClCompile Include="source\ModelLoader.cpp">
       <Filter>source</Filter>
     </ClCompile>
   </ItemGroup>
@@ -134,8 +140,20 @@
     <ClInclude Include="include\Types.h">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="include\DDSTextureLoader.h">
-      <Filter>include</Filter>
+    <ClInclude Include="third_party\include\DDSTextureLoader.h">
+      <Filter>third_party\include</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\include\DDS.h">
+      <Filter>third_party\include</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\include\DirectXHelpers.h">
+      <Filter>third_party\include</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\include\LoaderHelpers.h">
+      <Filter>third_party\include</Filter>
+    </ClInclude>
+    <ClInclude Include="third_party\include\PlatformHelpers.h">
+      <Filter>third_party\include</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
