@@ -1,32 +1,52 @@
 #include "../include/InputLayout.h"
 #include "../include/Device.h"
 #include "../include/DeviceContext.h"
-                                      
-HRESULT InputLayout::init(
-  Device& device,
-  std::vector<D3D11_INPUT_ELEMENT_DESC>& layout,
-  ID3DBlob* vertexShaderData)
-{
-  if (layout.empty()) return E_INVALIDARG;
-  if (!vertexShaderData) return E_POINTER;
 
-  HRESULT hr = device.CreateInputLayout(
-    layout.data(),
-    static_cast<UINT>(layout.size()),
-    vertexShaderData->GetBufferPointer(),
-    vertexShaderData->GetBufferSize(),
-    &m_inputLayout);
+HRESULT
+InputLayout::init(Device& device,
+    std::vector<D3D11_INPUT_ELEMENT_DESC>& Layout,
+    ID3DBlob* VertexShaderData) {
 
-  return hr;
+    if (Layout.empty()) {
+        ERROR("InputLayout", "init", "Layout vector is empty");
+        return E_INVALIDARG;
+    }
+    if (!VertexShaderData) {
+        ERROR("InputLayout", "init", "VertexShaderData is nullptr.");
+        return E_POINTER;
+    }
+
+    HRESULT hr = device.CreateInputLayout(Layout.data(),
+        static_cast<unsigned int>(Layout.size()),
+        VertexShaderData->GetBufferPointer(),
+        VertexShaderData->GetBufferSize(),
+        &m_inputLayout);
+
+    if (FAILED(hr)) {
+        ERROR("InputLayout", "init",
+            ("Failed to create InputLayout. HRESULT: " + std::to_string(hr)).c_str());
+        return hr;
+    }
+
+    return S_OK;
 }
 
-void InputLayout::render(DeviceContext& deviceContext)
-{
-  if (!m_inputLayout) return;
-  deviceContext.IASetInputLayout(m_inputLayout);
+void
+InputLayout::update() {
+    //Metodo vacio para caundo se necesite cambios dinamicos
 }
 
-void InputLayout::destroy()
-{
-  if (m_inputLayout) { m_inputLayout->Release(); m_inputLayout = nullptr; }
+void
+InputLayout::render(DeviceContext& deviceContext) {
+    if (!m_inputLayout) {
+        ERROR("InputLayout", "render", "InputLayout is nullptr");
+
+        return;
+    }
+    deviceContext.m_deviceContext->IASetInputLayout(m_inputLayout);
+}
+
+void
+InputLayout::destroy() {
+    SAFE_RELEASE(m_inputLayout);
 }

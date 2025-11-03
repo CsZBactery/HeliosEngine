@@ -1,49 +1,68 @@
 #pragma once
 #include "Prerequisites.h"
-#include <string>
-#include <vector>
+#include "InputLayout.h"
 
-class Device;
-class DeviceContext;
-class InputLayout;
+class
+    Device;
 
-enum class ShaderType { Vertex, Pixel };
+class
+    DeviceContext;
 
-class ShaderProgram {
+class
+    ShaderProgram {
 public:
-  ShaderProgram() = default;
-  ~ShaderProgram() = default;
 
-  // Carga y compila VS/PS del mismo archivo (entry VSMain/PSMain por defecto)
-  HRESULT init(
-    Device& device,
-    const std::string& fileName,
-    std::vector<D3D11_INPUT_ELEMENT_DESC> layout // se usa para crear IA
-  );
+    ShaderProgram() = default;
 
-  void update() {}
-  void render(DeviceContext& deviceContext);
-  void render(DeviceContext& deviceContext, ShaderType type);
-  void destroy();
+    ~ShaderProgram() = default;
 
-  // Acceso a blobs por si necesitas reflección o IA custom
-  ID3DBlob* getVSBlob() const { return m_vertexShaderData; }
+    HRESULT
+        init(Device& device,
+            const std::string& fileName,
+            std::vector < D3D11_INPUT_ELEMENT_DESC> Layout);
+
+    void
+        update();
+
+    void
+        render(DeviceContext& deviceContext);
+
+    void
+        render(DeviceContext& deviceContext, ShaderType type);
+
+    void
+        destroy();
+
+    HRESULT
+        CreateInputLayout(Device& device,
+            std::vector<D3D11_INPUT_ELEMENT_DESC> Layout);
+
+    HRESULT
+        CreateShader(Device& device, ShaderType type);
+
+    HRESULT
+        CreateShader(Device& device, ShaderType type, const std::string& fileName);
+
+    HRESULT
+        CompileShaderFromFile(char* szFileName,
+            LPCSTR szEntryPoint,
+            LPCSTR szShaderModel,
+            ID3DBlob** ppBlobOut);
 
 public:
-  ID3D11VertexShader* m_VertexShader = nullptr;
-  ID3D11PixelShader* m_PixelShader = nullptr;
+    ID3D11VertexShader* m_VertexShader = nullptr;
 
-  InputLayout* m_inputLayoutPtr = nullptr; // no-ownership
+    ID3D11PixelShader* m_PixelShader = nullptr;
+
+    InputLayout m_inputLayout;
 
 private:
-  std::string m_shaderFileName;
-  ID3DBlob* m_vertexShaderData = nullptr;
-  ID3DBlob* m_pixelShaderData = nullptr;
 
-private:
-  HRESULT compileShaderFromFile(
-    const wchar_t* szFile,
-    LPCSTR entryPoint,
-    LPCSTR shaderModel,
-    ID3DBlob** ppBlobOut);
+    std::string m_shaderFileName;
+
+    ID3DBlob* m_vertexShaderData = nullptr;
+
+    ID3DBlob* m_pixelShaderData = nullptr;
+
 };
+

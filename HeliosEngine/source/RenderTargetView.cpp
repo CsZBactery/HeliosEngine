@@ -1,88 +1,150 @@
-#include "../include/Prerequisites.h"
-#include "../include/RenderTargetView.h"
+ï»¿#include "../include/RenderTargetView.h"
 #include "../include/Device.h"
-#include "../include/DeviceContext.h"
 #include "../include/Texture.h"
+#include "../include/DeviceContext.h"
 #include "../include/DepthStencilView.h"
 
-// NOTA: asumo que Texture expone ID3D11Texture2D* m_texture (como los demás wrappers del profe).
-//       Si tu Texture tiene get(), cámbialo por: auto* tex = backBuffer.get();
+//
+// La primera funciï¿½n `init` inicializa el Render Target View para un back buffer,
+// comï¿½nmente una textura multimuestreo (MSAA), que es la textura de la ventana principal.
+//
+HRESULT
+RenderTargetView::init(Device& device,
+	Texture& backBuffer,
+	DXGI_FORMAT Format) {
+	// Se verifica que el dispositivo y la textura no sean nulos y que el formato sea vï¿½lido.
+	if (!device.m_device) {
+		ERROR("RenderTargetView", "init", "Device is nullptr.");
+		return E_POINTER;
+	}
+	if (!backBuffer.m_texture) {
+		ERROR("RenderTargetView", "init", "Texture is nullptr.");
+		return E_POINTER;
+	}
+	if (Format == DXGI_FORMAT_UNKNOWN) {
+		ERROR("RenderTargetView", "init", "Format is DXGI_FORMAT_UNKNOWN.");
+		return E_INVALIDARG;
+	}
 
-void RenderTargetView::destroy() {
-    SAFE_RELEASE(m_rtv);
+	// Se configura la descripciï¿½n para una vista de destino de renderizado.
+	// Se limpia la estructura y se asigna el formato y la dimensiï¿½n.
+	// D3D11_RTV_DIMENSION_TEXTURE2DMS se usa para texturas multimuestreo.
+	D3D11_RENDER_TARGET_VIEW_DESC desc;
+	memset(&desc, 0, sizeof(desc));
+	desc.Format = Format;
+	desc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2DMS;
+
+	// Se crea la vista de destino de renderizado llamando a la funciï¿½n del dispositivo de Direct3D.
+	HRESULT hr = device.m_device->CreateRenderTargetView(backBuffer.m_texture,
+		&desc,
+		&m_renderTargetView);
+	// Se verifica si la creaciï¿½n fue exitosa.
+	if (FAILED(hr)) {
+		ERROR("RenderTargetView", "init",
+			("Failed to create render target view. HRESULT: " + std::to_string(hr)).c_str());
+		return hr;
+	}
+	return S_OK;
 }
 
-HRESULT RenderTargetView::createFromBackbuffer(IDXGISwapChain* swap, ID3D11Device* dev) {
-    if (!swap || !dev) return E_POINTER;
+//
+// La segunda funciï¿½n `init` es una versiï¿½n mï¿½s general que inicializa el Render Target View
+// con una dimensiï¿½n y un formato dados, no solo para back buffers.
+//
+HRESULT
+RenderTargetView::init(Device& device,
+	Texture& inTex,
+	D3D11_RTV_DIMENSION ViewDimension,
+	DXGI_FORMAT Format) {
+	// Se realizan las mismas verificaciones de entrada.
+	if (!device.m_device) {
+		ERROR("RenderTargetView", "init", "Device is nullptr.");
+		return E_POINTER;
+	}
+	if (!inTex.m_texture) {
+		ERROR("RenderTargetView", "init", "Texture is nullptr.");
+		return E_POINTER;
+	}
+	if (Format == DXGI_FORMAT_UNKNOWN) {
+		ERROR("RenderTargetView", "init", "Format is DXGI_FORMAT_UNKNOWN.");
+		return E_INVALIDARG;
+	}
 
-    SAFE_RELEASE(m_rtv);
+	// Se configura la descripciï¿½n usando la dimensiï¿½n y el formato proporcionados.
+	D3D11_RENDER_TARGET_VIEW_DESC desc;
+	memset(&desc, 0, sizeof(desc));
+	desc.Format = Format;
+	desc.ViewDimension = ViewDimension;
 
-    ID3D11Texture2D* backTex = nullptr;
-    HRESULT hr = swap->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&backTex);
-    if (FAILED(hr)) return hr;
+	// Se crea la vista de destino de renderizado.
+	HRESULT hr = device.m_device->CreateRenderTargetView(inTex.m_texture,
+		&desc,
+		&m_renderTargetView);
 
-    hr = dev->CreateRenderTargetView(backTex, nullptr, &m_rtv);
-    SAFE_RELEASE(backTex);
-    return hr;
+	// Se verifica si la creaciï¿½n fue exitosa.
+	if (FAILED(hr)) {
+		ERROR("RenderTargetView", "init",
+			("Failed to create render target view. HRESULT: " + std::to_string(hr)).c_str());
+		return hr;
+	}
+
+	return S_OK;
 }
 
-HRESULT RenderTargetView::createFromTexture(ID3D11Device* dev, ID3D11Texture2D* tex,
-    const D3D11_RENDER_TARGET_VIEW_DESC* desc) {
-    if (!dev || !tex) return E_POINTER;
-    SAFE_RELEASE(m_rtv);
-    return dev->CreateRenderTargetView(tex, desc, &m_rtv);
+//
+// La primera funciï¿½n `render` limpia la vista de destino de renderizado y la asigna
+// junto con un buffer de profundidad/plantilla.
+//
+void
+RenderTargetView::render(DeviceContext& deviceContext,
+	DepthStencilView& depthStencilView,
+	unsigned int numViews,
+	const float ClearColor[4]) {
+	// Se verifica que el contexto y la vista no sean nulos.
+	if (!deviceContext.m_deviceContext) {
+		ERROR("RenderTargetView", "render", "DeviceContext is nullptr.");
+		return;
+	}
+	if (!m_renderTargetView) {
+		ERROR("RenderTargetView", "render", "RenderTargetView is nullptr.");
+		return;
+	}
+
+	// Se limpia el color de la vista de destino de renderizado con el color especificado.
+	deviceContext.m_deviceContext->ClearRenderTargetView(m_renderTargetView, ClearColor);
+
+	// Se configura la vista de destino de renderizado y el buffer de profundidad/plantilla
+	// para que la GPU sepa dï¿½nde dibujar.
+	deviceContext.m_deviceContext->OMSetRenderTargets(numViews,
+		&m_renderTargetView,
+		depthStencilView.m_depthStencilView);
 }
 
-HRESULT RenderTargetView::init(Device& device, Texture& backBuffer, DXGI_FORMAT format) {
-    if (!device.m_device) { ERROR(RenderTargetView, init, L"Device es nullptr"); return E_POINTER; }
-
-    // Obtener la textura 2D desde el wrapper Texture
-    ID3D11Texture2D* tex2D = nullptr;
-
-    // Opción A) si Texture expone m_texture público:
-    extern ID3D11Texture2D* __force_unused; // solo para que VS no se queje si no usas A
-    tex2D = backBuffer.m_texture;
-
-    // Opción B) si tu Texture tiene get():
-    // tex2D = backBuffer.get();
-
-    if (!tex2D) {
-        ERROR(RenderTargetView, init, L"BackBuffer no contiene textura válida");
-        return E_FAIL;
-    }
-
-    // Si piden formato, podemos construir un RTV desc opcional.
-    D3D11_RENDER_TARGET_VIEW_DESC rtvDesc{};
-    rtvDesc.Format = format;
-    rtvDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
-    rtvDesc.Texture2D.MipSlice = 0;
-
-    SAFE_RELEASE(m_rtv);
-    HRESULT hr = device.m_device->CreateRenderTargetView(tex2D, &rtvDesc, &m_rtv);
-    if (FAILED(hr)) {
-        ERROR(RenderTargetView, init, L"CreateRenderTargetView falló");
-        return hr;
-    }
-    return S_OK;
+//
+// La segunda funciï¿½n `render` es una versiï¿½n simplificada que solo asigna la vista de destino de renderizado,
+// sin un buffer de profundidad/plantilla.
+//
+void
+RenderTargetView::render(DeviceContext& deviceContext, unsigned int numViews) {
+	// Se verifica que el contexto y la vista no sean nulos.
+	if (!deviceContext.m_deviceContext) {
+		ERROR("RenderTargetView", "render", "DeviceContext is nullptr.");
+		return;
+	}
+	if (!m_renderTargetView) {
+		ERROR("RenderTargetView", "render", "RenderTargetView is nullptr.");
+		return;
+	}
+	// Se configura la vista de destino de renderizado, pasando nullptr para el buffer de profundidad.
+	deviceContext.m_deviceContext->OMSetRenderTargets(numViews,
+		&m_renderTargetView,
+		nullptr);
 }
 
-void RenderTargetView::render(DeviceContext& deviceContext,
-    DepthStencilView& dsv,
-    unsigned int /*NumViews*/,
-    const float ClearColor[4]) {
-    if (!m_rtv) {
-        ERROR(RenderTargetView, render, L"RTV es nullptr");
-        return;
-    }
-
-    ID3D11RenderTargetView* views[1] = { m_rtv };
-    ID3D11DepthStencilView* dsvPtr = dsv.get();
-
-    if (auto* ctx = deviceContext.get()) {
-        ctx->OMSetRenderTargets(1, views, dsvPtr);
-        ctx->ClearRenderTargetView(m_rtv, ClearColor);
-    }
-    else {
-        ERROR(RenderTargetView, render, L"DeviceContext::get() es nullptr");
-    }
+//
+// La funciï¿½n `destroy` libera la memoria de la vista de destino de renderizado.
+//
+void
+RenderTargetView::destroy() {
+	SAFE_RELEASE(m_renderTargetView);
 }

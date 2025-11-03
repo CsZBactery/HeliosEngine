@@ -1,78 +1,110 @@
-#pragma once
-/**
- * @file RenderTargetView.h
- * @brief Wrapper mínimo para crear y gestionar un Render Target View (RTV) en D3D11.
- *
- * Funciona con el estilo de los wrappers del profe:
- *  - init(Device&, Texture&, DXGI_FORMAT)
- *  - render(DeviceContext&, DepthStencilView&, NumViews, ClearColor)
- *  - destroy()
- */
+ï»¿#pragma once
+#include "Prerequisites.h"
 
-#include "../include/Prerequisites.h"
+//Forward Declarations
+class
+    Device;
 
- // Adelantos para evitar ciclos de include
-class Device;
-class DeviceContext;
-class Texture;
-class DepthStencilView;
+class
+    DeviceContext;
+
+class
+    Texture;
+
+class
+    DepthStencilView;
+
 
 /**
  * @class RenderTargetView
- * @brief Encapsula un @c ID3D11RenderTargetView y su ciclo de vida.
+ * @brief Encapsula un Render Target View (RTV) de DirectX 11.
+ *
+ * Esta clase administra la creaciï¿½n, uso y destrucciï¿½n de un
+ * ID3D11RenderTargetView, el cual se utiliza para renderizar
+ * grï¿½ficos en una textura o en el back buffer.
  */
-class RenderTargetView {
+class
+    RenderTargetView {
 public:
+
+    /**
+     * @brief Constructor por defecto.
+     */
     RenderTargetView() = default;
-    ~RenderTargetView() { destroy(); }
-
-    RenderTargetView(const RenderTargetView&) = delete;
-    RenderTargetView& operator=(const RenderTargetView&) = delete;
 
     /**
-     * @brief Libera el @c ID3D11RenderTargetView si existe.
+     * @brief Destructor por defecto.
      */
-    void destroy();
+    ~RenderTargetView() = default;
 
     /**
-     * @brief Crea el RTV desde el backbuffer (índice 0) de una swap chain.
-     * @param swap  Swap chain válida (no nula).
-     * @param dev   Dispositivo D3D11 usado para crear la vista.
+     * @brief Inicializa el Render Target View usando el back buffer.
+     *
+     * @param device Referencia al dispositivo de DirectX.
+     * @param backBuffer Textura del back buffer.
+     * @param format Formato de la textura (DXGI_FORMAT).
+     * @return HRESULT Cï¿½digo de resultado (S_OK si se inicializï¿½ correctamente).
      */
-    HRESULT createFromBackbuffer(IDXGISwapChain* swap, ID3D11Device* dev);
+    HRESULT
+        init(Device& device, Texture& backBuffer, DXGI_FORMAT format);
 
     /**
-     * @brief Crea el RTV a partir de una textura 2D existente.
-     * @param dev   Dispositivo D3D11.
-     * @param tex   Textura 2D origen (no nula).
-     * @param desc  Descriptor opcional del RTV; si es nullptr se infiere.
+     * @brief Inicializa el Render Target View con una textura personalizada.
+     *
+     * @param device Referencia al dispositivo de DirectX.
+     * @param inTex Textura de entrada.
+     * @param viewDimension Dimensiï¿½n del RTV (por ejemplo, TEXTURE2D, TEXTURE2DARRAY, etc.).
+     * @param format Formato de la textura (DXGI_FORMAT).
+     * @return HRESULT Cï¿½digo de resultado (S_OK si se inicializï¿½ correctamente).
      */
-    HRESULT createFromTexture(ID3D11Device* dev, ID3D11Texture2D* tex,
-        const D3D11_RENDER_TARGET_VIEW_DESC* desc = nullptr);
+    HRESULT
+        init(Device& device,
+            Texture& inTex,
+            D3D11_RTV_DIMENSION viewDimension,
+            DXGI_FORMAT format);
 
     /**
-     * @brief Inicializa el RTV desde el backbuffer (estilo profe).
-     * @param device      Wrapper del dispositivo.
-     * @param backBuffer  Wrapper de la textura del backbuffer.
-     * @param format      Formato del RTV (ej. DXGI_FORMAT_R8G8B8A8_UNORM).
+     * @brief Actualiza el estado del Render Target View.
+     *
+     * Funciï¿½n placeholder que puede usarse para lï¿½gica de actualizaciï¿½n
+     * relacionada al render target.
      */
-    HRESULT init(Device& device, Texture& backBuffer, DXGI_FORMAT format);
+    void
+        update();
 
     /**
-     * @brief Hace bind del RTV, del DSV y limpia el color (estilo profe).
-     * @param deviceContext Contexto inmediato.
-     * @param dsv           Wrapper de DepthStencilView a enlazar.
-     * @param NumViews      Número de RTVs (normalmente 1).
-     * @param ClearColor    RGBA para ClearRenderTargetView.
+     * @brief Renderiza utilizando este Render Target View y un DepthStencilView.
+     *
+     * @param deviceContext Contexto del dispositivo para emitir comandos de render.
+     * @param depthStencilView Referencia al DepthStencilView asociado.
+     * @param numViews Nï¿½mero de vistas a aplicar.
+     * @param clearColor Color con el que se limpia el render target (RGBA, 4 componentes).
      */
-    void render(DeviceContext& deviceContext,
-        DepthStencilView& dsv,
-        unsigned int NumViews,
-        const float ClearColor[4]);
+    void
+        render(DeviceContext& deviceContext,
+            DepthStencilView& depthStencilView,
+            unsigned int numViews,
+            const float clearColor[4]);
 
-    /// Acceso crudo
-    ID3D11RenderTargetView* get() const { return m_rtv; }
+    /**
+     * @brief Renderiza utilizando este Render Target View sin un DepthStencilView.
+     *
+     * @param deviceContext Contexto del dispositivo.
+     * @param numViews Nï¿½mero de vistas a aplicar.
+     */
+    void
+        render(DeviceContext& deviceContext,
+            unsigned int numViews);
+
+    /**
+     * @brief Libera los recursos asociados al Render Target View.
+     */
+    void
+        destroy();
 
 private:
-    ID3D11RenderTargetView* m_rtv = nullptr;
+    /**
+     * @brief Puntero al objeto ID3D11RenderTargetView de DirectX 11.
+     */
+    ID3D11RenderTargetView* m_renderTargetView = nullptr;
 };

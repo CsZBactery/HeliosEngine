@@ -1,294 +1,210 @@
-// SwapChain.cpp
-#include "../include/Prerequisites.h"
-#include "../include/SwapChain.h"
+ï»¿#include "../include/SwapChain.h"
 #include "../include/Device.h"
 #include "../include/DeviceContext.h"
-#include "../include/Window.h"
 #include "../include/Texture.h"
+#include "../include/Window.h"
 
-void SwapChain::destroyRTV_() { SAFE_RELEASE(m_rtv); }
+//
+// La funciï¿½n `init` se encarga de inicializar el Swap Chain, que es un componente clave en la renderizaciï¿½n de Direct3D.
+// Su propï¿½sito principal es gestionar el intercambio de los buffers de la pantalla,
+// permitiendo que la imagen renderizada en el "back buffer" se muestre en el "front buffer" (la pantalla).
+//
+HRESULT
+SwapChain::init(Device& device,
+    DeviceContext& deviceContext,
+    Texture& backBuffer,
+    Window window) {
+    // Se verifica que el handle de la ventana sea vï¿½lido antes de continuar.
+    if (!window.m_hWnd) {
+        ERROR("SwapChain", "init", "Invalid window handle. (m_hWnd is nullptr)");
+        return E_POINTER;
+    }
 
-void SwapChain::destroy()
-{
-  if (m_swap) { m_swap->SetFullscreenState(FALSE, nullptr); }
-  destroyRTV_();
-  SAFE_RELEASE(m_swap);
+    HRESULT
+        hr = S_OK;
 
-  m_width = m_height = 0;
-  m_format = DXGI_FORMAT_R8G8B8A8_UNORM;
-  MESSAGE(SwapChain, destroy, L"Released");
-}
-
-// ============================================================================
-// INIT: Device + Immediate Context + Factory->CreateSwapChain + RTV + Viewport
-// ============================================================================
-HRESULT SwapChain::init(Device& device,
-  DeviceContext& deviceContext,
-  Texture& backBuffer,
-  const Window& window) // <-- const ref
-{
-  if (!window.handle()) { ERROR(SwapChain, init, L"Invalid window handle"); return E_POINTER; }
-
-  UINT createDeviceFlags = 0;
+    //
+    // Se configuran los flags para la creaciï¿½n del dispositivo. En modo de depuraciï¿½n,
+    // se agrega el flag para permitir mensajes de depuraciï¿½n de Direct3D.
+    //
+    unsigned int createDeviceFlags = 0;
 #ifdef _DEBUG
-  createDeviceFlags |= D3D11_CREATE_DEVICE_DEBUG;
+    createDeviceFlags |= D3D11_CREATE_DEVICE_DEBUG;
 #endif
 
-  D3D_DRIVER_TYPE driverTypes[] = {
-    D3D_DRIVER_TYPE_HARDWARE,
-    D3D_DRIVER_TYPE_WARP,
-    D3D_DRIVER_TYPE_REFERENCE
-  };
-  const UINT numDriverTypes = static_cast<UINT>(sizeof(driverTypes) / sizeof(driverTypes[0]));
+    //
+    // Se definen los tipos de controladores que se intentarï¿½n. Se prefiere el hardware,
+    // seguido de WARP (renderizaciï¿½n por software de alto rendimiento) y de referencia.
+    //
+    D3D_DRIVER_TYPE driverTypes[] = {
+        D3D_DRIVER_TYPE_HARDWARE,
+        D3D_DRIVER_TYPE_WARP,
+        D3D_DRIVER_TYPE_REFERENCE,
+    };
+    unsigned int numDriverTypes = ARRAYSIZE(driverTypes);
 
-  D3D_FEATURE_LEVEL featureLevels[] = {
-    D3D_FEATURE_LEVEL_11_0,
-    D3D_FEATURE_LEVEL_10_1,
-    D3D_FEATURE_LEVEL_10_0
-  };
-  const UINT numFeatureLevels = static_cast<UINT>(sizeof(featureLevels) / sizeof(featureLevels[0]));
+    //
+    // Se definen los niveles de caracterï¿½sticas de Direct3D que se soportarï¿½n.
+    // Se intenta con el mï¿½s reciente (11.0) y se retrocede si es necesario.
+    //
+    D3D_FEATURE_LEVEL featureLevels[] = {
+        D3D_FEATURE_LEVEL_11_0,
+        D3D_FEATURE_LEVEL_10_1,
+        D3D_FEATURE_LEVEL_10_0,
+    };
+    unsigned int numFeatureLevels = ARRAYSIZE(featureLevels);
 
-  ID3D11Device* d3dDevice = nullptr;
-  ID3D11DeviceContext* immContext = nullptr;
-  D3D_FEATURE_LEVEL obtainedFL = {};
-  HRESULT hr = E_FAIL;
+    //
+    // Se intenta crear el dispositivo y el contexto de Direct3D. La funciï¿½n `D3D11CreateDevice`
+    // intenta con los niveles de caracterï¿½sticas y tipos de controladores definidos.
+    //
+    for (unsigned int driverTypeIndex = 0; driverTypeIndex < numDriverTypes; driverTypeIndex++) {
+        D3D_DRIVER_TYPE driverType = driverTypes[driverTypeIndex];
+        hr = D3D11CreateDevice(nullptr,
+            driverType,
+            nullptr,
+            createDeviceFlags,
+            featureLevels,
+            numFeatureLevels,
+            D3D11_SDK_VERSION,
+            &device.m_device,
+            &m_featureLevel,
+            &deviceContext.m_deviceContext);
 
-  for (UINT i = 0; i < numDriverTypes; ++i) {
-    hr = D3D11CreateDevice(
-      nullptr, driverTypes[i], nullptr, createDeviceFlags,
-      featureLevels, numFeatureLevels,
-      D3D11_SDK_VERSION, &d3dDevice, &obtainedFL, &immContext);
-    if (SUCCEEDED(hr)) break;
-  }
-  if (FAILED(hr)) { ERROR(SwapChain, init, L"D3D11CreateDevice failed"); return hr; }
+        // Si la creaciï¿½n del dispositivo es exitosa, se sale del bucle.
+        if (SUCCEEDED(hr)) {
+            MESSAGE("SwapChain", "init", "Device created successfully.");
+            break;
+        }
+    }
 
-  device.m_device = d3dDevice;       // si tienes attach(), úsalo en su lugar
-  deviceContext.attach(immContext);  // tu wrapper hace AddRef/Release
+    // Si la creaciï¿½n del dispositivo falla despuï¿½s de todos los intentos, se devuelve un error.
+    if (FAILED(hr)) {
+        ERROR("SwapChain", "init",
+            ("Failed to create D3D11 device. HRESULT: " + std::to_string(hr)).c_str());
+        return hr;
+    }
 
-  // Factory: IDXGIDevice -> IDXGIAdapter -> IDXGIFactory
-  IDXGIDevice* dxgiDev = nullptr;
-  IDXGIAdapter* adapter = nullptr;
-  IDXGIFactory* factory = nullptr;
+    //
+    // Se configuran los ajustes de MSAA (Multisample Anti-Aliasing) para suavizar bordes.
+    // Se verifica si la tarjeta grï¿½fica soporta el nï¿½mero de muestras y los niveles de calidad deseados.
+    //
+    m_sampleCount = 4;
+    hr = device.m_device->CheckMultisampleQualityLevels(DXGI_FORMAT_R8G8B8A8_UNORM,
+        m_sampleCount,
+        &m_qualityLevels);
+    if (FAILED(hr) || m_qualityLevels == 0) {
+        ERROR("SwapChain", "init",
+            ("MSAA not supported or invalid quality level. HRESULT: " + std::to_string(hr)).c_str());
+        return hr;
+    }
 
-  hr = d3dDevice->QueryInterface(__uuidof(IDXGIDevice), (void**)&dxgiDev);
-  if (FAILED(hr)) { ERROR(SwapChain, init, L"QueryInterface IDXGIDevice failed"); goto FactoryCleanup; }
+    //
+    // Se configura la descripciï¿½n del Swap Chain (`DXGI_SWAP_CHAIN_DESC`).
+    // Se especifican propiedades como el tamaï¿½o de la ventana, el formato del buffer,
+    // la tasa de refresco, el modo de ventana, y la configuraciï¿½n de MSAA.
+    //
+    DXGI_SWAP_CHAIN_DESC sd;
+    memset(&sd, 0, sizeof(sd));
+    sd.BufferCount = 1;
+    sd.BufferDesc.Width = window.m_width;
+    sd.BufferDesc.Height = window.m_height;
+    sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    sd.BufferDesc.RefreshRate.Numerator = 60;
+    sd.BufferDesc.RefreshRate.Denominator = 1;
+    sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+    sd.OutputWindow = window.m_hWnd;
+    sd.Windowed = TRUE;
+    sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
+    sd.SampleDesc.Count = m_sampleCount;
+    sd.SampleDesc.Quality = m_qualityLevels - 1;
 
-  hr = dxgiDev->GetAdapter(&adapter);
-  if (FAILED(hr)) { ERROR(SwapChain, init, L"IDXGIDevice::GetAdapter failed"); goto FactoryCleanup; }
+    //
+    // Se obtienen las interfaces de DXGI para crear el Swap Chain.
+    // Primero se consulta la interfaz `IDXGIDevice`, luego el adaptador y finalmente la fï¿½brica.
+    //
+    hr = device.m_device->QueryInterface(__uuidof(IDXGIDevice), (void**)&m_dxgiDevice);
+    if (FAILED(hr)) {
+        ERROR("SwapChain", "init",
+            ("Failed to query IDXGIDevice. HRESULT: " + std::to_string(hr)).c_str());
+        return hr;
+    }
 
-  hr = adapter->GetParent(__uuidof(IDXGIFactory), (void**)&factory);
-  if (FAILED(hr)) { ERROR(SwapChain, init, L"IDXGIAdapter::GetParent IDXGIFactory failed"); goto FactoryCleanup; }
+    hr = m_dxgiDevice->GetAdapter(&m_dxgiAdapter);
+    if (FAILED(hr)) {
+        ERROR("SwapChain", "init",
+            ("Failed to get IDXGIAdapter. HRESULT: " + std::to_string(hr)).c_str());
+        return hr;
+    }
 
-  DXGI_SWAP_CHAIN_DESC sd{};
-  sd.BufferDesc.Width = 0;
-  sd.BufferDesc.Height = 0;
-  sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-  sd.BufferDesc.RefreshRate.Numerator = 0;
-  sd.BufferDesc.RefreshRate.Denominator = 1;
-  sd.SampleDesc.Count = 1; // sin MSAA para backbuffer
-  sd.SampleDesc.Quality = 0;
-  sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-  sd.BufferCount = 1;
-  sd.OutputWindow = window.handle(); // <-- usar getter
-  sd.Windowed = TRUE;
-  sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
-  sd.Flags = 0;
+    hr = m_dxgiAdapter->GetParent(__uuidof(IDXGIFactory),
+        reinterpret_cast<void**>(&m_dxgiFactory));
+    if (FAILED(hr)) {
+        ERROR("SwapChain", "init",
+            ("Failed to get IDXGIFactory. HRESULT: " + std::to_string(hr)).c_str());
+        return hr;
+    }
 
-  SAFE_RELEASE(m_swap);
-  hr = factory->CreateSwapChain(d3dDevice, &sd, &m_swap);
-  if (FAILED(hr)) { ERROR(SwapChain, init, L"CreateSwapChain failed"); goto FactoryCleanup; }
+    //
+    // Con la fï¿½brica de DXGI, se crea el Swap Chain final usando la descripciï¿½n configurada.
+    //
+    hr = m_dxgiFactory->CreateSwapChain(device.m_device,
+        &sd, &m_swapChain);
 
-  // RTV y backBuffer
-  {
-    ID3D11Texture2D* bbTex = nullptr;
-    hr = m_swap->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&bbTex);
-    if (FAILED(hr)) { ERROR(SwapChain, init, L"GetBuffer(0) failed"); goto FactoryCleanup; }
+    if (FAILED(hr)) {
+        ERROR("SwapChain", "init",
+            ("Failed to create swap chain. HRESULT: " + std::to_string(hr)).c_str());
+        return hr;
+    }
 
-    SAFE_RELEASE(m_rtv);
-    hr = d3dDevice->CreateRenderTargetView(bbTex, nullptr, &m_rtv);
-    if (FAILED(hr)) { SAFE_RELEASE(bbTex); ERROR(SwapChain, init, L"CreateRenderTargetView failed"); goto FactoryCleanup; }
-
-    // Guarda puntero al backbuffer en tu Texture wrapper (si lo expones)
-    backBuffer.destroy();
-    backBuffer.m_texture = bbTex; // si m_texture es privado, cambia esto por un método attach() y aquí llama attach(bbTex)
-    // No soltamos bbTex aquí: backBuffer mantiene la referencia
-  }
-
-  // Tamaño + formato reales
-  {
-    DXGI_SWAP_CHAIN_DESC got{};
-    m_swap->GetDesc(&got);
-    m_width = got.BufferDesc.Width;
-    m_height = got.BufferDesc.Height;
-    m_format = got.BufferDesc.Format;
-  }
-
-  // Viewport inicial
-  {
-    D3D11_VIEWPORT vp{};
-    vp.TopLeftX = 0.0f; vp.TopLeftY = 0.0f;
-    vp.Width = static_cast<FLOAT>(m_width ? m_width : 1);
-    vp.Height = static_cast<FLOAT>(m_height ? m_height : 1);
-    vp.MinDepth = 0.0f; vp.MaxDepth = 1.0f;
-    deviceContext.RSSetViewports(1, &vp);
-  }
-
-  MESSAGE(SwapChain, init, L"Device+Context+Factory+SwapChain initialized");
-
-FactoryCleanup:
-  SAFE_RELEASE(factory);
-  SAFE_RELEASE(adapter);
-  SAFE_RELEASE(dxgiDev);
-  return hr;
+    //
+    // Finalmente, se obtiene el puntero al back buffer del Swap Chain. Este back buffer
+    // es una textura donde se renderizarï¿½ el contenido de la escena.
+    //
+    hr = m_swapChain->GetBuffer(0, __uuidof(ID3D11Texture2D),
+        reinterpret_cast<void**>(&backBuffer));
+    if (FAILED(hr)) {
+        ERROR("SwapChain", "init",
+            ("Failed to get back buffer. HRESULT: " + std::to_string(hr)).c_str());
+        return hr;
+    }
+    return S_OK;
 }
 
-// ============================================================================
-// LOW-LEVEL API
-// ============================================================================
-HRESULT SwapChain::create(ID3D11Device* device,
-  HWND hwnd,
-  UINT width,
-  UINT height,
-  DXGI_FORMAT format,
-  UINT bufferCount,
-  BOOL windowed,
-  UINT /*sampleCount*/)
-{
-  if (!device) { ERROR(SwapChain, create, L"device is nullptr"); return E_POINTER; }
-  if (!hwnd) { ERROR(SwapChain, create, L"hwnd is nullptr");   return E_POINTER; }
-  if (width == 0 || height == 0) { ERROR(SwapChain, create, L"invalid size"); return E_INVALIDARG; }
-
-  destroy();
-
-  m_width = width; m_height = height; m_format = format;
-
-  IDXGIDevice* dxgiDev = nullptr;
-  IDXGIAdapter* adapter = nullptr;
-  IDXGIFactory* factory = nullptr;
-
-  HRESULT hr = device->QueryInterface(__uuidof(IDXGIDevice), (void**)&dxgiDev);
-  if (FAILED(hr)) { ERROR(SwapChain, create, L"QIx IDXGIDevice failed"); goto Cleanup; }
-
-  hr = dxgiDev->GetAdapter(&adapter);
-  if (FAILED(hr)) { ERROR(SwapChain, create, L"GetAdapter failed"); goto Cleanup; }
-
-  hr = adapter->GetParent(__uuidof(IDXGIFactory), (void**)&factory);
-  if (FAILED(hr)) { ERROR(SwapChain, create, L"GetParent IDXGIFactory failed"); goto Cleanup; }
-
-  DXGI_SWAP_CHAIN_DESC sd{};
-  sd.BufferDesc.Width = width;
-  sd.BufferDesc.Height = height;
-  sd.BufferDesc.Format = format;
-  sd.BufferDesc.RefreshRate.Numerator = 0;
-  sd.BufferDesc.RefreshRate.Denominator = 1;
-  sd.SampleDesc.Count = 1;
-  sd.SampleDesc.Quality = 0;
-  sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-  sd.BufferCount = bufferCount;
-  sd.OutputWindow = hwnd;
-  sd.Windowed = windowed;
-  sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
-  sd.Flags = 0;
-
-  hr = factory->CreateSwapChain(device, &sd, &m_swap);
-  if (FAILED(hr)) { ERROR(SwapChain, create, L"CreateSwapChain failed"); goto Cleanup; }
-
-  hr = recreateRTV(device);
-  if (FAILED(hr)) goto Cleanup;
-
-  MESSAGE(SwapChain, create, L"Created");
-
-Cleanup:
-  SAFE_RELEASE(factory);
-  SAFE_RELEASE(adapter);
-  SAFE_RELEASE(dxgiDev);
-  return hr;
+//
+// La funciï¿½n `destroy` se encarga de liberar todos los recursos de Direct3D relacionados
+// con el Swap Chain, en el orden correcto para evitar problemas.
+//
+void
+SwapChain::destroy() {
+    if (m_swapChain) {
+        SAFE_RELEASE(m_swapChain);
+    }
+    if (m_dxgiDevice) {
+        SAFE_RELEASE(m_dxgiDevice);
+    }
+    if (m_dxgiAdapter) {
+        SAFE_RELEASE(m_dxgiAdapter);
+    }
+    if (m_dxgiFactory) {
+        SAFE_RELEASE(m_dxgiFactory);
+    }
 }
 
-HRESULT SwapChain::recreateRTV(ID3D11Device* device)
-{
-  if (!m_swap) { ERROR(SwapChain, recreateRTV, L"swap chain is nullptr"); return E_FAIL; }
-  if (!device) { ERROR(SwapChain, recreateRTV, L"device is nullptr");     return E_POINTER; }
-
-  destroyRTV_();
-
-  ID3D11Texture2D* backBuffer = nullptr;
-  HRESULT hr = m_swap->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&backBuffer);
-  if (FAILED(hr)) { ERROR(SwapChain, recreateRTV, L"GetBuffer(0) failed"); return hr; }
-
-  hr = device->CreateRenderTargetView(backBuffer, nullptr, &m_rtv);
-  SAFE_RELEASE(backBuffer);
-
-  if (FAILED(hr)) { ERROR(SwapChain, recreateRTV, L"CreateRenderTargetView failed"); return hr; }
-
-  MESSAGE(SwapChain, recreateRTV, L"RTV_Recreated");
-  return S_OK;
-}
-
-HRESULT SwapChain::resize(ID3D11Device* device, UINT width, UINT height)
-{
-  if (!m_swap) { ERROR(SwapChain, resize, L"swap chain is nullptr"); return E_FAIL; }
-  if (!device) { ERROR(SwapChain, resize, L"device is nullptr");     return E_POINTER; }
-  if (width == 0 || height == 0) { ERROR(SwapChain, resize, L"invalid size"); return E_INVALIDARG; }
-
-  destroyRTV_();
-
-  HRESULT hr = m_swap->ResizeBuffers(0, width, height, DXGI_FORMAT_UNKNOWN, 0);
-  if (FAILED(hr)) { ERROR(SwapChain, resize, L"ResizeBuffers failed"); return hr; }
-
-  m_width = width; m_height = height;
-
-  hr = recreateRTV(device);
-  if (FAILED(hr)) return hr;
-
-  MESSAGE(SwapChain, resize, L"Resized");
-  return S_OK;
-}
-
-HRESULT SwapChain::present(UINT syncInterval, UINT flags)
-{
-  if (!m_swap) { ERROR(SwapChain, present, L"swap chain is nullptr"); return E_FAIL; }
-  return m_swap->Present(syncInterval, flags);
-}
-
-void SwapChain::bindAsRenderTarget(ID3D11DeviceContext* ctx,
-  ID3D11DepthStencilView* dsv) const
-{
-  if (!ctx) { ERROR(SwapChain, bindAsRenderTarget, L"ctx is nullptr"); return; }
-  if (!m_rtv) { ERROR(SwapChain, bindAsRenderTarget, L"RTV is nullptr"); return; }
-  ID3D11RenderTargetView* rtv = m_rtv;
-  ctx->OMSetRenderTargets(1, &rtv, dsv);
-}
-
-// ============================================================================
-// WRAPPERS
-// ============================================================================
-HRESULT SwapChain::create(Device& device,
-  Window& window,
-  UINT width,
-  UINT height,
-  DXGI_FORMAT format,
-  UINT bufferCount,
-  BOOL windowed,
-  UINT sampleCount)
-{
-  return create(device.m_device, window.handle(), width, height,
-    format, bufferCount, windowed, sampleCount); // <-- handle()
-}
-
-HRESULT SwapChain::recreateRTV(Device& device)
-{
-  return recreateRTV(device.m_device);
-}
-
-HRESULT SwapChain::resize(Device& device, UINT width, UINT height)
-{
-  return resize(device.m_device, width, height);
-}
-
-void SwapChain::bindAsRenderTarget(DeviceContext& ctx, ID3D11DepthStencilView* dsv) const
-{
-  if (!m_rtv) { ERROR(SwapChain, bindAsRenderTarget, L"RTV is nullptr"); return; }
-  ID3D11RenderTargetView* rtv = m_rtv;
-  ctx.OMSetRenderTargets(1, &rtv, dsv);
+//
+// La funciï¿½n `present` intercambia el back buffer con el front buffer.
+// Esto hace que la imagen renderizada en el back buffer sea visible en la pantalla.
+//
+void
+SwapChain::present() {
+    if (m_swapChain) {
+        HRESULT hr = m_swapChain->Present(0, 0);
+        if (FAILED(hr)) {
+            ERROR("SwapChain", "present",
+                ("Failed to present swap chain. HRESULT: " + std::to_string(hr)).c_str());
+        }
+    }
+    else {
+        ERROR("SwapChain", "present", "Swap chain is not initialized.");
+    }
 }

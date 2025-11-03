@@ -1,83 +1,246 @@
 #include "../include/ShaderProgram.h"
 #include "../include/Device.h"
 #include "../include/DeviceContext.h"
-#include "../include/InputLayout.h"
-                                    //  ../include/ //
-#include <d3dcompiler.h>
-#pragma comment(lib, "d3dcompiler.lib")
 
-static std::wstring ToW(const std::string& s) {
-  return std::wstring(s.begin(), s.end());
+HRESULT
+ShaderProgram::init(Device& device,
+    const std::string& fileName,
+    std::vector < D3D11_INPUT_ELEMENT_DESC> Layout) {
+    if (!device.m_device) {
+        ERROR("ShaderProgram", "init", "InputLayout is empty.");
+        return E_POINTER;
+    }
+    if (fileName.empty()) {
+        ERROR("ShaderProgram", "init", "InputLayout is empty.");
+        return E_INVALIDARG;
+    }
+    if (Layout.empty()) {
+        ERROR("ShaderProgram", "init", "InputLayout is empty.");
+        return E_INVALIDARG;
+    }
+    m_shaderFileName = fileName;
+
+    //Creacion del Vertex Shader
+    HRESULT hr = CreateShader(device, ShaderType::VERTEX_SHADER);
+    if (FAILED(hr)) {
+        ERROR("ShaderProgram", "init", "Failed to create vertex shader.");
+        return hr;
+    }
+
+    //Creacion del Input Layout
+    hr = CreateInputLayout(device, Layout);
+    if (FAILED(hr)) {
+        ERROR("ShaderProgram", "init", "Failed to create input laoyut.");
+        return hr;
+    }
+
+    //Creacion pixel shader
+    hr = CreateShader(device, ShaderType::PIXEL_SHADER);
+    if (FAILED(hr)) {
+        ERROR("ShaderProgram", "init", "Failed to create pixel shader.");
+        return hr;
+    }
+
+    return hr;
 }
 
-HRESULT ShaderProgram::compileShaderFromFile(
-  const wchar_t* szFile, LPCSTR entry, LPCSTR model, ID3DBlob** out)
-{
-  UINT flags = D3DCOMPILE_ENABLE_STRICTNESS;
-#if defined(_DEBUG)
-  flags |= D3DCOMPILE_DEBUG;
+HRESULT
+ShaderProgram::CreateInputLayout(Device& device,
+    std::vector<D3D11_INPUT_ELEMENT_DESC> Layout) {
+
+    if (!m_vertexShaderData) {
+        ERROR("ShaderProgram", "CreateInputLayout", "VertexShader data is null.");
+        return E_POINTER;
+    }
+    if (!device.m_device) {
+        ERROR("ShaderProgram", "CreateInputLayout", "Input layout is empty.");
+        return E_POINTER;
+    }
+    if (Layout.empty()) {
+        ERROR("ShaderProgram", "CreateInputLayout", "Input layout is empty.");
+        return E_POINTER;
+    }
+
+    HRESULT hr = m_inputLayout.init(device, Layout, m_vertexShaderData);
+    SAFE_RELEASE(m_vertexShaderData);
+
+    if (FAILED(hr)) {
+        ERROR("ShaderProgram", "CreateInputLayout", "Failed to create input layout.");
+        return hr;
+    }
+    return hr;
+}
+
+HRESULT
+ShaderProgram::CreateShader(Device& device, ShaderType type) {
+    if (!device.m_device) {
+        ERROR("ShaderProgram", "CreateSHader", "Device is null");
+        return E_POINTER;
+    }
+    if (m_shaderFileName.empty()) {
+        ERROR("ShaderProgram", "CreateShader", "Shader file name is empty");
+        return E_INVALIDARG;
+    }
+
+    HRESULT hr = S_OK;
+    ID3DBlob* shaderData = nullptr;
+
+    const char* shaderEntryPoint = (type == ShaderType::PIXEL_SHADER) ? "PS" : "VS";
+    const char* shaderModel = (type == ShaderType::PIXEL_SHADER) ? "ps_4_0" : "vs_4_0";
+
+    //Compilacion del shader de el archivo
+    hr = CompileShaderFromFile(m_shaderFileName.data(),
+        shaderEntryPoint,
+        shaderModel,
+        &shaderData);
+
+    if (FAILED(hr)) {
+        ERROR("ShaderProgram", "CreateShader",
+            "Failed to compile shader from file: %s", m_shaderFileName.c_str());
+        return hr;
+    }
+
+    //Creacion de objeto de shader
+    if (type == PIXEL_SHADER) {
+        hr = device.CreatePixelShader(shaderData->GetBufferPointer(),
+            shaderData->GetBufferSize(),
+            nullptr,
+            &m_PixelShader);
+    }
+    else {
+        hr = device.CreateVertexShader(shaderData->GetBufferPointer(),
+            shaderData->GetBufferSize(),
+            nullptr,
+            &m_VertexShader);
+    }
+
+    if (FAILED(hr)) {
+        ERROR("ShaderProgram", "CreateShader",
+            "Failed to create shader object from compiled data. ");
+        shaderData->Release();
+        return hr;
+    }
+
+    //Store the compiled shader data
+    if (type == PIXEL_SHADER) {
+        SAFE_RELEASE(m_pixelShaderData);
+        m_pixelShaderData = shaderData;
+    }
+    else {
+        SAFE_RELEASE(m_vertexShaderData);
+        m_vertexShaderData = shaderData;
+    }
+
+    return S_OK;
+}
+
+HRESULT
+ShaderProgram::CreateShader(Device& device,
+    ShaderType type,
+    const std::string& fileName) {
+
+    if (!device.m_device) {
+        ERROR("ShaderProgram", "init", "Device is null");
+        return E_POINTER;
+    }
+    if (fileName.empty()) {
+        ERROR("ShaderProgram", "init", "File name is empty. ");
+        return E_INVALIDARG;
+    }
+    m_shaderFileName = fileName;
+
+    HRESULT hr = CreateShader(device, type);
+
+    if (FAILED(hr)) {
+        ERROR("ShaderProgram", "CreateShader",
+            "Failed to Create shader from file: %s", m_shaderFileName.c_str());
+        return hr;
+    }
+
+    return S_OK;
+}
+
+HRESULT
+ShaderProgram::CompileShaderFromFile(char* szFileName,
+    LPCSTR szEntryPoint,
+    LPCSTR szShaderModel,
+    ID3DBlob** ppBlobOut) {
+    HRESULT hr = S_OK;
+
+    DWORD dwShaderFlags = D3DCOMPILE_ENABLE_STRICTNESS;
+#if defined (DEBUG) || defined (_DEBUG)
+
+    dwShaderFlags |= D3DCOMPILE_DEBUG;
 #endif
-  ID3DBlob* errors = nullptr;
-  HRESULT hr = D3DCompileFromFile(
-    szFile, nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE,
-    entry, model, flags, 0, out, &errors);
+    ID3DBlob* pErrorBlob;
+    hr = D3DX11CompileFromFile(szFileName,
+        nullptr,
+        nullptr,
+        szEntryPoint,
+        szShaderModel,
+        dwShaderFlags,
+        0,
+        nullptr,
+        ppBlobOut,
+        &pErrorBlob,
+        nullptr);
 
-  if (errors) errors->Release();
-  return hr;
+    if (FAILED(hr)) {
+        if (pErrorBlob) {
+            ERROR("ShaderProgram", "CompileShaderFromfile",
+                "Failed to compile shader from file: %s. ERROR: %s",
+                szFileName, static_cast<const char*>(pErrorBlob->GetBufferPointer()));
+
+            pErrorBlob->Release();
+        }
+        else {
+            ERROR("ShaderProgram", "CompileShaderFromfile",
+                "Failed to compile shader from file: %s. ERROR: %s. No error message available",
+                szFileName);
+        }
+        return hr;
+    }
+
+    SAFE_RELEASE(pErrorBlob)
+
+        return S_OK;
 }
 
-HRESULT ShaderProgram::init(
-  Device& device,
-  const std::string& fileName,
-  std::vector<D3D11_INPUT_ELEMENT_DESC> layout)
-{
-  m_shaderFileName = fileName;
-  const std::wstring wfile = ToW(fileName);
+void
+ShaderProgram::render(DeviceContext& deviceContext) {
+    if (!m_VertexShader || !m_PixelShader || !m_inputLayout.m_inputLayout) {
+        ERROR("ShaderPRogram", "render", "Shader or InputLayout not initialized");
+        return;
+    }
 
-  // VS
-  HRESULT hr = compileShaderFromFile(wfile.c_str(), "VSMain", "vs_5_0", &m_vertexShaderData);
-  if (FAILED(hr)) return hr;
-  hr = device.CreateVertexShader(
-    m_vertexShaderData->GetBufferPointer(),
-    m_vertexShaderData->GetBufferSize(),
-    nullptr, &m_VertexShader);
-  if (FAILED(hr)) return hr;
-
-  // PS
-  hr = compileShaderFromFile(wfile.c_str(), "PSMain", "ps_5_0", &m_pixelShaderData);
-  if (FAILED(hr)) return hr;
-  hr = device.CreatePixelShader(
-    m_pixelShaderData->GetBufferPointer(),
-    m_pixelShaderData->GetBufferSize(),
-    nullptr, &m_PixelShader);
-  if (FAILED(hr)) return hr;
-
-  // Si te pasan un InputLayout externo, créalo allí; aquí solo guardamos el blob.
-  // (El IA lo setearás a través de InputLayout::init + render)
-
-  return S_OK;
+    m_inputLayout.render(deviceContext);
+    deviceContext.m_deviceContext->VSSetShader(m_VertexShader, nullptr, 0);
+    deviceContext.m_deviceContext->PSSetShader(m_PixelShader, nullptr, 0);
 }
 
-void ShaderProgram::render(DeviceContext& deviceContext)
-{
-  if (m_VertexShader) deviceContext.VSSetShader(m_VertexShader, nullptr, 0);
-  if (m_PixelShader)  deviceContext.PSSetShader(m_PixelShader, nullptr, 0);
-
-  if (m_inputLayoutPtr) m_inputLayoutPtr->render(deviceContext);
+void
+ShaderProgram::render(DeviceContext& deviceContext, ShaderType type) {
+    if (!deviceContext.m_deviceContext) {
+        ERROR("RenderTargetView", "render", "DeviceContext is nullptr");
+        return;
+    }
+    switch (type) {
+    case VERTEX_SHADER:
+        deviceContext.m_deviceContext->VSSetShader(m_VertexShader, nullptr, 0);
+        break;
+    case PIXEL_SHADER:
+        deviceContext.m_deviceContext->PSSetShader(m_PixelShader, nullptr, 0);
+        break;
+    default:
+        break;
+    }
 }
 
-void ShaderProgram::render(DeviceContext& deviceContext, ShaderType type)
-{
-  if (type == ShaderType::Vertex && m_VertexShader)
-    deviceContext.VSSetShader(m_VertexShader, nullptr, 0);
-  else if (type == ShaderType::Pixel && m_PixelShader)
-    deviceContext.PSSetShader(m_PixelShader, nullptr, 0);
-}
-
-void ShaderProgram::destroy()
-{
-  if (m_VertexShader) { m_VertexShader->Release();    m_VertexShader = nullptr; }
-  if (m_PixelShader) { m_PixelShader->Release();     m_PixelShader = nullptr; }
-  if (m_vertexShaderData) { m_vertexShaderData->Release(); m_vertexShaderData = nullptr; }
-  if (m_pixelShaderData) { m_pixelShaderData->Release();  m_pixelShaderData = nullptr; }
+void
+ShaderProgram::destroy() {
+    SAFE_RELEASE(m_VertexShader);
+    m_inputLayout.destroy();
+    SAFE_RELEASE(m_PixelShader);
+    SAFE_RELEASE(m_vertexShaderData);
+    SAFE_RELEASE(m_pixelShaderData);
 }

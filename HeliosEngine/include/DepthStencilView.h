@@ -1,32 +1,69 @@
-#pragma once
-#include "../include/Prerequisites.h"
+﻿#pragma once
+#include "Prerequisites.h"
 
-class Device;
-class Texture;
-class DeviceContext;
+class
+	Device;
 
-class DepthStencilView {
+class
+	DeviceContext;
+
+class
+	Texture;
+
+/**
+ * @brief Encapsula una vista de profundidad y stencil en DirectX.
+ *
+ * Esta clase administra la creaci�n, actualizaci�n, renderizado
+ * y destrucci�n de un recurso DepthStencilView para el pipeline gr�fico.
+ */
+class
+	DepthStencilView {
 public:
-    DepthStencilView() = default;
-    ~DepthStencilView() { destroy(); }
 
-    DepthStencilView(const DepthStencilView&) = delete;
-    DepthStencilView& operator=(const DepthStencilView&) = delete;
+	/**
+	 * @brief Constructor por defecto.
+	 */
+	DepthStencilView() = default;
 
-    // Crea un DSV a partir de una textura 2D de depth (tu wrapper Texture la provee)
-    HRESULT init(Device& device, Texture& depthTexture, DXGI_FORMAT format);
+	/**
+	 * @brief Destructor por defecto.
+	 */
+	~DepthStencilView() = default;
 
-    // Limpia el depth-stencil (con valores por defecto)
-    void render(DeviceContext& deviceContext,
-        float depth = 1.0f,
-        UINT8 stencil = 0,
-        UINT clearFlags = D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL);
+	/**
+	 * @brief Inicializa la vista de profundidad y stencil.
+	 *
+	 * @param device Referencia al dispositivo de DirectX.
+	 * @param depthStencil Textura que servir� como buffer de profundidad/stencil.
+	 * @param format Formato DXGI usado para la vista.
+	 * @return HRESULT C�digo de estado de la operaci�n (S_OK si fue exitosa).
+	 */
+	HRESULT
+		init(Device& device, Texture& depthStencil, DXGI_FORMAT format);
 
-    void destroy();
+	/**
+	 * @brief Actualiza el estado interno de la vista.
+	 *
+	 * Actualmente no realiza ninguna operaci�n.
+	 */
+	void
+		update() {};
 
-    // Acceso seguro (para otros wrappers que quieran bindearlo)
-    ID3D11DepthStencilView* get() const { return m_dsv; }
+	/**
+	 * @brief Renderiza usando la vista de profundidad y stencil.
+	 *
+	 * @param deviceContext Contexto del dispositivo de DirectX.
+	 */
+	void
+		render(DeviceContext& deviceContext);
 
-private:
-    ID3D11DepthStencilView* m_dsv = nullptr;
+	/**
+	 * @brief Libera los recursos asociados al DepthStencilView.
+	 */
+	void
+		destroy();
+
+public:
+	ID3D11DepthStencilView* m_depthStencilView = nullptr; /**< Puntero al recurso de DepthStencilView de DirectX. */
+
 };

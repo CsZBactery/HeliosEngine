@@ -1,102 +1,119 @@
 ﻿#pragma once
-//
-// Prerequisites.h
-// Cabecera común con includes de Win32/D3D11/DirectXMath, utilidades y tipos compartidos.
-//
-
-// ======================================================
-// STL
-// ======================================================
+//Librerias STD
 #include <string>
 #include <sstream>
 #include <vector>
+#include <windows.h>
+#include <xnamath.h>
 #include <thread>
-#include <cstring>   // std::memcpy
-#include <cstdint>
 
-// ======================================================
-// Win32 + Direct3D 11
-// ======================================================
-#ifndef WIN32_LEAN_AND_MEAN
-#  define WIN32_LEAN_AND_MEAN
-#endif
-#ifndef NOMINMAX
-#  define NOMINMAX
-#endif
-#include <Windows.h>
+
+//Librerias DirectX
 #include <d3d11.h>
-#include <dxgi.h>
+#include <d3dx11.h>
 #include <d3dcompiler.h>
-
-// ======================================================
-// DirectXMath
-// ======================================================
-#include <DirectXMath.h>
-
-// ======================================================
-// Utilidades / macros
-// ======================================================
-
-// Algunas cabeceras del SDK definen macros con estos nombres.
-// Las quitamos para evitar colisiones con nuestros macros.
-#ifdef ERROR
-#  undef ERROR
-#endif
-#ifdef MESSAGE
-#  undef MESSAGE
-#endif
-
-// Liberación segura de interfaces COM.
-#ifndef SAFE_RELEASE
-#  define SAFE_RELEASE(x) do { if ((x)) { (x)->Release(); (x) = nullptr; } } while(0)
-#endif
-
-// Salida de depuración (Unicode / ANSI)
-inline void __helios_logw(const wchar_t* s) { ::OutputDebugStringW(s); }
-inline void __helios_loga(const char* s) { ::OutputDebugStringA(s); }
-
-// Macro de mensaje informativo
-#define MESSAGE(MOD, FUNC, WMSG) \
-  do { std::wostringstream __os; \
-       __os << L"[" L#MOD L"][" L#FUNC L"] " << WMSG << L"\n"; \
-       __helios_logw(__os.str().c_str()); } while(0)
-
-// Macro de error
-#define ERROR(MOD, FUNC, WMSG) \
-  do { std::wostringstream __os; \
-       __os << L"[ERROR][" L#MOD L"][" L#FUNC L"] " << WMSG << L"\n"; \
-       __helios_logw(__os.str().c_str()); } while(0)
-
-// (Opcional) autolink de librerías con MSVC
-// #pragma comment(lib, "d3d11.lib")
-// #pragma comment(lib, "dxgi.lib")
-// #pragma comment(lib, "d3dcompiler.lib")
-
-// ======================================================
-// Tipos compartidos por el engine
-// ======================================================
-
-// Vértice básico: posición + UV
+#include "Resource.h"
+#include "resource.h"
 
 
-// Constant buffers usados por los shaders (VS/PS)
-//struct CBNeverChanges      // register(b0)
-//{
-   // DirectX::XMMATRIX mView;
-//};
+//third Party Libraries
 
-//struct CBChangeOnResize    // register(b1)
-//{
-   // DirectX::XMMATRIX mProjection;
-//};
+// MACROS
 
-//struct CBChangesEveryFrame // register(b2)
-//{
-  //  DirectX::XMMATRIX mWorld;
-   // DirectX::XMFLOAT4 vMeshColor;
-//};
+/**
+ * @brief Libera de manera segura un recurso de DirectX.
+ *
+ * Si el puntero no es nulo, libera la memoria con Release()
+ * y lo asigna a nullptr para evitar accesos inv�lidos.
+ *
+ * @param x Puntero al recurso que se va a liberar.
+ */
+#define SAFE_RELEASE(x) if(x != nullptr) x->Release(); x = nullptr;
 
-// Asegurar que los CBs respetan alineación de 16 bytes
-//static_assert((sizeof(CBNeverChanges) % 16) == 0, "CBNeverChanges must be 16-byte aligned.");
-//static_assert((sizeof(CBChangeOnResize) % 16) == 0, "CBChangeOnResize must be 16-byte aligned.");
-//static_assert((sizeof(CBChangesEveryFrame) % 16) == 0, "CBChangesEveryFrame must be 16-byte aligned.");
+ /**
+  * @brief Macro para mostrar mensajes de creaci�n de recursos en la ventana de depuraci�n.
+  *
+  * Formatea un mensaje con la clase, el m�todo y el estado actual de la creaci�n.
+  *
+  * @param classObj Nombre de la clase donde ocurre el evento.
+  * @param method Nombre del m�todo donde ocurre el evento.
+  * @param state Estado del recurso (ejemplo: "OK", "FAILED").
+  */
+#define MESSAGE( classObj, method, state )   \
+{                                            \
+   std::wostringstream os_;                  \
+   os_ << classObj << "::" << method << " : " << "[CREATION OF RESOURCE " << ": " << state << "] \n"; \
+   OutputDebugStringW( os_.str().c_str() );  \
+}
+
+  /**
+   * @brief Macro para registrar mensajes de error en la ventana de depuraci�n.
+   *
+   * Captura informaci�n detallada de la clase, m�todo y descripci�n del error.
+   * Si ocurre un fallo durante el registro, captura la excepci�n y notifica.
+   *
+   * @param classObj Nombre de la clase donde ocurre el error.
+   * @param method Nombre del m�todo donde ocurre el error.
+   * @param errorMSG Mensaje descriptivo del error.
+   */
+#define ERROR(classObj, method, errorMSG)                     \
+{                                                             \
+    try {                                                     \
+        std::wostringstream os_;                              \
+        os_ << L"ERROR : " << classObj << L"::" << method     \
+            << L" : " << errorMSG << L"\n";                   \
+        OutputDebugStringW(os_.str().c_str());                \
+    } catch (...) {                                           \
+        OutputDebugStringW(L"Failed to log error message.\n");\
+    }                                                         \
+}
+
+   /**
+    * @brief Representa un v�rtice simple con posici�n y coordenadas de textura.
+    */
+struct
+    SimpleVertex {
+    XMFLOAT3 Pos;  /**< Coordenadas de posici�n del v�rtice (x, y, z). */
+    XMFLOAT2 Tex;  /**< Coordenadas de textura (u, v). */
+};
+
+/**
+ * @brief Constantes que nunca cambian: contiene la matriz de vista.
+ */
+struct
+    CBNeverChanges {
+    XMMATRIX mView; /**< Matriz de vista usada en la c�mara. */
+};
+
+/**
+ * @brief Constantes que cambian al redimensionar la ventana.
+ */
+struct
+    CBChangeOnResize {
+    XMMATRIX mProjection; /**< Matriz de proyecci�n ajustada al tama�o de la ventana. */
+};
+
+/**
+ * @brief Constantes que cambian en cada frame.
+ */
+struct
+    CBChangesEveryFrame {
+    XMMATRIX mWorld;      /**< Matriz de mundo para transformar los objetos. */
+    XMFLOAT4 vMeshColor;  /**< Color aplicado a la malla. */
+};
+
+/**
+ * @brief Tipos de extensi�n soportados para las texturas.
+ */
+enum
+    ExtensionType {
+    DDS = 0, /**< Textura en formato DDS (DirectDraw Surface). */
+    PNG = 1, /**< Textura en formato PNG (Portable Network Graphics). */
+    JPG = 2  /**< Textura en formato JPG (Joint Photographic Experts Group). */
+};
+
+enum
+    ShaderType {
+    VERTEX_SHADER = 0,
+    PIXEL_SHADER = 1
+};
