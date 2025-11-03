@@ -1,38 +1,59 @@
-#pragma once
+ï»¿#pragma once
 #include "Prerequisites.h"
-#include <string>
-#include <vector>
-#include <unordered_map>
 
-class Device;
-class DeviceContext;
-
-struct VertexPNCT {
-  DirectX::XMFLOAT3 pos;
-  DirectX::XMFLOAT3 nrm;
-  DirectX::XMFLOAT2 uv;
-};
-
-class Model {
+/**
+ * @class ModelLoader
+ * @brief Clase encargada de gestionar la carga, actualizaciï¿½n, renderizado
+ *        y destrucciï¿½n de modelos 3D, permitiendo importar datos desde archivos externos.
+ */
+class
+	ModelLoader
+{
 public:
-  bool isValid() const { return m_vb && m_ib && m_indexCount > 0; }
-  void bind(DeviceContext& ctx, UINT slot = 0, UINT stride = sizeof(VertexPNCT), UINT offset = 0);
-  void draw(DeviceContext& ctx);
 
-  void destroy();
+	/**
+	 * @brief Constructor por defecto de ModelLoader.
+	 */
+	ModelLoader() = default;
+
+	/**
+	 * @brief Destructor por defecto de ModelLoader.
+	 */
+	~ModelLoader() = default;
+
+	/**
+	 * @brief Inicializa los recursos necesarios para el cargador de modelos.
+	 */
+	void
+		init();
+
+	/**
+	 * @brief Actualiza el estado del cargador de modelos, si es necesario.
+	 */
+	void
+		update();
+
+	/**
+	 * @brief Renderiza el modelo cargado (si aplica).
+	 */
+	void
+		render();
+
+	/**
+	 * @brief Libera los recursos asociados al cargador de modelos.
+	 */
+	void
+		destroy();
+
+	/**
+	 * @brief Carga un archivo de modelo 3D (por ejemplo, formato OBJ) y devuelve su informaciï¿½n.
+	 * @param objFileName Nombre o ruta del archivo OBJ a cargar.
+	 * @return Estructura LoadData que contiene los datos del modelo cargado.
+	 */
+	LoadData
+		Load(std::string objFileName);
 
 private:
-  friend class ModelLoader;
-  ID3D11Buffer* m_vb = nullptr;
-  ID3D11Buffer* m_ib = nullptr;
-  UINT m_indexCount = 0;
-};
-
-class ModelLoader {
-public:
-  // Carga un OBJ básico (v / vt / vn) y crea VB/IB
-  static HRESULT LoadOBJ(
-    Device& device,
-    const std::string& path,
-    Model& outModel);
+	/** @brief Cargador OBJ (comentado actualmente, podrï¿½a usarse para importar modelos). */
+	//objl::Loader m_loader;
 };

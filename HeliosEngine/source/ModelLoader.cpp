@@ -1,150 +1,67 @@
-#include "../include/ModelLoader.h"
-#include "../include/Device.h"
-#include "../include/DeviceContext.h"
-#include <fstream>
-#include <sstream>
-
-struct Triple { int v = -1, t = -1, n = -1; };
-static bool parseFaceToken(const std::string& tok, Triple& out)
+ï»¿#include "../include/ModelLoader.h"
+#include "../include/OBJ_Loader.h"
+void
+ModelLoader::init()
 {
-  // Formats: v, v/t, v//n, v/t/n
-  out = {};
-  int slash1 = (int)tok.find('/');
-  if (slash1 == -1) { out.v = std::stoi(tok); return true; }
-  int slash2 = (int)tok.find('/', slash1 + 1);
-
-  out.v = std::stoi(tok.substr(0, slash1));
-  if (slash2 == -1) {
-    out.t = std::stoi(tok.substr(slash1 + 1));
-    return true;
-  }
-  if (slash2 == slash1 + 1) {
-    out.n = std::stoi(tok.substr(slash2 + 1));
-    return true;
-  }
-  out.t = std::stoi(tok.substr(slash1 + 1, slash2 - (slash1 + 1)));
-  out.n = std::stoi(tok.substr(slash2 + 1));
-  return true;
+    // Inicializa cualquier recurso necesario antes de cargar modelos.
 }
 
-void Model::bind(DeviceContext& ctx, UINT slot, UINT stride, UINT offset)
+void
+ModelLoader::update()
 {
-  if (!m_vb || !m_ib) return;
-  ctx.IASetVertexBuffers(slot, 1, &m_vb, &stride, &offset);
-  ctx.IASetIndexBuffer(m_ib, DXGI_FORMAT_R32_UINT, 0);
+    // Actualiza el estado interno del cargador si es necesario.
 }
 
-void Model::draw(DeviceContext& ctx)
+void
+ModelLoader::render()
 {
-  if (!m_ib) return;
-  ctx.DrawIndexed(m_indexCount, 0, 0);
+    // Renderiza el modelo cargado (si se implementa un render directo).
 }
 
-void Model::destroy()
+void
+ModelLoader::destroy()
 {
-  if (m_vb) { m_vb->Release(); m_vb = nullptr; }
-  if (m_ib) { m_ib->Release(); m_ib = nullptr; }
-  m_indexCount = 0;
+    // Libera los recursos usados por el cargador o modelos cargados.
 }
 
-HRESULT ModelLoader::LoadOBJ(Device& device, const std::string& path, Model& outModel)
+LoadData
+ModelLoader::Load(std::string objFileName)
 {
-  std::ifstream in(path);
-  if (!in.is_open()) return HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND);
+    LoadData LD;                       // Estructura donde se almacenarï¿½n los datos del modelo.
+    objl::Loader m_loader;              // Instancia temporal del cargador OBJ.
 
-  std::vector<DirectX::XMFLOAT3> positions;
-  std::vector<DirectX::XMFLOAT3> normals;
-  std::vector<DirectX::XMFLOAT2> uvs;
-
-  std::vector<VertexPNCT> vertices;
-  std::vector<uint32_t>   indices;
-  std::unordered_map<std::string, uint32_t> map; // token "v/t/n" -> index
-
-  std::string line;
-  while (std::getline(in, line))
-  {
-    if (line.empty() || line[0] == '#') continue;
-    std::istringstream ss(line);
-    std::string id; ss >> id;
-
-    if (id == "v") {
-      float x, y, z; ss >> x >> y >> z;
-      positions.emplace_back(x, y, z);
+    // Intenta cargar el archivo OBJ especificado.
+    if (!m_loader.LoadFile(objFileName)) {
+        ERROR("ModelLoader", "Load", "No se pudo cargar el archivo .obj");
+        return LD;                       // Retorna estructura vacï¿½a si la carga falla.
     }
-    else if (id == "vt") {
-      float u, v; ss >> u >> v;
-      uvs.emplace_back(u, 1.0f - v); // invierte V (convención DX)
+
+    LD.name = objFileName;              // Guarda el nombre del modelo cargado.
+
+    size_t vertexCount = m_loader.LoadedVertices.size();  // Nï¿½mero total de vï¿½rtices cargados.
+    LD.vertex.resize(vertexCount);      // Redimensiona el vector de vï¿½rtices.
+
+    // Recorre todos los vï¿½rtices cargados y copia su informaciï¿½n.
+    for (int i = 0; i < LD.vertex.size(); i++)
+    {
+        LD.vertex[i].Pos.x = m_loader.LoadedVertices[i].Position.X;
+        LD.vertex[i].Pos.y = m_loader.LoadedVertices[i].Position.Y;
+        LD.vertex[i].Pos.z = m_loader.LoadedVertices[i].Position.Z;
+
+        LD.vertex[i].Tex.x = m_loader.LoadedVertices[i].TextureCoordinate.X;
+        LD.vertex[i].Tex.y = m_loader.LoadedVertices[i].TextureCoordinate.Y;
+
+        LD.vertex[i].Normal.x = m_loader.LoadedVertices[i].Normal.X;
+        LD.vertex[i].Normal.y = m_loader.LoadedVertices[i].Normal.Y;
+        LD.vertex[i].Normal.z = m_loader.LoadedVertices[i].Normal.Z;
     }
-    else if (id == "vn") {
-      float x, y, z; ss >> x >> y >> z;
-      normals.emplace_back(x, y, z);
-    }
-    else if (id == "f") {
-      std::string t1, t2, t3, t4;
-      ss >> t1 >> t2 >> t3 >> t4;
-      std::string toks[4] = { t1,t2,t3,t4 };
-      int faceVerts = t4.empty() ? 3 : 4;
 
-      auto getIndex = [&](const std::string& key)->uint32_t {
-        auto it = map.find(key);
-        if (it != map.end()) return it->second;
+    size_t indexCount = m_loader.LoadedIndices.size();   // Nï¿½mero total de ï¿½ndices cargados.
+    LD.index.resize(indexCount);                         // Redimensiona el vector de ï¿½ndices.
+    LD.index = m_loader.LoadedIndices;                   // Copia los ï¿½ndices cargados.
 
-        Triple tr;
-        parseFaceToken(key, tr);
-        VertexPNCT vtx{};
-        if (tr.v != -1) vtx.pos = positions[(tr.v > 0 ? tr.v - 1 : (int)positions.size() + tr.v)];
-        if (tr.t != -1 && !uvs.empty()) vtx.uv = uvs[(tr.t > 0 ? tr.t - 1 : (int)uvs.size() + tr.t)];
-        if (tr.n != -1 && !normals.empty()) vtx.nrm = normals[(tr.n > 0 ? tr.n - 1 : (int)normals.size() + tr.n)];
+    LD.numVertex = (int)vertexCount;                     // Guarda la cantidad de vï¿½rtices.
+    LD.numIndex = (int)indexCount;                       // Guarda la cantidad de ï¿½ndices.
 
-        uint32_t idx = (uint32_t)vertices.size();
-        vertices.push_back(vtx);
-        map.emplace(key, idx);
-        return idx;
-        };
-
-      uint32_t i0 = getIndex(t1);
-      uint32_t i1 = getIndex(t2);
-      uint32_t i2 = getIndex(t3);
-      indices.push_back(i0); indices.push_back(i1); indices.push_back(i2);
-      if (faceVerts == 4) {
-        uint32_t i3 = getIndex(t4);
-        indices.push_back(i0); indices.push_back(i2); indices.push_back(i3);
-      }
-    }
-  }
-  in.close();
-
-  if (vertices.empty() || indices.empty()) return E_FAIL;
-
-  // Crear VB
-  D3D11_BUFFER_DESC vbDesc{};
-  vbDesc.Usage = D3D11_USAGE_DEFAULT;
-  vbDesc.ByteWidth = (UINT)(vertices.size() * sizeof(VertexPNCT));
-  vbDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-
-  D3D11_SUBRESOURCE_DATA vbData{};
-  vbData.pSysMem = vertices.data();
-
-  ID3D11Buffer* vb = nullptr;
-  HRESULT hr = device.CreateBuffer(&vbDesc, &vbData, &vb);
-  if (FAILED(hr)) return hr;
-
-  // Crear IB
-  D3D11_BUFFER_DESC ibDesc{};
-  ibDesc.Usage = D3D11_USAGE_DEFAULT;
-  ibDesc.ByteWidth = (UINT)(indices.size() * sizeof(uint32_t));
-  ibDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
-
-  D3D11_SUBRESOURCE_DATA ibData{};
-  ibData.pSysMem = indices.data();
-
-  ID3D11Buffer* ib = nullptr;
-  hr = device.CreateBuffer(&ibDesc, &ibData, &ib);
-  if (FAILED(hr)) { vb->Release(); return hr; }
-
-  outModel.destroy();
-  outModel.m_vb = vb;
-  outModel.m_ib = ib;
-  outModel.m_indexCount = (UINT)indices.size();
-  return S_OK;
+    return LD;                                           // Retorna la estructura con los datos del modelo cargado.
 }
