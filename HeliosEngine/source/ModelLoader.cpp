@@ -24,7 +24,7 @@ ModelLoader::destroy()
     // Libera los recursos usados por el cargador o modelos cargados.
 }
 
-LoadData
+/*LoadData
 ModelLoader::Load(std::string objFileName)
 {
     LoadData LD;                       // Estructura donde se almacenar�n los datos del modelo.
@@ -63,5 +63,4 @@ ModelLoader::Load(std::string objFileName)
     LD.numVertex = (int)vertexCount;                     // Guarda la cantidad de v�rtices.
     LD.numIndex = (int)indexCount;                       // Guarda la cantidad de �ndices.
 
-    return LD;                                           // Retorna la estructura con los datos del modelo cargado.
-}
+    return LD;                                           // Retorna la estructura con los datos del modelo cargado.*/

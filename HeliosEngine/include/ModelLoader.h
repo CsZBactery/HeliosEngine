@@ -50,8 +50,8 @@ public:
 	 * @param objFileName Nombre o ruta del archivo OBJ a cargar.
 	 * @return Estructura LoadData que contiene los datos del modelo cargado.
 	 */
-	LoadData
-		Load(std::string objFileName);
+	/*LoadData
+		Load(std::string objFileName);*/
 
 private:
 	/** @brief Cargador OBJ (comentado actualmente, podr�a usarse para importar modelos). */

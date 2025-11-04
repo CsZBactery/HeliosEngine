@@ -1,68 +1,50 @@
 #pragma once
 #include "Prerequisites.h"
 #include "InputLayout.h"
+#include <string>
+#include <vector>
 
-class
-    Device;
+// DXSDK usa ID3D10Blob (no ID3DBlob)
+struct ID3D10Blob;
 
-class
-    DeviceContext;
+class Device;
+class DeviceContext;
 
-class
-    ShaderProgram {
+class ShaderProgram {
 public:
-
     ShaderProgram() = default;
-
     ~ShaderProgram() = default;
 
-    HRESULT
-        init(Device& device,
-            const std::string& fileName,
-            std::vector < D3D11_INPUT_ELEMENT_DESC> Layout);
+    HRESULT init(Device& device,
+        const std::string& fileName,
+        std::vector<D3D11_INPUT_ELEMENT_DESC> Layout);
 
-    void
-        update();
+    void update();
+    void render(DeviceContext& deviceContext);
+    void render(DeviceContext& deviceContext, ShaderType type);
+    void destroy();
 
-    void
-        render(DeviceContext& deviceContext);
+    HRESULT CreateInputLayout(Device& device,
+        std::vector<D3D11_INPUT_ELEMENT_DESC> Layout);
 
-    void
-        render(DeviceContext& deviceContext, ShaderType type);
+    HRESULT CreateShader(Device& device, ShaderType type);
+    HRESULT CreateShader(Device& device, ShaderType type, const std::string& fileName);
 
-    void
-        destroy();
-
-    HRESULT
-        CreateInputLayout(Device& device,
-            std::vector<D3D11_INPUT_ELEMENT_DESC> Layout);
-
-    HRESULT
-        CreateShader(Device& device, ShaderType type);
-
-    HRESULT
-        CreateShader(Device& device, ShaderType type, const std::string& fileName);
-
-    HRESULT
-        CompileShaderFromFile(char* szFileName,
-            LPCSTR szEntryPoint,
-            LPCSTR szShaderModel,
-            ID3DBlob** ppBlobOut);
+    // Compilación wide (Unicode) + DXSDK (ID3D10Blob**)
+    HRESULT CompileShaderFromFile(LPCWSTR szFileName,
+        LPCSTR  szEntryPoint,
+        LPCSTR  szShaderModel,
+        ID3D10Blob** ppBlobOut);
 
 public:
     ID3D11VertexShader* m_VertexShader = nullptr;
-
     ID3D11PixelShader* m_PixelShader = nullptr;
-
-    InputLayout m_inputLayout;
+    InputLayout         m_inputLayout;
 
 private:
-
     std::string m_shaderFileName;
 
-    ID3DBlob* m_vertexShaderData = nullptr;
-
-    ID3DBlob* m_pixelShaderData = nullptr;
-
+    // Blobs compilados (DXSDK)
+    ID3D10Blob* m_vertexShaderData = nullptr;
+    ID3D10Blob* m_pixelShaderData = nullptr;
 };
-

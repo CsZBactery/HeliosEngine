@@ -2,15 +2,25 @@
 #include "../include/Device.h"
 #include "../include/DeviceContext.h"
 
-//
-// La primera funci�n `init` est� dise�ada para cargar una textura desde un archivo,
-// pero su implementaci�n actual est� incompleta (`E_NOTIMPL`).
-//
-HRESULT
-Texture::init(Device& device,
+#include <Windows.h>
+#include <d3dx11.h>
+#include <string>
+
+// --- Helper local: string (UTF-8/ANSI) -> wstring (UTF-16) ---
+static std::wstring ToW(const std::string& s) {
+    if (s.empty()) return std::wstring();
+    int len = MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1, nullptr, 0);
+    std::wstring ws(len ? len - 1 : 0, L'\0');
+    if (len > 1) MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1, &ws[0], len);
+    return ws;
+}
+
+// ------------------------------------------------------------------
+// Carga desde archivo (DDS/PNG/JPG)
+// ------------------------------------------------------------------
+HRESULT Texture::init(Device& device,
     const std::string& textureName,
     ExtensionType extensionType) {
-    //return E_NOTIMPL;
     if (!device.m_device) {
         ERROR("Texture", "init", "Device is null.");
         return E_POINTER;
@@ -20,59 +30,46 @@ Texture::init(Device& device,
         return E_INVALIDARG;
     }
 
-    HRESULT hr = S_OK;
-
+    // Armar nombre de archivo según extensión pedida
     switch (extensionType) {
-    case DDS: {
-        m_textureName = textureName + ".dds";
-        // Cargar textura DDS
-        hr = D3DX11CreateShaderResourceViewFromFile(
-            device.m_device,
-            m_textureName.c_str(),
-            nullptr,
-            nullptr,
-            &m_textureFromImg,
-            nullptr
-        );
-
-        if (FAILED(hr)) {
-            ERROR("Texture", "init",
-                ("Failed to load DDS texture. Verify filepath: " + m_textureName).c_str());
-            return hr;
-        }
-        break;
-    }
-
-    case PNG: {
-
-        break;
-    }
-    case JPG: {
-
-        break;
-    }
+    case ExtensionType::DDS: m_textureName = textureName + ".dds"; break;
+    case ExtensionType::PNG: m_textureName = textureName + ".png"; break;
+    case ExtensionType::JPG: m_textureName = textureName + ".jpg"; break;
     default:
         ERROR("Texture", "init", "Unsupported extension type");
         return E_INVALIDARG;
     }
 
-    return hr;
+    // Cargar (Unicode)
+    std::wstring wpath = ToW(m_textureName);
+    HRESULT hr = D3DX11CreateShaderResourceViewFromFileW(
+        device.m_device,
+        wpath.c_str(),
+        nullptr,
+        nullptr,
+        &m_textureFromImg,
+        nullptr
+    );
 
+    if (FAILED(hr)) {
+        std::string msg = "Failed to load texture. Verify filepath: " + m_textureName;
+        ERROR("Texture", "init", msg.c_str());
+        return hr;
+    }
+
+    return S_OK;
 }
 
-//
-// La segunda funci�n `init` crea una textura vac�a en la GPU con los par�metros especificados.
-// Esta textura puede usarse como un render target o un buffer de profundidad.
-//
-HRESULT
-Texture::init(Device& device,
+// ------------------------------------------------------------------
+// Crear textura vacía (RT/Depth/etc.)
+// ------------------------------------------------------------------
+HRESULT Texture::init(Device& device,
     unsigned int width,
     unsigned int height,
     DXGI_FORMAT Format,
     unsigned int BindFlags,
     unsigned int sampleCount,
     unsigned int qualityLevels) {
-    // Se verifica que el dispositivo sea v�lido y que el ancho y alto no sean cero.
     if (!device.m_device) {
         ERROR("Texture", "init", "Device is null");
         return E_POINTER;
@@ -82,10 +79,6 @@ Texture::init(Device& device,
         return E_INVALIDARG;
     }
 
-    //
-    // Se configura la descripci�n de la textura 2D (`D3D11_TEXTURE2D_DESC`).
-    // Se especifican el ancho, el alto, el formato y las propiedades de uso (flags de enlace, etc.).
-    //
     D3D11_TEXTURE2D_DESC desc = {};
     desc.Width = width;
     desc.Height = height;
@@ -99,26 +92,19 @@ Texture::init(Device& device,
     desc.CPUAccessFlags = 0;
     desc.MiscFlags = 0;
 
-    // Se crea la textura usando la funci�n del dispositivo de Direct3D.
     HRESULT hr = device.CreateTexture2D(&desc, nullptr, &m_texture);
-
-    // Se verifica si la creaci�n fue exitosa y se devuelve el resultado.
     if (FAILED(hr)) {
-        ERROR("Texture", "init",
-            ("Failed to create texture with specified params. HRESULT: " + std::to_string(hr)).c_str());
+        std::string msg = "Failed to create texture. HRESULT: " + std::to_string(hr);
+        ERROR("Texture", "init", msg.c_str());
         return hr;
     }
-
     return S_OK;
 }
 
-//
-// La tercera funci�n `init` crea una vista de recurso de sombreador (`Shader Resource View`)
-// a partir de una textura existente. Esto permite que la textura sea utilizada por los sombreadores.
-//
-HRESULT
-Texture::init(Device& device, Texture& textureRef, DXGI_FORMAT format) {
-    // Se verifica que el dispositivo y la textura de referencia no sean nulos.
+// ------------------------------------------------------------------
+// Crear SRV desde textura existente
+// ------------------------------------------------------------------
+HRESULT Texture::init(Device& device, Texture& textureRef, DXGI_FORMAT format) {
     if (!device.m_device) {
         ERROR("Texture", "init", "Device is null.");
         return E_POINTER;
@@ -128,71 +114,38 @@ Texture::init(Device& device, Texture& textureRef, DXGI_FORMAT format) {
         return E_POINTER;
     }
 
-    //
-    // Se configura la descripci�n para la vista del recurso de sombreador.
-    // Se especifica el formato y la dimensi�n de la vista.
-    //
     D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
     srvDesc.Format = format;
     srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
     srvDesc.Texture2D.MipLevels = 1;
     srvDesc.Texture2D.MostDetailedMip = 0;
 
-    // Se crea la vista de recurso de sombreador a partir de la textura de referencia.
-    HRESULT hr = device.m_device->CreateShaderResourceView(textureRef.m_texture,
-        &srvDesc,
-        &m_textureFromImg);
+    HRESULT hr = device.m_device->CreateShaderResourceView(
+        textureRef.m_texture, &srvDesc, &m_textureFromImg);
 
-    // Se verifica si la creaci�n fue exitosa.
     if (FAILED(hr)) {
-        ERROR("Texture", "init",
-            ("Failed to create shader resource view for texture. HRESULT: " +
-                std::to_string(hr)).c_str());
+        std::string msg = "Failed to create SRV. HRESULT: " + std::to_string(hr);
+        ERROR("Texture", "init", msg.c_str());
         return hr;
     }
     return S_OK;
 }
 
-//
-// La funci�n `update` est� vac�a, lo que sugiere que no hay l�gica de actualizaci�n
-// de la textura en tiempo de ejecuci�n en esta implementaci�n.
-//
-void
-Texture::update() {
-}
+void Texture::update() {}
 
-//
-// La funci�n `render` asigna la vista de recurso de sombreador al Pixel Shader.
-// Esto hace que la textura est� disponible para que el sombreador la lea y la use.
-//
-void
-Texture::render(DeviceContext& deviceContext,
+void Texture::render(DeviceContext& deviceContext,
     unsigned int StartSlot,
     unsigned int NumViews) {
-    // Se verifica que el contexto del dispositivo sea v�lido.
     if (!deviceContext.m_deviceContext) {
         ERROR("Texture", "render", "Device Context is null.");
         return;
     }
-
-    // Se asigna el recurso si la vista de recurso de sombreador es v�lida.
     if (m_textureFromImg) {
-        deviceContext.PSSetShaderResources(StartSlot,
-            NumViews,
-            &m_textureFromImg);
+        deviceContext.PSSetShaderResources(StartSlot, NumViews, &m_textureFromImg);
     }
 }
 
-//
-// La funci�n `destroy` libera todos los recursos de Direct3D de la textura.
-//
-void
-Texture::destroy() {
-    // Se liberan las interfaces de forma segura.
-    if (m_texture) {
-        SAFE_RELEASE(m_texture);
-    }
-    if (m_textureFromImg) {
-        SAFE_RELEASE(m_textureFromImg);
-    }
+void Texture::destroy() {
+    if (m_texture) { SAFE_RELEASE(m_texture); }
+    if (m_textureFromImg) { SAFE_RELEASE(m_textureFromImg); }
 }
