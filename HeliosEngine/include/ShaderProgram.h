@@ -1,11 +1,10 @@
 #pragma once
 #include "Prerequisites.h"
 #include "InputLayout.h"
-
 #include <string>
 #include <vector>
-#include <d3d11.h>
-#include <d3dcompiler.h> // Para ID3DBlob y D3DCompile
+
+// Forward correcto (NO uses ID3D10Blob)
 
 class Device;
 class DeviceContext;
@@ -13,39 +12,37 @@ class DeviceContext;
 class ShaderProgram {
 public:
     ShaderProgram() = default;
-    ~ShaderProgram() { destroy(); }
+    ~ShaderProgram() = default;
 
-    // Compila desde archivo (.fx/.hlsl)
+    // Carga desde archivo .fx/.hlsl
     HRESULT init(Device& device,
         const std::string& fileName,
-        const std::vector<D3D11_INPUT_ELEMENT_DESC>& Layout);
+        std::vector<D3D11_INPUT_ELEMENT_DESC> Layout);
 
-    // Compila desde código HLSL en memoria (opcional, útil si no quieres archivos)
+    // Alternativa: compilar desde string HLSL (sin archivos)
     HRESULT initFromSource(Device& device,
         const std::string& hlslSource,
         const std::vector<D3D11_INPUT_ELEMENT_DESC>& Layout);
 
-    void    update() {}
     void    render(DeviceContext& deviceContext);
     void    render(DeviceContext& deviceContext, ShaderType type);
     void    destroy();
 
     HRESULT CreateInputLayout(Device& device,
-        const std::vector<D3D11_INPUT_ELEMENT_DESC>& Layout);
+        std::vector<D3D11_INPUT_ELEMENT_DESC> Layout);
 
     HRESULT CreateShader(Device& device, ShaderType type);
     HRESULT CreateShader(Device& device, ShaderType type, const std::string& fileName);
 
-    // Compiladores
-    HRESULT CompileShaderFromFile(LPCWSTR szFileName,
-        LPCSTR  szEntryPoint,
-        LPCSTR  szShaderModel,
+    // Compiladores (Windows SDK, sin D3DX)
+    HRESULT CompileShaderFromFile(const wchar_t* szFileName,
+        const char* szEntryPoint,
+        const char* szShaderModel,
         ID3DBlob** ppBlobOut);
 
-    HRESULT CompileShaderFromMemory(LPCSTR  source,
-        SIZE_T  length,
-        LPCSTR  szEntryPoint,
-        LPCSTR  szShaderModel,
+    HRESULT CompileShaderFromMemory(const char* source, size_t length,
+        const char* szEntryPoint,
+        const char* szShaderModel,
         ID3DBlob** ppBlobOut);
 
 public:
@@ -55,8 +52,6 @@ public:
 
 private:
     std::string m_shaderFileName;
-
-    // Blobs compilados para crear input layout / depurar
-    ID3DBlob* m_vertexShaderData = nullptr;
-    ID3DBlob* m_pixelShaderData = nullptr;
+    ID3DBlob* m_vertexShaderData = nullptr; // blob VS (para input layout)
+    ID3DBlob* m_pixelShaderData = nullptr; // blob PS (opcional)
 };
