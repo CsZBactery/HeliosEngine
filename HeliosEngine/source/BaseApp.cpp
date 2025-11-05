@@ -1,8 +1,10 @@
-﻿#include "../include/BaseApp.h"
-#include <vector>
+﻿#include "../include/Prerequisites.h"
+#include "../include/BaseApp.h"
+#include "../include/ModelLoader.h"   // para cargar el OBJ
+#include <algorithm>                  // std::min/std::max
+#include <cfloat>                     // FLT_MAX
 
 // ================= HLSL embebido (checker procedural) =================
-// Nota: shaders VS/PS en string para compilar en runtime (sin archivos .hlsl).
 static const char* kHlslSource = R"(
 cbuffer CBNeverChanges      : register(b0) { float4x4 gView; }
 cbuffer CBChangeOnResize    : register(b1) { float4x4 gProj; }
@@ -29,7 +31,6 @@ float4 PS(VS_OUT i):SV_Target{
     float  c  = (fmod(floor(uv.x)+floor(uv.y),2.0) < 1.0) ? 0.2 : 1.0;
     float4 checker = float4(c,c,c,1);
 
-    // Intento de samplear textura (si no hay SRV, el checker manda)
     float4 texel = gTxDiffuse.Sample(gSamLinear, i.Tex);
     float useChecker = step(texel.r+texel.g+texel.b+texel.a, 0.0001);
 
@@ -38,36 +39,24 @@ float4 PS(VS_OUT i):SV_Target{
 )";
 // ======================================================================
 
-// Ctor: se reciben hInst/nCmdShow (por ahora sin trabajo; init ocurre en run()).
-BaseApp::BaseApp(HINSTANCE hInst, int nCmdShow) {}
+BaseApp::BaseApp(HINSTANCE, int) {}
 
-// Loop principal de la app (estilo wWinMain pero como método de clase).
+// Punto de entrada (envoltura de clase)
 int BaseApp::run(HINSTANCE hInst, int nCmdShow) {
-    // Crear ventana Win32 + WndProc
-    if (FAILED(m_window.init(hInst, nCmdShow, WndProc))) {
-        return 0;
-    }
-    // Inicializar pipeline y recursos DX11
-    if (FAILED(init()))
-        return 0;
+    if (FAILED(m_window.init(hInst, nCmdShow, WndProc))) return 0;
+    if (FAILED(init())) return 0;
 
-    // Bucle de mensajes + timing de frame (deltaTime vía QPC)
-    MSG msg = { };
+    MSG msg = {};
     LARGE_INTEGER freq, prev;
     QueryPerformanceFrequency(&freq);
     QueryPerformanceCounter(&prev);
 
-    while (WM_QUIT != msg.message)
-    {
-        // Procesar mensajes pendentes (no bloquear)
-        if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
-        {
+    while (WM_QUIT != msg.message) {
+        if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
             TranslateMessage(&msg);
             DispatchMessage(&msg);
         }
-        else
-        {
-            // Calcular deltaTime y avanzar frame
+        else {
             LARGE_INTEGER curr;
             QueryPerformanceCounter(&curr);
             float deltaTime = static_cast<float>(curr.QuadPart - prev.QuadPart) / freq.QuadPart;
@@ -76,33 +65,25 @@ int BaseApp::run(HINSTANCE hInst, int nCmdShow) {
             render();
         }
     }
-
     return (int)msg.wParam;
 }
 
-// Inicialización del motor gráfico y recursos (equivalente a InitDevice).
 HRESULT BaseApp::init() {
     HRESULT hr = S_OK;
 
-    // 1) Crear SwapChain (esto crea Device + Context y obtiene backBuffer).
+    // 1) SwapChain (crea Device/Context/BackBuffer)
     hr = m_swapChain.init(m_device, m_deviceContext, m_backBuffer, m_window);
-    if (FAILED(hr)) {
-        ERROR("BaseApp", "init", "Failed to initialize SwapChain.");
-        return hr;
-    }
+    if (FAILED(hr)) { ERROR("BaseApp", "init", "Failed to initialize SwapChain."); return hr; }
 
-    // 2) RTV para el back-buffer (detecta MSAA y usa TEXTURE2DMS si aplica).
+    // 2) RTV del back-buffer
     hr = m_renderTargetView.init(m_device, m_backBuffer, DXGI_FORMAT_R8G8B8A8_UNORM);
-    if (FAILED(hr)) {
-        ERROR("BaseApp", "init", "Failed to initialize RenderTargetView.");
-        return hr;
-    }
+    if (FAILED(hr)) { ERROR("BaseApp", "init", "Failed to initialize RenderTargetView."); return hr; }
 
-    // Tomar descripción del back-buffer para igualar MSAA en el depth.
+    // MSAA match con el back-buffer
     D3D11_TEXTURE2D_DESC bbDesc{};
     m_backBuffer.m_texture->GetDesc(&bbDesc);
 
-    // 3) Crear textura de Depth/Stencil con mismo SampleDesc que el back-buffer.
+    // 3) Depth/Stencil (match MSAA)
     hr = m_depthStencil.init(
         m_device,
         m_window.m_width,
@@ -112,127 +93,75 @@ HRESULT BaseApp::init() {
         bbDesc.SampleDesc.Count,
         bbDesc.SampleDesc.Quality
     );
-    if (FAILED(hr)) {
-        ERROR("BaseApp", "init", "Failed to initialize DepthStencil Texture.");
-        return hr;
-    }
+    if (FAILED(hr)) { ERROR("BaseApp", "init", "Failed to initialize DepthStencil Texture."); return hr; }
 
-    // 4) Crear DSV (elige TEXTURE2DMS si Count>1).
+    // 4) DSV
     hr = m_depthStencilView.init(m_device, m_depthStencil, DXGI_FORMAT_D24_UNORM_S8_UINT);
-    if (FAILED(hr)) {
-        ERROR("BaseApp", "init", "Failed to initialize DepthStencilView.");
-        return hr;
-    }
+    if (FAILED(hr)) { ERROR("BaseApp", "init", "Failed to initialize DepthStencilView."); return hr; }
 
-    // 5) Configurar viewport según tamaño de ventana.
+    // 5) Viewport
     hr = m_viewport.init(m_window);
-    if (FAILED(hr)) {
-        ERROR("BaseApp", "init", "Failed to initialize Viewport.");
-        return hr;
-    }
+    if (FAILED(hr)) { ERROR("BaseApp", "init", "Failed to initialize Viewport."); return hr; }
 
-    // 6) Descripción de InputLayout (POSITION + TEXCOORD).
+    // 6) InputLayout
     std::vector<D3D11_INPUT_ELEMENT_DESC> Layout;
     {
-        D3D11_INPUT_ELEMENT_DESC position{};
-        position.SemanticName = "POSITION";
-        position.SemanticIndex = 0;
-        position.Format = DXGI_FORMAT_R32G32B32_FLOAT;
-        position.InputSlot = 0;
-        position.AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT;
-        position.InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
-        position.InstanceDataStepRate = 0;
-        Layout.push_back(position);
+        D3D11_INPUT_ELEMENT_DESC p{};
+        p.SemanticName = "POSITION";
+        p.SemanticIndex = 0;
+        p.Format = DXGI_FORMAT_R32G32B32_FLOAT;
+        p.InputSlot = 0;
+        p.AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT;
+        p.InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
+        p.InstanceDataStepRate = 0;
+        Layout.push_back(p);
 
-        D3D11_INPUT_ELEMENT_DESC texcoord{};
-        texcoord.SemanticName = "TEXCOORD";
-        texcoord.SemanticIndex = 0;
-        texcoord.Format = DXGI_FORMAT_R32G32_FLOAT;
-        texcoord.InputSlot = 0;
-        texcoord.AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT;
-        texcoord.InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
-        texcoord.InstanceDataStepRate = 0;
-        Layout.push_back(texcoord);
+        D3D11_INPUT_ELEMENT_DESC t{};
+        t.SemanticName = "TEXCOORD";
+        t.SemanticIndex = 0;
+        t.Format = DXGI_FORMAT_R32G32_FLOAT;
+        t.InputSlot = 0;
+        t.AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT;
+        t.InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
+        t.InstanceDataStepRate = 0;
+        Layout.push_back(t);
     }
 
-    // 7) Compilar y crear shaders desde el HLSL embebido.
+    // 7) Shaders desde HLSL embebido
     hr = m_shaderProgram.initFromSource(m_device, kHlslSource, Layout);
     if (FAILED(hr)) {
         ERROR("BaseApp", "init", ("Failed to initialize ShaderProgram. HRESULT: " + std::to_string(hr)).c_str());
         return hr;
     }
 
-    // 8) Geometría: cubo (24 vértices, 36 índices).
+    // 8) Cargar modelo OBJ a m_mesh
     {
-        SimpleVertex vertices[] =
-        {
-            { XMFLOAT3(-1.0f,  1.0f, -1.0f), XMFLOAT2(0.0f, 0.0f) },
-            { XMFLOAT3(1.0f,  1.0f, -1.0f), XMFLOAT2(1.0f, 0.0f) },
-            { XMFLOAT3(1.0f,  1.0f,  1.0f), XMFLOAT2(1.0f, 1.0f) },
-            { XMFLOAT3(-1.0f,  1.0f,  1.0f), XMFLOAT2(0.0f, 1.0f) },
-
-            { XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT2(0.0f, 0.0f) },
-            { XMFLOAT3(1.0f, -1.0f, -1.0f), XMFLOAT2(1.0f, 0.0f) },
-            { XMFLOAT3(1.0f, -1.0f,  1.0f), XMFLOAT2(1.0f, 1.0f) },
-            { XMFLOAT3(-1.0f, -1.0f,  1.0f), XMFLOAT2(0.0f, 1.0f) },
-
-            { XMFLOAT3(-1.0f, -1.0f,  1.0f), XMFLOAT2(0.0f, 0.0f) },
-            { XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT2(1.0f, 0.0f) },
-            { XMFLOAT3(-1.0f,  1.0f, -1.0f), XMFLOAT2(1.0f, 1.0f) },
-            { XMFLOAT3(-1.0f,  1.0f,  1.0f), XMFLOAT2(0.0f, 1.0f) },
-
-            { XMFLOAT3(1.0f, -1.0f,  1.0f), XMFLOAT2(0.0f, 0.0f) },
-            { XMFLOAT3(1.0f, -1.0f, -1.0f), XMFLOAT2(1.0f, 0.0f) },
-            { XMFLOAT3(1.0f,  1.0f, -1.0f), XMFLOAT2(1.0f, 1.0f) },
-            { XMFLOAT3(1.0f,  1.0f,  1.0f), XMFLOAT2(0.0f, 1.0f) },
-
-            { XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT2(0.0f, 0.0f) },
-            { XMFLOAT3(1.0f, -1.0f, -1.0f), XMFLOAT2(1.0f, 0.0f) },
-            { XMFLOAT3(1.0f,  1.0f, -1.0f), XMFLOAT2(1.0f, 1.0f) },
-            { XMFLOAT3(-1.0f,  1.0f, -1.0f), XMFLOAT2(0.0f, 1.0f) },
-
-            { XMFLOAT3(-1.0f, -1.0f,  1.0f), XMFLOAT2(0.0f, 0.0f) },
-            { XMFLOAT3(1.0f, -1.0f,  1.0f), XMFLOAT2(1.0f, 0.0f) },
-            { XMFLOAT3(1.0f,  1.0f,  1.0f), XMFLOAT2(1.0f, 1.0f) },
-            { XMFLOAT3(-1.0f,  1.0f,  1.0f), XMFLOAT2(0.0f, 1.0f) },
-        };
-
-        unsigned int indices[] =
-        {
-            3,1,0,  2,1,3,
-            6,4,5,  7,4,6,
-            11,9,8, 10,9,11,
-            14,12,13, 15,12,14,
-            19,17,16, 18,17,19,
-            22,20,21, 23,20,22
-        };
-
-        // Copiar datos al MeshComponent (arreglos -> vectores)
+        ModelLoader loader;
+        // Ajusta esta ruta si tu archivo está en otro nombre o carpeta:
+        const std::string objPath = "Assets/Moto/repsol3.obj";
         m_mesh.m_vertex.clear();
         m_mesh.m_index.clear();
-        for (unsigned int i = 0; i < 24; ++i) m_mesh.m_vertex.push_back(vertices[i]);
-        m_mesh.m_numVertex = 24;
-        for (unsigned int i = 0; i < 36; ++i) m_mesh.m_index.push_back(indices[i]);
-        m_mesh.m_numIndex = 36;
+        m_mesh.m_numVertex = 0;
+        m_mesh.m_numIndex = 0;
+
+        if (!loader.LoadOBJ(objPath, m_mesh, /*flipV=*/true)) {
+            ERROR("BaseApp", "init", "Failed to load OBJ. Verify path/triangulation.");
+            return E_FAIL;
+        }
+        MESSAGE(L"ModelLoader", "LoadOBJ", L"OBJ loaded successfully");
     }
 
-    // 9) Crear VertexBuffer e IndexBuffer desde MeshComponent.
+    // 9) Vertex/Index Buffers
     hr = m_vertexBuffer.init(m_device, m_mesh, D3D11_BIND_VERTEX_BUFFER);
-    if (FAILED(hr)) {
-        ERROR("BaseApp", "init", "Failed to initialize VertexBuffer.");
-        return hr;
-    }
+    if (FAILED(hr)) { ERROR("BaseApp", "init", "Failed to initialize VertexBuffer."); return hr; }
 
     hr = m_indexBuffer.init(m_device, m_mesh, D3D11_BIND_INDEX_BUFFER);
-    if (FAILED(hr)) {
-        ERROR("BaseApp", "init", "Failed to initialize IndexBuffer.");
-        return hr;
-    }
+    if (FAILED(hr)) { ERROR("BaseApp", "init", "Failed to initialize IndexBuffer."); return hr; }
 
-    // Configurar topología de primitivas (triángulos).
+    // Topología
     m_deviceContext.IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-    // 10) Constant Buffers (view, proj, world + color).
+    // 10) Constant Buffers
     hr = m_cbNeverChanges.init(m_device, sizeof(CBNeverChanges));
     if (FAILED(hr)) { ERROR("BaseApp", "init", "Failed to initialize CBNeverChanges."); return hr; }
 
@@ -242,33 +171,73 @@ HRESULT BaseApp::init() {
     hr = m_cbChangesEveryFrame.init(m_device, sizeof(CBChangesEveryFrame));
     if (FAILED(hr)) { ERROR("BaseApp", "init", "Failed to initialize CBChangesEveryFrame."); return hr; }
 
-    // 11) Sampler lineal (aunque sin textura: el PS usa checker por defecto).
+    // 11) Sampler
     hr = m_samplerState.init(m_device);
-    if (FAILED(hr)) {
-        ERROR("BaseApp", "init", "Failed to initialize SamplerState.");
-        return hr;
-    }
+    if (FAILED(hr)) { ERROR("BaseApp", "init", "Failed to initialize SamplerState."); return hr; }
 
-    // 12) Inicializar matrices (World, View, Proj)
+    // 12) World inicial
     m_World = XMMatrixIdentity();
 
-    XMVECTOR Eye = XMVectorSet(0.0f, 3.0f, -6.0f, 0.0f);
-    XMVECTOR At = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-    XMVECTOR Up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-    m_View = XMMatrixLookAtLH(Eye, At, Up);
+    // ======== CÁMARA AUTOMÁTICA BASADA EN AABB DEL MESH ========
+    XMFLOAT3 minP(FLT_MAX, FLT_MAX, FLT_MAX);
+    XMFLOAT3 maxP(-FLT_MAX, -FLT_MAX, -FLT_MAX);
 
-    // Cargar CBs iniciales
+    for (const auto& v : m_mesh.m_vertex) {
+        minP.x = std::min(minP.x, v.Pos.x);
+        minP.y = std::min(minP.y, v.Pos.y);
+        minP.z = std::min(minP.z, v.Pos.z);
+        maxP.x = std::max(maxP.x, v.Pos.x);
+        maxP.y = std::max(maxP.y, v.Pos.y);
+        maxP.z = std::max(maxP.z, v.Pos.z);
+    }
+    if (!(minP.x < maxP.x && minP.y < maxP.y && minP.z < maxP.z)) {
+        minP = XMFLOAT3(-1.f, -1.f, -1.f);
+        maxP = XMFLOAT3(1.f, 1.f, 1.f);
+    }
+
+    XMVECTOR vMin = XMLoadFloat3(&minP);
+    XMVECTOR vMax = XMLoadFloat3(&maxP);
+    XMVECTOR center = XMVectorScale(XMVectorAdd(vMin, vMax), 0.5f);
+    XMVECTOR ext = XMVectorScale(XMVectorSubtract(vMax, vMin), 0.5f);
+
+    float radius = XMVectorGetX(XMVector3Length(ext));
+    radius = std::max(radius, 0.001f);
+
+    const float fov = XM_PIDIV4;
+    const float aspect = (float)m_window.m_width / (float)m_window.m_height;
+    const float nearZ = 0.01f;
+    float dist = (radius / tanf(fov * 0.5f)) * 1.15f;
+
+    XMVECTOR Eye = XMVectorAdd(center, XMVectorSet(0.f, 0.f, -dist, 0.f));
+    XMVECTOR At = center;
+    XMVECTOR Up = XMVectorSet(0.f, 1.f, 0.f, 0.f);
+
+    m_View = XMMatrixLookAtLH(Eye, At, Up);
+    m_Projection = XMMatrixPerspectiveFovLH(fov, aspect, nearZ, std::max(nearZ * 10.f, dist * 4.f));
+
     cbNeverChanges.mView = XMMatrixTranspose(m_View);
-    m_Projection = XMMatrixPerspectiveFovLH(XM_PIDIV4, m_window.m_width / (FLOAT)m_window.m_height, 0.01f, 100.0f);
     cbChangesOnResize.mProjection = XMMatrixTranspose(m_Projection);
+
+    // ======== Rasterizer: sólido y sin culling (evita caras invertidas) ========
+    {
+        D3D11_RASTERIZER_DESC rd{};
+        rd.FillMode = D3D11_FILL_SOLID;      // Para depurar cambia a D3D11_FILL_WIREFRAME
+        rd.CullMode = D3D11_CULL_NONE;       // Sin culling para OBJ exportados con winding distinto
+        rd.DepthClipEnable = TRUE;
+
+        ID3D11RasterizerState* rs = nullptr;
+        if (SUCCEEDED(m_device.m_device->CreateRasterizerState(&rd, &rs)) && rs) {
+            m_deviceContext.RSSetState(rs);
+            SAFE_RELEASE(rs);
+        }
+    }
 
     return S_OK;
 }
 
-// Lógica por frame: animación, matrices y actualización de constant buffers.
 void BaseApp::update(float deltaTime) {
+    // Animación básica de color
     static float t = 0.0f;
-    // Avance de tiempo (más lento en driver de referencia)
     if (m_swapChain.m_driverType == D3D_DRIVER_TYPE_REFERENCE) {
         t += (float)XM_PI * 0.0125f;
     }
@@ -276,70 +245,72 @@ void BaseApp::update(float deltaTime) {
         static DWORD t0 = 0;
         DWORD tc = GetTickCount();
         if (t0 == 0) t0 = tc;
-        t = (tc - t0) / 1000.0f;
+        t = (tc - t0) * 0.001f;
     }
 
-    // Actualizar CB de vista y proyección
+    // Actualiza CB view/projection (por si la ventana cambió)
     cbNeverChanges.mView = XMMatrixTranspose(m_View);
     m_cbNeverChanges.update(m_deviceContext, nullptr, 0, nullptr, &cbNeverChanges, 0, 0);
 
-    m_Projection = XMMatrixPerspectiveFovLH(XM_PIDIV4, m_window.m_width / (FLOAT)m_window.m_height, 0.01f, 100.0f);
+    m_Projection = XMMatrixPerspectiveFovLH(
+        XM_PIDIV4,
+        (float)m_window.m_width / (float)m_window.m_height,
+        0.01f,
+        1000.0f
+    );
     cbChangesOnResize.mProjection = XMMatrixTranspose(m_Projection);
     m_cbChangeOnResize.update(m_deviceContext, nullptr, 0, nullptr, &cbChangesOnResize, 0, 0);
 
-    // Color animado (RGB con distintas frecuencias)
+    // Color animado
     m_vMeshColor.x = (sinf(t * 1.0f) + 1.0f) * 0.5f;
     m_vMeshColor.y = (cosf(t * 3.0f) + 1.0f) * 0.5f;
     m_vMeshColor.z = (sinf(t * 5.0f) + 1.0f) * 0.5f;
+    m_vMeshColor.w = 1.0f;
 
-    // World rotando en Y
-    m_World = XMMatrixRotationY(t);
+    // World (si quieres rotación, descomenta)
+    // m_World = XMMatrixRotationY(t * 0.5f);
+
     cb.mWorld = XMMatrixTranspose(m_World);
     cb.vMeshColor = m_vMeshColor;
     m_cbChangesEveryFrame.update(m_deviceContext, nullptr, 0, nullptr, &cb, 0, 0);
 }
 
-// Render por frame: clear, set states, draw y present.
 void BaseApp::render() {
-    // Limpiar RTV y setear DSV
-    float ClearColor[4] = { 0.1f, 0.1f, 0.1f, 1.0f };
+    // Clear
+    const float ClearColor[4] = { 0.12f, 0.12f, 0.12f, 1.0f };
     m_renderTargetView.render(m_deviceContext, m_depthStencilView, 1, ClearColor);
 
-    // Aplicar viewport y limpiar depth/stencil
+    // Viewport + clear depth
     m_viewport.render(m_deviceContext);
     m_depthStencilView.render(m_deviceContext);
 
-    // Configurar shaders e input layout
+    // Shaders + input layout
     m_shaderProgram.render(m_deviceContext);
 
-    // Enlazar buffers de geometría
+    // Buffers
     m_vertexBuffer.render(m_deviceContext, 0, 1);
     m_indexBuffer.render(m_deviceContext, 0, 1, false, DXGI_FORMAT_R32_UINT);
 
-    // Enviar constant buffers (VS y PS)
+    // Const buffers
     m_cbNeverChanges.render(m_deviceContext, 0, 1);
     m_cbChangeOnResize.render(m_deviceContext, 1, 1);
     m_cbChangesEveryFrame.render(m_deviceContext, 2, 1);
     m_cbChangesEveryFrame.render(m_deviceContext, 2, 1, true); // PS
 
-    // Sampler (si hubiera SRV, el PS la usaría; si no, checker)
+    // Sampler
     m_samplerState.render(m_deviceContext, 0, 1);
 
-    // Dibujar malla indexada
+    // Draw
     m_deviceContext.DrawIndexed(m_mesh.m_numIndex, 0, 0);
 
-    // Presentar en pantalla
+    // Present
     m_swapChain.present();
 }
 
-// Liberación ordenada de recursos (inverso a la creación).
 void BaseApp::destroy() {
-    // Limpia estados de la device context para soltar referencias internas
     if (m_deviceContext.m_deviceContext) m_deviceContext.m_deviceContext->ClearState();
 
     m_samplerState.destroy();
-    // m_textureCube.destroy(); // No se usa textura en este ejemplo
-
     m_cbNeverChanges.destroy();
     m_cbChangeOnResize.destroy();
     m_cbChangesEveryFrame.destroy();
@@ -358,30 +329,22 @@ void BaseApp::destroy() {
     m_device.destroy();
 }
 
-// WndProc: gestiona mensajes básicos de la ventana (create/paint/destroy).
 LRESULT BaseApp::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
     switch (message)
     {
     case WM_CREATE:
-    {
-        // Guardar puntero de usuario si fuera necesario (no se usa después).
-        CREATESTRUCT* pCreate = reinterpret_cast<CREATESTRUCT*>(lParam);
-        SetWindowLongPtr(hWnd, GWLP_USERDATA, (LONG_PTR)pCreate->lpCreateParams);
-    }
-    return 0;
-    case WM_PAINT:
-    {
-        // Pintado de ventana (no hacemos GDI; DX se encarga).
+        if (auto* pCreate = reinterpret_cast<CREATESTRUCT*>(lParam)) {
+            SetWindowLongPtr(hWnd, GWLP_USERDATA, (LONG_PTR)pCreate->lpCreateParams);
+        }
+        return 0;
+    case WM_PAINT: {
         PAINTSTRUCT ps;
         BeginPaint(hWnd, &ps);
         EndPaint(hWnd, &ps);
-    }
-    return 0;
+    } return 0;
     case WM_DESTROY:
-        // Salir del loop principal
         PostQuitMessage(0);
         return 0;
     }
-    // Mensajes no manejados: por defecto Win32
     return DefWindowProc(hWnd, message, wParam, lParam);
 }

@@ -8,23 +8,34 @@
  * @version 1.0
  */
 
- // Librerias STD
+ // ===================== STD =====================
 #include <string>
 #include <sstream>
 #include <vector>
+#include <thread>
+#include <cfloat>
+
+// ---- Config Windows: ¡antes de windows.h! ----
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+
+// ================== Win32 / Math =================
 #include <windows.h>
 #include <xnamath.h>
-#include <thread>
 
-// Librerias DirectX
+// ================== DirectX 11 ===================
 #include <d3d11.h>
 #include <d3dcompiler.h>
+
+// Recursos (si usas RC)
 #include "Resource.h"
 #include "resource.h"
 
-// third Party Libraries
-
-// MACROS
+// =================== MACROS ======================
 
 /**
  * @def SAFE_RELEASE(x)
@@ -35,7 +46,7 @@
  *
  * @warning Debe pasarse un puntero válido a una interfaz COM (e.g., <tt>ID3D11Buffer*</tt>).
  */
-#define SAFE_RELEASE(x) if(x != nullptr) x->Release(); x = nullptr;
+#define SAFE_RELEASE(x) if((x) != nullptr){ (x)->Release(); (x) = nullptr; }
 
  /**
   * @def MESSAGE(classObj, method, state)
@@ -49,7 +60,7 @@
 #define MESSAGE( classObj, method, state )   \
 {                                            \
    std::wostringstream os_;                  \
-   os_ << classObj << "::" << method << " : " << "[CREATION OF RESOURCE " << ": " << state << "] \n"; \
+   os_ << classObj << L"::" << method << L" : " << L"[CREATION OF RESOURCE : " << state << L"]\n"; \
    OutputDebugStringW( os_.str().c_str() );  \
 }
 
@@ -74,59 +85,32 @@
     }                                                         \
 }
 
-   /**
-    * @struct SimpleVertex
-    * @brief Vértice mínimo con posición y coordenadas de textura.
-    * @note Compatible con layouts típicos <tt>POSITION</tt> y <tt>TEXCOORD</tt>.
-    */
+   // ================== Tipos del Engine ==================
+
+   /** Vértice mínimo con posición y coordenadas de textura. */
 struct SimpleVertex {
-    XMFLOAT3 Pos;  /**< Coordenadas de posición del vértice (x, y, z). */
-    XMFLOAT2 Tex;  /**< Coordenadas de textura (u, v). */
+    XMFLOAT3 Pos;  /**< (x, y, z) */
+    XMFLOAT2 Tex;  /**< (u, v)   */
 };
 
-/**
- * @struct CBNeverChanges
- * @brief Buffer constante con datos invariables durante la ejecución.
- * @details Usualmente contiene la matriz de vista (cámara).
- */
+/** Buffer constante invariable (cámara). */
 struct CBNeverChanges {
-    XMMATRIX mView; /**< Matriz de vista usada por la cámara. */
+    XMMATRIX mView;
 };
 
-/**
- * @struct CBChangeOnResize
- * @brief Buffer constante actualizado al cambiar el tamaño de la ventana.
- * @details Incluye la matriz de proyección dependiente de <em>aspect ratio</em>.
- */
+/** Buffer constante que cambia al redimensionar. */
 struct CBChangeOnResize {
-    XMMATRIX mProjection; /**< Matriz de proyección ajustada al tamaño actual. */
+    XMMATRIX mProjection;
 };
 
-/**
- * @struct CBChangesEveryFrame
- * @brief Buffer constante actualizado cada frame.
- * @details Contiene la transformación de mundo y un color para la malla.
- */
+/** Buffer constante por frame. */
 struct CBChangesEveryFrame {
-    XMMATRIX mWorld;      /**< Matriz de mundo para transformar los objetos. */
-    XMFLOAT4 vMeshColor;  /**< Color aplicado a la malla (rgba). */
+    XMMATRIX mWorld;
+    XMFLOAT4 vMeshColor;
 };
 
-/**
- * @enum ExtensionType
- * @brief Tipos de extensiones soportadas para texturas.
- */
-enum ExtensionType {
-    DDS = 0, /**< Textura en formato DDS (DirectDraw Surface). */
-    PNG = 1, /**< Textura en formato PNG (Portable Network Graphics). */
-    JPG = 2  /**< Textura en formato JPG (Joint Photographic Experts Group). */
-};
+/** Tipos de extensiones soportadas para texturas. */
+enum ExtensionType { DDS = 0, PNG = 1, JPG = 2 };
 
-/**
- * @enum ShaderType
- * @brief Tipo de shader manejado por el sistema.
- */
-enum ShaderType {
-    VERTEX_SHADER = 0, /**< Shader de vértices. */
-    PIXEL_SHADER = 1  /**< Shader de píxeles (fragment). */
-};
+/** Tipo de shader manejado por el sistema. */
+enum ShaderType { VERTEX_SHADER = 0, PIXEL_SHADER = 1 };

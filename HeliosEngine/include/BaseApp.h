@@ -10,8 +10,10 @@
 #include "Viewport.h"
 #include "ShaderProgram.h"
 #include "MeshComponent.h"
+#include "ModelLoader.h"
 #include "Buffer.h"
 #include "SamplerState.h"
+
 
 /**
  * @file BaseApp.h

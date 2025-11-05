@@ -1,66 +1,60 @@
 ﻿#include "../include/ModelLoader.h"
-#include "../include/OBJ_Loader.h"
-void
-ModelLoader::init()
-{
-    // Inicializa cualquier recurso necesario antes de cargar modelos.
-}
+#include "../include/OBJ_Loader.h"   
 
-void
-ModelLoader::update()
+// Carga un .obj con OBJ_Loader y vuelca datos a MeshComponent
+bool ModelLoader::LoadOBJ(const std::string& objPath, MeshComponent& outMesh, bool flipV)
 {
-    // Actualiza el estado interno del cargador si es necesario.
-}
+    objl::Loader loader;
 
-void
-ModelLoader::render()
-{
-    // Renderiza el modelo cargado (si se implementa un render directo).
-}
-
-void
-ModelLoader::destroy()
-{
-    // Libera los recursos usados por el cargador o modelos cargados.
-}
-
-/*LoadData
-ModelLoader::Load(std::string objFileName)
-{
-    LoadData LD;                       // Estructura donde se almacenar�n los datos del modelo.
-    objl::Loader m_loader;              // Instancia temporal del cargador OBJ.
-
-    // Intenta cargar el archivo OBJ especificado.
-    if (!m_loader.LoadFile(objFileName)) {
-        ERROR("ModelLoader", "Load", "No se pudo cargar el archivo .obj");
-        return LD;                       // Retorna estructura vac�a si la carga falla.
+    // Intenta cargar el archivo .obj
+    if (!loader.LoadFile(objPath)) {
+        ERROR(L"ModelLoader", L"LoadOBJ", L"Failed to load OBJ file");
+        return false;
     }
 
-    LD.name = objFileName;              // Guarda el nombre del modelo cargado.
+    // Limpiamos cualquier contenido previo
+    outMesh.m_vertex.clear();
+    outMesh.m_index.clear();
+    outMesh.m_numVertex = 0;
+    outMesh.m_numIndex = 0;
 
-    size_t vertexCount = m_loader.LoadedVertices.size();  // N�mero total de v�rtices cargados.
-    LD.vertex.resize(vertexCount);      // Redimensiona el vector de v�rtices.
+    // Acumuladores (por si el .obj trae varios submeshes/grupos)
+    unsigned baseVertex = 0;
 
-    // Recorre todos los v�rtices cargados y copia su informaci�n.
-    for (int i = 0; i < LD.vertex.size(); i++)
+    // Recorremos cada Mesh de OBJ_Loader
+    for (const auto& m : loader.LoadedMeshes)
     {
-        LD.vertex[i].Pos.x = m_loader.LoadedVertices[i].Position.X;
-        LD.vertex[i].Pos.y = m_loader.LoadedVertices[i].Position.Y;
-        LD.vertex[i].Pos.z = m_loader.LoadedVertices[i].Position.Z;
+        // Vértices
+        for (const auto& v : m.Vertices)
+        {
+            SimpleVertex sv{};
+            sv.Pos = XMFLOAT3(v.Position.X, v.Position.Y, v.Position.Z);
 
-        LD.vertex[i].Tex.x = m_loader.LoadedVertices[i].TextureCoordinate.X;
-        LD.vertex[i].Tex.y = m_loader.LoadedVertices[i].TextureCoordinate.Y;
+            float u = v.TextureCoordinate.X;
+            float vv = v.TextureCoordinate.Y;
+            if (flipV) vv = 1.0f - vv;
 
-        LD.vertex[i].Normal.x = m_loader.LoadedVertices[i].Normal.X;
-        LD.vertex[i].Normal.y = m_loader.LoadedVertices[i].Normal.Y;
-        LD.vertex[i].Normal.z = m_loader.LoadedVertices[i].Normal.Z;
+            sv.Tex = XMFLOAT2(u, vv);
+            outMesh.m_vertex.push_back(sv);
+        }
+
+        // Índices (aplicando offset)
+        for (unsigned idx : m.Indices)
+        {
+            outMesh.m_index.push_back(baseVertex + idx);
+        }
+
+        baseVertex += static_cast<unsigned>(m.Vertices.size());
     }
 
-    size_t indexCount = m_loader.LoadedIndices.size();   // N�mero total de �ndices cargados.
-    LD.index.resize(indexCount);                         // Redimensiona el vector de �ndices.
-    LD.index = m_loader.LoadedIndices;                   // Copia los �ndices cargados.
+    outMesh.m_numVertex = static_cast<int>(outMesh.m_vertex.size());
+    outMesh.m_numIndex = static_cast<int>(outMesh.m_index.size());
 
-    LD.numVertex = (int)vertexCount;                     // Guarda la cantidad de v�rtices.
-    LD.numIndex = (int)indexCount;                       // Guarda la cantidad de �ndices.
+    if (outMesh.m_numVertex == 0 || outMesh.m_numIndex == 0) {
+        ERROR(L"ModelLoader", L"LoadOBJ", L"OBJ produced empty mesh");
+        return false;
+    }
 
-    return LD;                                           // Retorna la estructura con los datos del modelo cargado.*/
+    MESSAGE(L"ModelLoader", L"LoadOBJ", L"OBJ loaded successfully");
+    return true;
+}

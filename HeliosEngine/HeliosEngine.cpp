@@ -11,6 +11,6 @@ wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLine, int nCm
     // Crea la aplicación base (inicializa ventana, DX, etc. en el constructor/Init).
     BaseApp app(hInstance, nCmdShow);
 
-    // Ejecuta el loop principal (procesa mensajes y renderiza frames).
+    // Ejecuta el loop principal (procesa mensajes y renderiza frames).O
     return app.run(hInstance, nCmdShow);
 }
