@@ -1,6 +1,15 @@
 #pragma once
 
-// Iostream - STD I/O Library
+/**
+ * @file OBJ_Loader.h
+ * @brief Utilidades para cargar modelos en formato Wavefront OBJ y materiales MTL.
+ * @details Contiene estructuras de vectores, vértices, materiales, mallas y un cargador
+ *          que parsea archivos .obj/.mtl a listas de vértices/índices listas para usar.
+ * @date 2025-11-04
+ * @version 1.0
+ */
+
+ // Iostream - STD I/O Library
 #include <iostream>
 
 // Vector - STD Vector/Array Library
@@ -18,134 +27,147 @@
 // Print progress to console while loading (large models)
 #define OBJL_CONSOLE_OUTPUT
 
-// Namespace: OBJL
-//
-// Description: The namespace that holds eveyrthing that
-//	is needed and used for the OBJ Model Loader
+/**
+ * @namespace objl
+ * @brief Espacio de nombres para el cargador de modelos OBJ/MTL.
+ *
+ * Contiene tipos auxiliares (vectores y vértices), representación de materiales y mallas,
+ * funciones matemáticas/algorítmicas de apoyo y la clase principal @ref objl::Loader.
+ */
 namespace objl
 {
-	// Structure: Vector2
-	//
-	// Description: A 2D Vector that Holds Positional Data
+	/**
+	 * @struct Vector2
+	 * @brief Vector 2D para datos posicionales o de textura.
+	 */
 	struct Vector2
 	{
-		// Default Constructor
+		/// @brief Constructor por defecto. Inicializa (0,0).
 		Vector2()
 		{
 			X = 0.0f;
 			Y = 0.0f;
 		}
-		// Variable Set Constructor
+		/// @brief Constructor con valores.
+		/// @param X_ Componente X.
+		/// @param Y_ Componente Y.
 		Vector2(float X_, float Y_)
 		{
 			X = X_;
 			Y = Y_;
 		}
-		// Bool Equals Operator Overload
+		/// @brief Comparación por igualdad.
 		bool operator==(const Vector2& other) const
 		{
 			return (this->X == other.X && this->Y == other.Y);
 		}
-		// Bool Not Equals Operator Overload
+		/// @brief Comparación por desigualdad.
 		bool operator!=(const Vector2& other) const
 		{
 			return !(this->X == other.X && this->Y == other.Y);
 		}
-		// Addition Operator Overload
+		/// @brief Suma vectorial.
 		Vector2 operator+(const Vector2& right) const
 		{
 			return Vector2(this->X + right.X, this->Y + right.Y);
 		}
-		// Subtraction Operator Overload
+		/// @brief Resta vectorial.
 		Vector2 operator-(const Vector2& right) const
 		{
 			return Vector2(this->X - right.X, this->Y - right.Y);
 		}
-		// Float Multiplication Operator Overload
+		/// @brief Multiplicación por escalar.
 		Vector2 operator*(const float& other) const
 		{
 			return Vector2(this->X * other, this->Y * other);
 		}
 
-		// Positional Variables
+		/// @brief Componente X.
 		float X;
+		/// @brief Componente Y.
 		float Y;
 	};
 
-	// Structure: Vector3
-	//
-	// Description: A 3D Vector that Holds Positional Data
+	/**
+	 * @struct Vector3
+	 * @brief Vector 3D para posiciones, normales o colores.
+	 */
 	struct Vector3
 	{
-		// Default Constructor
+		/// @brief Constructor por defecto. Inicializa (0,0,0).
 		Vector3()
 		{
 			X = 0.0f;
 			Y = 0.0f;
 			Z = 0.0f;
 		}
-		// Variable Set Constructor
+		/// @brief Constructor con valores.
 		Vector3(float X_, float Y_, float Z_)
 		{
 			X = X_;
 			Y = Y_;
 			Z = Z_;
 		}
-		// Bool Equals Operator Overload
+		/// @brief Comparación por igualdad.
 		bool operator==(const Vector3& other) const
 		{
 			return (this->X == other.X && this->Y == other.Y && this->Z == other.Z);
 		}
-		// Bool Not Equals Operator Overload
+		/// @brief Comparación por desigualdad.
 		bool operator!=(const Vector3& other) const
 		{
 			return !(this->X == other.X && this->Y == other.Y && this->Z == other.Z);
 		}
-		// Addition Operator Overload
+		/// @brief Suma vectorial.
 		Vector3 operator+(const Vector3& right) const
 		{
 			return Vector3(this->X + right.X, this->Y + right.Y, this->Z + right.Z);
 		}
-		// Subtraction Operator Overload
+		/// @brief Resta vectorial.
 		Vector3 operator-(const Vector3& right) const
 		{
 			return Vector3(this->X - right.X, this->Y - right.Y, this->Z - right.Z);
 		}
-		// Float Multiplication Operator Overload
+		/// @brief Multiplicación por escalar.
 		Vector3 operator*(const float& other) const
 		{
 			return Vector3(this->X * other, this->Y * other, this->Z * other);
 		}
-		// Float Division Operator Overload
+		/// @brief División por escalar.
 		Vector3 operator/(const float& other) const
 		{
 			return Vector3(this->X / other, this->Y / other, this->Z / other);
 		}
 
-		// Positional Variables
+		/// @brief Componente X.
 		float X;
+		/// @brief Componente Y.
 		float Y;
+		/// @brief Componente Z.
 		float Z;
 	};
 
-	// Structure: Vertex
-	//
-	// Description: Model Vertex object that holds
-	//	a Position, Normal, and Texture Coordinate
+	/**
+	 * @struct Vertex
+	 * @brief Vértice de malla con posición, normal y coordenada de textura.
+	 */
 	struct Vertex
 	{
-		// Position Vector
+		/// @brief Posición.
 		Vector3 Position;
-
-		// Normal Vector
+		/// @brief Normal.
 		Vector3 Normal;
-
-		// Texture Coordinate Vector
+		/// @brief Coordenada de textura (UV).
 		Vector2 TextureCoordinate;
 	};
 
+	/**
+	 * @struct Material
+	 * @brief Propiedades de material leídas desde un archivo .mtl.
+	 */
 	struct Material
 	{
+		/// @brief Constructor por defecto. Inicializa parámetros numéricos a 0.
 		Material()
 		{
 			name;
@@ -155,71 +177,73 @@ namespace objl
 			illum = 0;
 		}
 
-		// Material Name
+		/// @brief Nombre del material.
 		std::string name;
-		// Ambient Color
+		/// @brief Componente ambiente (Ka).
 		Vector3 Ka;
-		// Diffuse Color
+		/// @brief Componente difusa (Kd).
 		Vector3 Kd;
-		// Specular Color
+		/// @brief Componente especular (Ks).
 		Vector3 Ks;
-		// Specular Exponent
+		/// @brief Exponente especular (Ns).
 		float Ns;
-		// Optical Density
+		/// @brief Densidad óptica (Ni).
 		float Ni;
-		// Dissolve
+		/// @brief Disolución/alpha (d).
 		float d;
-		// Illumination
+		/// @brief Modelo de iluminación (illum).
 		int illum;
-		// Ambient Texture Map
+		/// @brief Textura ambiente.
 		std::string map_Ka;
-		// Diffuse Texture Map
+		/// @brief Textura difusa.
 		std::string map_Kd;
-		// Specular Texture Map
+		/// @brief Textura especular.
 		std::string map_Ks;
-		// Specular Hightlight Map
+		/// @brief Mapa de highlight especular.
 		std::string map_Ns;
-		// Alpha Texture Map
+		/// @brief Mapa de alpha.
 		std::string map_d;
-		// Bump Map
+		/// @brief Mapa de bump/normal.
 		std::string map_bump;
 	};
 
-	// Structure: Mesh
-	//
-	// Description: A Simple Mesh Object that holds
-	//	a name, a vertex list, and an index list
+	/**
+	 * @struct Mesh
+	 * @brief Representación de una malla: nombre, lista de vértices/índices y material.
+	 */
 	struct Mesh
 	{
-		// Default Constructor
+		/// @brief Constructor por defecto.
 		Mesh()
 		{
 
 		}
-		// Variable Set Constructor
+		/// @brief Constructor con listas de vértices e índices.
+		/// @param _Vertices Lista de vértices.
+		/// @param _Indices Lista de índices.
 		Mesh(std::vector<Vertex>& _Vertices, std::vector<unsigned int>& _Indices)
 		{
 			Vertices = _Vertices;
 			Indices = _Indices;
 		}
-		// Mesh Name
+		/// @brief Nombre de la malla (grupo/objeto en el .obj).
 		std::string MeshName;
-		// Vertex List
+		/// @brief Lista de vértices.
 		std::vector<Vertex> Vertices;
-		// Index List
+		/// @brief Lista de índices (triangulada).
 		std::vector<unsigned int> Indices;
 
-		// Material
+		/// @brief Material asociado.
 		Material MeshMaterial;
 	};
 
-	// Namespace: Math
-	//
-	// Description: The namespace that holds all of the math
-	//	functions need for OBJL
+	/**
+	 * @namespace objl::math
+	 * @brief Funciones matemáticas auxiliares (producto cruz, magnitud, proyección, etc.).
+	 */
 	namespace math
 	{
-		// Vector3 Cross Product
+		/// @brief Producto cruz de dos @ref Vector3.
 		Vector3 CrossV3(const Vector3 a, const Vector3 b)
 		{
 			return Vector3(a.Y * b.Z - a.Z * b.Y,
@@ -227,19 +251,19 @@ namespace objl
 				a.X * b.Y - a.Y * b.X);
 		}
 
-		// Vector3 Magnitude Calculation
+		/// @brief Magnitud de un @ref Vector3.
 		float MagnitudeV3(const Vector3 in)
 		{
 			return (sqrtf(powf(in.X, 2) + powf(in.Y, 2) + powf(in.Z, 2)));
 		}
 
-		// Vector3 DotProduct
+		/// @brief Producto punto de dos @ref Vector3.
 		float DotV3(const Vector3 a, const Vector3 b)
 		{
 			return (a.X * b.X) + (a.Y * b.Y) + (a.Z * b.Z);
 		}
 
-		// Angle between 2 Vector3 Objects
+		/// @brief Ángulo entre dos @ref Vector3 (radianes).
 		float AngleBetweenV3(const Vector3 a, const Vector3 b)
 		{
 			float angle = DotV3(a, b);
@@ -247,7 +271,7 @@ namespace objl
 			return angle = acosf(angle);
 		}
 
-		// Projection Calculation of a onto b
+		/// @brief Proyección del vector a sobre b.
 		Vector3 ProjV3(const Vector3 a, const Vector3 b)
 		{
 			Vector3 bn = b / MagnitudeV3(b);
@@ -255,19 +279,19 @@ namespace objl
 		}
 	}
 
-	// Namespace: Algorithm
-	//
-	// Description: The namespace that holds all of the
-	// Algorithms needed for OBJL
+	/**
+	 * @namespace objl::algorithm
+	 * @brief Algoritmos auxiliares de geometría y utilidades de cadena.
+	 */
 	namespace algorithm
 	{
-		// Vector3 Multiplication Opertor Overload
+		/// @brief Multiplicación escalar por la izquierda.
 		Vector3 operator*(const float& left, const Vector3& right)
 		{
 			return Vector3(right.X * left, right.Y * left, right.Z * left);
 		}
 
-		// A test to see if P1 is on the same side as P2 of a line segment ab
+		/// @brief Verifica si p1 y p2 están del mismo lado de la recta ab.
 		bool SameSide(Vector3 p1, Vector3 p2, Vector3 a, Vector3 b)
 		{
 			Vector3 cp1 = math::CrossV3(b - a, p1 - a);
@@ -279,7 +303,7 @@ namespace objl
 				return false;
 		}
 
-		// Generate a cross produect normal for a triangle
+		/// @brief Genera una normal por producto cruz de un triángulo (t1,t2,t3).
 		Vector3 GenTriNormal(Vector3 t1, Vector3 t2, Vector3 t3)
 		{
 			Vector3 u = t2 - t1;
@@ -290,7 +314,7 @@ namespace objl
 			return normal;
 		}
 
-		// Check to see if a Vector3 Point is within a 3 Vector3 Triangle
+		/// @brief Prueba si un punto está dentro de un triángulo 3D.
 		bool inTriangle(Vector3 point, Vector3 tri1, Vector3 tri2, Vector3 tri3)
 		{
 			// Test to see if it is within an infinite prism that the triangle outlines.
@@ -315,7 +339,10 @@ namespace objl
 				return false;
 		}
 
-		// Split a String into a string array at a given token
+		/// @brief Divide una cadena por un token.
+		/// @param in Cadena de entrada.
+		/// @param out Vector de substrings resultante.
+		/// @param token Delimitador.
 		inline void split(const std::string& in,
 			std::vector<std::string>& out,
 			std::string token)
@@ -354,7 +381,7 @@ namespace objl
 			}
 		}
 
-		// Get tail of string after first token and possibly following spaces
+		/// @brief Obtiene la "cola" de la cadena tras el primer token y espacios.
 		inline std::string tail(const std::string& in)
 		{
 			size_t token_start = in.find_first_not_of(" \t");
@@ -372,7 +399,7 @@ namespace objl
 			return "";
 		}
 
-		// Get first token of string
+		/// @brief Obtiene el primer token de una cadena (separado por espacio).
 		inline std::string firstToken(const std::string& in)
 		{
 			if (!in.empty())
@@ -391,7 +418,11 @@ namespace objl
 			return "";
 		}
 
-		// Get element at given index position
+		/// @brief Obtiene un elemento de un vector por índice en string (acepta negativos estilo OBJ).
+		/// @tparam T Tipo del elemento.
+		/// @param elements Contenedor origen.
+		/// @param index Cadena índice (base 1; negativos desde el final).
+		/// @return Referencia al elemento.
 		template <class T>
 		inline const T& getElement(const std::vector<T>& elements, std::string& index)
 		{
@@ -404,28 +435,33 @@ namespace objl
 		}
 	}
 
-	// Class: Loader
-	//
-	// Description: The OBJ Model Loader
+	/**
+	 * @class Loader
+	 * @brief Cargador de archivos .obj y .mtl a estructuras @ref Mesh, @ref Vertex e índices.
+	 *
+	 * Lee posiciones (v), coordenadas de textura (vt), normales (vn), caras (f) y materiales (mtllib/usemtl),
+	 * triangula polígonos y agrupa por objetos/grupos. Expone buffers listos para subir a GPU.
+	 */
 	class Loader
 	{
 	public:
-		// Default Constructor
+		/// @brief Constructor por defecto.
 		Loader()
 		{
 
 		}
+		/// @brief Destructor. Limpia las mallas cargadas.
 		~Loader()
 		{
 			LoadedMeshes.clear();
 		}
 
-		// Load a file into the loader
-		//
-		// If file is loaded return true
-		//
-		// If the file is unable to be found
-		// or unable to be loaded return false
+		/**
+		 * @brief Carga un archivo OBJ desde disco.
+		 * @param Path Ruta del archivo .obj.
+		 * @return @c true si se cargó correctamente; @c false en caso contrario.
+		 * @note También procesa la referencia a un .mtl asociado (mtllib) si existe.
+		 */
 		bool LoadFile(std::string Path)
 		{
 			// If the file is not an .obj file return false
@@ -710,18 +746,24 @@ namespace objl
 			}
 		}
 
-		// Loaded Mesh Objects
+		/// @brief Mallas cargadas (una por grupo/objeto/material).
 		std::vector<Mesh> LoadedMeshes;
-		// Loaded Vertex Objects
+		/// @brief Vértices cargados (acumulados en orden de lectura).
 		std::vector<Vertex> LoadedVertices;
-		// Loaded Index Positions
+		/// @brief Índices cargados (triangulados).
 		std::vector<unsigned int> LoadedIndices;
-		// Loaded Material Objects
+		/// @brief Materiales cargados desde .mtl.
 		std::vector<Material> LoadedMaterials;
 
 	private:
-		// Generate vertices from a list of positions, 
-		//	tcoords, normals and a face line
+		/**
+		 * @brief Genera vértices a partir de posiciones, UVs, normales y una línea de cara "f".
+		 * @param oVerts Salida de vértices por cara.
+		 * @param iPositions Lista de posiciones (v).
+		 * @param iTCoords Lista de coordenadas de textura (vt).
+		 * @param iNormals Lista de normales (vn).
+		 * @param icurline Línea actual del archivo con la cara.
+		 */
 		void GenVerticesFromRawOBJ(std::vector<Vertex>& oVerts,
 			const std::vector<Vector3>& iPositions,
 			const std::vector<Vector2>& iTCoords,
@@ -814,9 +856,7 @@ namespace objl
 				}
 			}
 
-			// take care of missing normals
-			// these may not be truly acurate but it is the 
-			// best they get for not compiling a mesh with normals	
+			// take care of missing normals (estimación por cruz)
 			if (noNormal)
 			{
 				Vector3 A = oVerts[0].Position - oVerts[1].Position;
@@ -831,8 +871,11 @@ namespace objl
 			}
 		}
 
-		// Triangulate a list of vertices into a face by printing
-		//	inducies corresponding with triangles within it
+		/**
+		 * @brief Triangula una lista de vértices de un polígono arbitrario.
+		 * @param oIndices Índices de salida (triangulados respecto a iVerts).
+		 * @param iVerts Vértices del polígono a triangulizar.
+		 */
 		void VertexTriangluation(std::vector<unsigned int>& oIndices,
 			const std::vector<Vertex>& iVerts)
 		{
@@ -1000,7 +1043,11 @@ namespace objl
 			}
 		}
 
-		// Load Materials from .mtl file
+		/**
+		 * @brief Carga materiales desde un archivo .mtl.
+		 * @param path Ruta al archivo .mtl.
+		 * @return @c true si se cargó al menos un material; @c false en caso contrario.
+		 */
 		bool LoadMaterials(std::string path)
 		{
 			// If the file is not a material file return false

@@ -15,12 +15,11 @@ class
 
 /**
  * @class SwapChain
- * @brief Encapsula la funcionalidad de un Swap Chain en DirectX 11.
+ * @brief Encapsula la funcionalidad de un *swap chain* en DirectX 11.
  *
- * El Swap Chain administra el intercambio de buffers entre el back buffer y
- * el front buffer, lo cual permite mostrar los fotogramas renderizados en
- * pantalla. Tambi�n gestiona la configuraci�n de multisampling para mejorar
- * la calidad visual.
+ * El *swap chain* administra el intercambio de buffers entre el *back buffer* y
+ * el *front buffer*, permitiendo presentar en pantalla los fotogramas renderizados.
+ * También concentra la configuración de *multisampling* (MSAA) para mejorar la calidad visual.
  */
 class
     SwapChain {
@@ -36,50 +35,52 @@ public:
     ~SwapChain() = default;
 
     /**
-     * @brief Inicializa el Swap Chain.
+     * @brief Inicializa el *swap chain* y obtiene el *back buffer*.
      *
-     * @param device Referencia al dispositivo de DirectX.
-     * @param deviceContext Contexto del dispositivo.
-     * @param backBuffer Textura asociada al back buffer.
-     * @param window Ventana donde se presentar� el contenido renderizado.
-     * @return HRESULT C�digo de resultado (S_OK si se inicializ� correctamente).
+     * Crea el dispositivo y el contexto D3D11 (si procede), configura MSAA,
+     * crea el *swap chain* asociado a la ventana y recupera el *back buffer*
+     * en @p backBuffer.
+     *
+     * @param device          Referencia al dispositivo de DirectX 11.
+     * @param deviceContext   Referencia al contexto del dispositivo.
+     * @param backBuffer      Textura asociada al *back buffer* que se rellenará.
+     * @param window          Ventana donde se presentará el contenido.
+     * @return HRESULT        @c S_OK si todo fue correcto; código de error en caso contrario.
      */
     HRESULT
         init(Device& device,
             DeviceContext& deviceContext,
             Texture& backBuffer,
             Window window);
-    // multi aliasing mejora la calidad de p�xeles
+    // multi aliasing mejora la calidad de píxeles
 
     /**
-     * @brief Actualiza el estado del Swap Chain.
+     * @brief Actualiza el estado del *swap chain*.
      *
-     * Funci�n placeholder que puede usarse para l�gica de actualizaci�n
-     * relacionada con el swap chain.
+     * Método *placeholder* para lógica de actualización relacionada con el *swap chain*.
      */
     void
         update();
 
     /**
-     * @brief Renderiza utilizando el Swap Chain.
+     * @brief Ejecuta la fase de render previa a la presentación (si aplica).
      *
-     * Esta funci�n puede contener l�gica de render previo a la presentaci�n
-     * de los buffers.
+     * Método *placeholder* para lógica de render previa a @ref present().
      */
     void
         render();
 
     /**
-     * @brief Libera los recursos asociados al Swap Chain.
+     * @brief Libera los recursos asociados al *swap chain* y a las interfaces DXGI auxiliares.
      */
     void
         destroy();
 
     /**
-     * @brief Presenta el contenido del back buffer en la ventana.
+     * @brief Presenta el contenido del *back buffer* en la ventana.
      *
-     * Intercambia los buffers (front y back) para mostrar en pantalla
-     * el fotograma renderizado m�s reciente.
+     * Intercambia *front/back buffer* para mostrar en pantalla el último fotograma renderizado.
+     * Internamente llama a @c IDXGISwapChain::Present.
      */
     void
         present();
@@ -88,43 +89,43 @@ public:
 
 public:
     /**
-     * @brief Puntero al objeto IDXGISwapChain de DirectX 11.
+     * @brief Puntero al objeto @c IDXGISwapChain de DirectX 11.
      */
     IDXGISwapChain* m_swapChain = nullptr;
 
     /**
-     * @brief Tipo de driver utilizado (hardware, referencia, etc.).
+     * @brief Tipo de controlador utilizado (hardware, WARP, referencia, etc.).
      */
     D3D_DRIVER_TYPE m_driverType = D3D_DRIVER_TYPE_NULL;
 
 private:
     /**
-     * @brief Nivel de caracter�sticas de DirectX soportado.
+     * @brief Nivel de características de DirectX soportado por el dispositivo.
      */
     D3D_FEATURE_LEVEL m_featureLevel = D3D_FEATURE_LEVEL_11_0;
 
     /**
-     * @brief N�mero de muestras de multisampling utilizadas.
+     * @brief Número de muestras de *multisampling* configuradas (MSAA).
      */
     unsigned int m_sampleCount;
 
     /**
-     * @brief N�mero de niveles de calidad soportados para multisampling.
+     * @brief Niveles de calidad soportados para MSAA.
      */
     unsigned int m_qualityLevels;
 
     /**
-     * @brief Puntero al objeto IDXGIDevice de DirectX.
+     * @brief Interfaz @c IDXGIDevice asociada al dispositivo D3D11.
      */
     IDXGIDevice* m_dxgiDevice = nullptr;
 
     /**
-     * @brief Puntero al objeto IDXGIAdapter de DirectX.
+     * @brief Adaptador de DXGI (tarjeta/gráfica) obtenido desde @c IDXGIDevice.
      */
     IDXGIAdapter* m_dxgiAdapter = nullptr;
 
     /**
-     * @brief Puntero al objeto IDXGIFactory de DirectX.
+     * @brief Fábrica de DXGI utilizada para crear el @c IDXGISwapChain.
      */
     IDXGIFactory* m_dxgiFactory = nullptr;
 };
