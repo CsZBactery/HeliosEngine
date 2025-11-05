@@ -1,32 +1,60 @@
 ﻿#include "../include/BaseApp.h"
 
-BaseApp::BaseApp(HINSTANCE hInst, int nCmdShow) {                                                   
+// =====================================================
+// HLSL embebido – textura procedural (checker), sin SRV
+// =====================================================
+// HLSL embebido: cbuffers compatibles con tus C++ CBs
+static const char* kHLSL = R"(
+cbuffer CBNeverChanges     : register(b0) { float4x4 mView; };
+cbuffer CBChangeOnResize   : register(b1) { float4x4 mProjection; };
+cbuffer CBChangesEveryFrame: register(b2) { float4x4 mWorld; float4 vMeshColor; };
 
+struct VS_IN  { float3 Pos: POSITION; float2 Tex: TEXCOORD0; };
+struct VS_OUT { float4 Pos: SV_Position; float2 Tex: TEXCOORD0; };
+
+VS_OUT VS(VS_IN i) {
+    VS_OUT o;
+    float4 p = float4(i.Pos, 1.0f);
+    o.Pos = mul(p, mWorld);
+    o.Pos = mul(o.Pos, mView);
+    o.Pos = mul(o.Pos, mProjection);
+    o.Tex = i.Tex;
+    return o;
 }
 
+// Procedural checker (sin textura t0). Así NO dependemos de assets.
+float4 PS(VS_OUT i) : SV_Target {
+    float2 uv = i.Tex * 10.0;
+    float2 f  = frac(uv);
+    float c   = ( (f.x > 0.5) ^ (f.y > 0.5) ) ? 1.0 : 0.0;
+    float4 a = float4(0.15, 0.15, 0.18, 1.0);
+    float4 b = float4(0.85, 0.85, 0.90, 1.0);
+    float4 col = lerp(a, b, c);
+    return col * vMeshColor;
+}
+)";
 
-//El wWinMain creado, pero con un meodo de clase
-int
-BaseApp::run(HINSTANCE hInst, int nCmdShow) {
-    if (FAILED(m_window.init(hInst, nCmdShow, WndProc))) {
-        return 0;
-    }
-    if (FAILED(init()))
-        return 0;
-    // Main message loop
-    MSG msg = { };
+
+// -----------------------------------------------------
+
+BaseApp::BaseApp(HINSTANCE hInst, int nCmdShow) {}
+
+// El wWinMain creado, pero con un método de clase
+int BaseApp::run(HINSTANCE hInst, int nCmdShow) {
+    if (FAILED(m_window.init(hInst, nCmdShow, WndProc))) return 0;
+    if (FAILED(init())) return 0;
+
+    MSG msg = {};
     LARGE_INTEGER freq, prev;
     QueryPerformanceFrequency(&freq);
     QueryPerformanceCounter(&prev);
-    while (WM_QUIT != msg.message)
-    {
-        if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
-        {
+
+    while (WM_QUIT != msg.message) {
+        if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
             TranslateMessage(&msg);
             DispatchMessage(&msg);
         }
-        else
-        {
+        else {
             LARGE_INTEGER curr;
             QueryPerformanceCounter(&curr);
             float deltaTime = static_cast<float>(curr.QuadPart - prev.QuadPart) / freq.QuadPart;
@@ -35,327 +63,163 @@ BaseApp::run(HINSTANCE hInst, int nCmdShow) {
             render();
         }
     }
-
-    //CleanupDevice();
-
     return (int)msg.wParam;
 }
 
-//Antiguo InitDevice, ahora como metodo de clase
-HRESULT
-BaseApp::init() {
+HRESULT BaseApp::init() {
     HRESULT hr = S_OK;
 
-    // Creacion SwapChain (tmb Device/Context)
+    // SwapChain + Device + Context + BackBuffer
     hr = m_swapChain.init(m_device, m_deviceContext, m_backBuffer, m_window);
-    if (FAILED(hr)) {
-        ERROR("BaseApp", "init", "Failed to initialize SwapChain.");
-        return hr;
-    }
+    if (FAILED(hr)) return hr;
 
-    //Creacion del RenderTarget View
+    // RTV desde backbuffer
     hr = m_renderTargetView.init(m_device, m_backBuffer, DXGI_FORMAT_R8G8B8A8_UNORM);
-    if (FAILED(hr)) {
-        ERROR("BaseApp", "init", "Failed to initialize RenderTargetView.");
-        return hr;
-    }
+    if (FAILED(hr)) return hr;
 
-    //Creacion de la Texturea de Depth Stencil
+    // DepthStencil
     hr = m_depthStencil.init(m_device,
-        m_window.m_width,
-        m_window.m_height,
+        m_window.m_width, m_window.m_height,
         DXGI_FORMAT_D24_UNORM_S8_UINT,
-        D3D11_BIND_DEPTH_STENCIL,
-        4,
-        0);
-    //
-    //Recordar reemplazar Main por BaseApp
-    //
-    if (FAILED(hr)) {
-        ERROR("BaseApp", "init", "Failed to initialize DepthStencil Texture.");
-        return hr;
-    }
+        D3D11_BIND_DEPTH_STENCIL, 1, 0);
+    if (FAILED(hr)) return hr;
 
-    //Creacion Depth Stencil View
-    hr = m_depthStencilView.init(m_device,
-        m_depthStencil,
-        DXGI_FORMAT_D24_UNORM_S8_UINT);
-    if (FAILED(hr)) {
-        ERROR("BaseApp", "init", "Failed to initialize DepthStencilView.");
-        return hr;
-    }
+    hr = m_depthStencilView.init(m_device, m_depthStencil, DXGI_FORMAT_D24_UNORM_S8_UINT);
+    if (FAILED(hr)) return hr;
 
-    //Creacion del Viewport
+    // Viewport
     hr = m_viewport.init(m_window);
+    if (FAILED(hr)) return hr;
 
+    // Input layout (POSITION + TEXCOORD)
+    std::vector<D3D11_INPUT_ELEMENT_DESC> Layout = {
+        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0,  0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+        { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,    0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+    };
+
+    // *** Shader desde MEMORIA (sin assets) ***
+    hr = m_shaderProgram.initFromSource(m_device, kHLSL, Layout);
     if (FAILED(hr)) {
-        ERROR("BaseApp", "init", "Failed to initialize Viewport.");
+        ERROR("BaseApp", "init", "Failed to initialize ShaderProgram from source.");
         return hr;
     }
 
-    //Definicion de InputLayout
 
-    // Define the input layout
-    std::vector<D3D11_INPUT_ELEMENT_DESC> Layout;
-    D3D11_INPUT_ELEMENT_DESC position;
-    position.SemanticName = "POSITION";
-    position.SemanticIndex = 0;
-    position.Format = DXGI_FORMAT_R32G32B32_FLOAT;
-    position.InputSlot = 0;
-    position.AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT /*0*/;
-    position.InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
-    position.InstanceDataStepRate = 0;
-    Layout.push_back(position);
-
-    D3D11_INPUT_ELEMENT_DESC texcoord;
-    texcoord.SemanticName = "TEXCOORD";
-    texcoord.SemanticIndex = 0;
-    texcoord.Format = DXGI_FORMAT_R32G32_FLOAT;
-    texcoord.InputSlot = 0;
-    texcoord.AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT /*0*/;
-    texcoord.InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
-    texcoord.InstanceDataStepRate = 0;
-    Layout.push_back(texcoord);
-
-
-    //Creacion de ShaderProgram
-
-    //Create the Shader program
-    hr = m_shaderProgram.init(m_device, "HeliosEngine.fx", Layout);
-    if (FAILED(hr)) {
-        ERROR("Main", "InitDevice",
-            ("Failed to initialize ShaderProgram. HRESULT: " + std::to_string(hr)).c_str());
-        return hr;
-    }
-
-    //Definir la Gemotria. En esta caso en el Main era un cubo
-    //ESTO ES TEMPORAL
-
-    // Create vertex buffer
+    // --------- Geometría: cubo ----------
     SimpleVertex vertices[] =
     {
-        { XMFLOAT3(-1.0f, 1.0f, -1.0f), XMFLOAT2(0.0f, 0.0f) },
-        { XMFLOAT3(1.0f, 1.0f, -1.0f), XMFLOAT2(1.0f, 0.0f) },
-        { XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT2(1.0f, 1.0f) },
-        { XMFLOAT3(-1.0f, 1.0f, 1.0f), XMFLOAT2(0.0f, 1.0f) },
+        { XMFLOAT3(-1,  1, -1), XMFLOAT2(0,0) }, { XMFLOAT3(1,  1, -1), XMFLOAT2(1,0) },
+        { XMFLOAT3(1,  1,  1), XMFLOAT2(1,1) }, { XMFLOAT3(-1,  1,  1), XMFLOAT2(0,1) },
 
-        { XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT2(0.0f, 0.0f) },
-        { XMFLOAT3(1.0f, -1.0f, -1.0f), XMFLOAT2(1.0f, 0.0f) },
-        { XMFLOAT3(1.0f, -1.0f, 1.0f), XMFLOAT2(1.0f, 1.0f) },
-        { XMFLOAT3(-1.0f, -1.0f, 1.0f), XMFLOAT2(0.0f, 1.0f) },
+        { XMFLOAT3(-1, -1, -1), XMFLOAT2(0,0) }, { XMFLOAT3(1, -1, -1), XMFLOAT2(1,0) },
+        { XMFLOAT3(1, -1,  1), XMFLOAT2(1,1) }, { XMFLOAT3(-1, -1,  1), XMFLOAT2(0,1) },
 
-        { XMFLOAT3(-1.0f, -1.0f, 1.0f), XMFLOAT2(0.0f, 0.0f) },
-        { XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT2(1.0f, 0.0f) },
-        { XMFLOAT3(-1.0f, 1.0f, -1.0f), XMFLOAT2(1.0f, 1.0f) },
-        { XMFLOAT3(-1.0f, 1.0f, 1.0f), XMFLOAT2(0.0f, 1.0f) },
+        { XMFLOAT3(-1, -1,  1), XMFLOAT2(0,0) }, { XMFLOAT3(-1, -1, -1), XMFLOAT2(1,0) },
+        { XMFLOAT3(-1,  1, -1), XMFLOAT2(1,1) }, { XMFLOAT3(-1,  1,  1), XMFLOAT2(0,1) },
 
-        { XMFLOAT3(1.0f, -1.0f, 1.0f), XMFLOAT2(0.0f, 0.0f) },
-        { XMFLOAT3(1.0f, -1.0f, -1.0f), XMFLOAT2(1.0f, 0.0f) },
-        { XMFLOAT3(1.0f, 1.0f, -1.0f), XMFLOAT2(1.0f, 1.0f) },
-        { XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT2(0.0f, 1.0f) },
+        { XMFLOAT3(1, -1,  1), XMFLOAT2(0,0) }, { XMFLOAT3(1, -1, -1), XMFLOAT2(1,0) },
+        { XMFLOAT3(1,  1, -1), XMFLOAT2(1,1) }, { XMFLOAT3(1,  1,  1), XMFLOAT2(0,1) },
 
-        { XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT2(0.0f, 0.0f) },
-        { XMFLOAT3(1.0f, -1.0f, -1.0f), XMFLOAT2(1.0f, 0.0f) },
-        { XMFLOAT3(1.0f, 1.0f, -1.0f), XMFLOAT2(1.0f, 1.0f) },
-        { XMFLOAT3(-1.0f, 1.0f, -1.0f), XMFLOAT2(0.0f, 1.0f) },
+        { XMFLOAT3(-1, -1, -1), XMFLOAT2(0,0) }, { XMFLOAT3(1, -1, -1), XMFLOAT2(1,0) },
+        { XMFLOAT3(1,  1, -1), XMFLOAT2(1,1) }, { XMFLOAT3(-1,  1, -1), XMFLOAT2(0,1) },
 
-        { XMFLOAT3(-1.0f, -1.0f, 1.0f), XMFLOAT2(0.0f, 0.0f) },
-        { XMFLOAT3(1.0f, -1.0f, 1.0f), XMFLOAT2(1.0f, 0.0f) },
-        { XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT2(1.0f, 1.0f) },
-        { XMFLOAT3(-1.0f, 1.0f, 1.0f), XMFLOAT2(0.0f, 1.0f) },
+        { XMFLOAT3(-1, -1,  1), XMFLOAT2(0,0) }, { XMFLOAT3(1, -1,  1), XMFLOAT2(1,0) },
+        { XMFLOAT3(1,  1,  1), XMFLOAT2(1,1) }, { XMFLOAT3(-1,  1,  1), XMFLOAT2(0,1) },
     };
-
     unsigned int indices[] =
     {
-        3,1,0,
-        2,1,3,
-
-        6,4,5,
-        7,4,6,
-
-        11,9,8,
-        10,9,11,
-
-        14,12,13,
-        15,12,14,
-
-        19,17,16,
-        18,17,19,
-
-        22,20,21,
-        23,20,22
+        3,1,0,  2,1,3,
+        6,4,5,  7,4,6,
+        11,9,8, 10,9,11,
+        14,12,13, 15,12,14,
+        19,17,16, 18,17,19,
+        22,20,21, 23,20,22
     };
 
-    // Integrar los vertices a meshcomponent
-    for (unsigned int i = 0; i < 24; i++) {
-        m_mesh.m_vertex.push_back(vertices[i]);
-    }
+    for (unsigned i = 0; i < 24; ++i) m_mesh.m_vertex.push_back(vertices[i]);
     m_mesh.m_numVertex = 24;
-
-    // Integrar los indices a meshcomponent
-    for (unsigned int i = 0; i < 36; i++) {
-        m_mesh.m_index.push_back(indices[i]);
-    }
+    for (unsigned i = 0; i < 36; ++i) m_mesh.m_index.push_back(indices[i]);
     m_mesh.m_numIndex = 36;
 
-
-    //La creacion del Vertex Buffer
-    // Create vertex buffer
     hr = m_vertexBuffer.init(m_device, m_mesh, D3D11_BIND_VERTEX_BUFFER);
-    if (FAILED(hr)) {
-        ERROR("BaseApp", "init", "Failed to initialize VertexBuffer.");
-        return hr;
-    }
-
-    //Creacion del IndexBuffer
+    if (FAILED(hr)) return hr;
     hr = m_indexBuffer.init(m_device, m_mesh, D3D11_BIND_INDEX_BUFFER);
-    if (FAILED(hr)) {
-        ERROR("BaseApp", "init", "Failed to initialize IndexBuffer.");
-        return hr;
-    }
+    if (FAILED(hr)) return hr;
 
-    //Set Primitive Topology
     m_deviceContext.IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
+    // Constant buffers
+    if (FAILED(m_cbNeverChanges.init(m_device, sizeof(CBNeverChanges))))       return E_FAIL;
+    if (FAILED(m_cbChangeOnResize.init(m_device, sizeof(CBChangeOnResize))))   return E_FAIL;
+    if (FAILED(m_cbChangesEveryFrame.init(m_device, sizeof(CBChangesEveryFrame)))) return E_FAIL;
 
-    // Create the constant buffers
-    hr = m_cbNeverChanges.init(m_device, sizeof(CBNeverChanges));
-    if (FAILED(hr)) {
-        ERROR("BaseApp", "InitDevice",
-            ("Failed to initialize NeverChanges Buffer. HRESULT: " + std::to_string(hr)).c_str());
-        return hr;
-    }
-
-    hr = m_cbChangeOnResize.init(m_device, sizeof(CBChangeOnResize));
-    if (FAILED(hr)) {
-        ERROR("BaseApp", "InitDevice",
-            ("Failed to initialize ChangeOnResize Buffer. HRESULT: " + std::to_string(hr)).c_str());
-        return hr;
-    }
-
-    hr = m_cbChangesEveryFrame.init(m_device, sizeof(CBChangesEveryFrame));
-    if (FAILED(hr)) {
-        ERROR("BaseApp", "InitDevice",
-            ("Failed to initialize ChangesEveryFrame Buffer. HRESULT: " + std::to_string(hr)).c_str());
-        return hr;
-    }
-
-    // Load the Texture
-    hr = m_textureCube.init(m_device, "seafloor", ExtensionType::DDS);
-    if (FAILED(hr)) {
-        ERROR("Main", "InitDevice",
-            ("Failed to initialize texture Cube. HRESULT: " + std::to_string(hr)).c_str());
-        return hr;
-    }
-
-    // Create the sample state
-    hr = m_samplerState.init(m_device);
-    if (FAILED(hr)) {
-        ERROR("Main", "init", "Failed to initialize SamplerState.");
-        return hr;
-    }
-
-    // Initialize the world matrices
+    // Matrices iniciales
     m_World = XMMatrixIdentity();
-
-    // Initialize the view matrix
     XMVECTOR Eye = XMVectorSet(0.0f, 3.0f, -6.0f, 0.0f);
     XMVECTOR At = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
     XMVECTOR Up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
     m_View = XMMatrixLookAtLH(Eye, At, Up);
 
-
-    // Initialize the projection matrix
     cbNeverChanges.mView = XMMatrixTranspose(m_View);
-    m_Projection = XMMatrixPerspectiveFovLH(XM_PIDIV4, m_window.m_width / (FLOAT)m_window.m_height, 0.01f, 100.0f);
+    m_Projection = XMMatrixPerspectiveFovLH(
+        XM_PIDIV4, (FLOAT)m_window.m_width / (FLOAT)m_window.m_height, 0.01f, 100.0f);
     cbChangesOnResize.mProjection = XMMatrixTranspose(m_Projection);
+
+    // Color base blanco (para no “tintar” el checker)
+    m_vMeshColor = XMFLOAT4(1, 1, 1, 1);
 
     return S_OK;
 }
 
-void
-BaseApp::update(float deltaTime) {
+void BaseApp::update(float /*deltaTime*/) {
+    // Rotación simple con tiempo
+    static DWORD t0 = GetTickCount();
+    float secs = (GetTickCount() - t0) / 1000.0f;
 
-    // Update our time
-    static float t = 0.0f;
-    if (m_swapChain.m_driverType == D3D_DRIVER_TYPE_REFERENCE)
-    {
-        t += (float)XM_PI * 0.0125f;
-    }
-    else
-    {
-        static DWORD dwTimeStart = 0;
-        DWORD dwTimeCur = GetTickCount();
-        if (dwTimeStart == 0)
-            dwTimeStart = dwTimeCur;
-        t = (dwTimeCur - dwTimeStart) / 1000.0f;
-    }
-
-    // Actualizar la matriz de proyecci�n y vista
     cbNeverChanges.mView = XMMatrixTranspose(m_View);
     m_cbNeverChanges.update(m_deviceContext, nullptr, 0, nullptr, &cbNeverChanges, 0, 0);
-    m_Projection = XMMatrixPerspectiveFovLH(XM_PIDIV4, m_window.m_width / (FLOAT)m_window.m_height, 0.01f, 100.0f);
+
+    m_Projection = XMMatrixPerspectiveFovLH(
+        XM_PIDIV4, (FLOAT)m_window.m_width / (FLOAT)m_window.m_height, 0.01f, 100.0f);
     cbChangesOnResize.mProjection = XMMatrixTranspose(m_Projection);
     m_cbChangeOnResize.update(m_deviceContext, nullptr, 0, nullptr, &cbChangesOnResize, 0, 0);
 
-    // Modify the color
-    m_vMeshColor.x = (sinf(t * 1.0f) + 1.0f) * 0.5f;
-    m_vMeshColor.y = (cosf(t * 3.0f) + 1.0f) * 0.5f;
-    m_vMeshColor.z = (sinf(t * 5.0f) + 1.0f) * 0.5f;
-
-    // Rotate cube around the origin
-    m_World = XMMatrixRotationY(t);
+    m_World = XMMatrixRotationY(secs);
     cb.mWorld = XMMatrixTranspose(m_World);
-    cb.vMeshColor = m_vMeshColor;
+    cb.vMeshColor = m_vMeshColor; // (1,1,1,1)
     m_cbChangesEveryFrame.update(m_deviceContext, nullptr, 0, nullptr, &cb, 0, 0);
 }
 
-void
-BaseApp::render() {
-
-    // Set Render Target View
-    float ClearColor[4] = { 0.1f, 0.1f, 0.1f, 1.0f };
+void BaseApp::render() {
+    float ClearColor[4] = { 0.08f, 0.08f, 0.1f, 1.0f };
     m_renderTargetView.render(m_deviceContext, m_depthStencilView, 1, ClearColor);
 
-    //
-    // Clear the depth buffer to 1.0 (max depth)
-    //
-
-    // Set Viewport
     m_viewport.render(m_deviceContext);
-
-    // Set depth stencil view
     m_depthStencilView.render(m_deviceContext);
 
-    //Set shader program
+    // Shaders
     m_shaderProgram.render(m_deviceContext);
 
-    // Render the cube
-   // Asignar buffers Vertex e Index
+    // Buffers
     m_vertexBuffer.render(m_deviceContext, 0, 1);
     m_indexBuffer.render(m_deviceContext, 0, 1, false, DXGI_FORMAT_R32_UINT);
 
-    // Asignar buffers constantes
-    m_cbNeverChanges.render(m_deviceContext, 0, 1);
-    m_cbChangeOnResize.render(m_deviceContext, 1, 1);
-    m_cbChangesEveryFrame.render(m_deviceContext, 2, 1);
-    m_cbChangesEveryFrame.render(m_deviceContext, 2, 1, true);
+    // Constant buffers VS/PS
+    m_cbNeverChanges.render(m_deviceContext, 0, 1);     // b0 VS
+    m_cbChangeOnResize.render(m_deviceContext, 1, 1);     // b1 VS
+    m_cbChangesEveryFrame.render(m_deviceContext, 2, 1);   // b2 VS
+    m_cbChangesEveryFrame.render(m_deviceContext, 2, 1, true); // b2 PS
 
-    // Asignar textura y sampler
-    m_textureCube.render(m_deviceContext, 0, 1);
-    m_samplerState.render(m_deviceContext, 0, 1);
+    // ¡OJO! No hay textura/sampler que bindear
     m_deviceContext.DrawIndexed(m_mesh.m_numIndex, 0, 0);
 
-    //
-    // Present our back buffer to our front buffer
-    //
     m_swapChain.present();
 }
 
-void
-BaseApp::destroy() {
+void BaseApp::destroy() {
     if (m_deviceContext.m_deviceContext) m_deviceContext.m_deviceContext->ClearState();
 
+    // (No usamos textura/sampler aquí, pero si existen, se limpian)
     m_samplerState.destroy();
     m_textureCube.destroy();
 
@@ -374,28 +238,17 @@ BaseApp::destroy() {
     m_device.destroy();
 }
 
-LRESULT
-BaseApp::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
-    //if (ImGui_ImplWin32_WndProcHandler(hWnd, message, wParam, lParam))
-    //  return true;
+LRESULT BaseApp::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
     switch (message)
     {
-    case WM_CREATE:
-    {
+    case WM_CREATE: {
         CREATESTRUCT* pCreate = reinterpret_cast<CREATESTRUCT*>(lParam);
         SetWindowLongPtr(hWnd, GWLP_USERDATA, (LONG_PTR)pCreate->lpCreateParams);
-    }
-    return 0;
-    case WM_PAINT:
-    {
-        PAINTSTRUCT ps;
-        BeginPaint(hWnd, &ps);
-        EndPaint(hWnd, &ps);
-    }
-    return 0;
-    case WM_DESTROY:
-        PostQuitMessage(0);
-        return 0;
+    } return 0;
+    case WM_PAINT: {
+        PAINTSTRUCT ps; BeginPaint(hWnd, &ps); EndPaint(hWnd, &ps);
+    } return 0;
+    case WM_DESTROY: PostQuitMessage(0); return 0;
     }
     return DefWindowProc(hWnd, message, wParam, lParam);
 }
