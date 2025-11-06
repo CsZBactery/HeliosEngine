@@ -124,13 +124,13 @@ HRESULT BaseApp::init()
     hr = m_viewport.init(m_window);
     if (FAILED(hr)) { ERROR(L"BaseApp", L"init", L"Failed Viewport"); return hr; }
 
-    // 6) InputLayout (POSITION, TEXCOORD)
+    // 6) InputLayout (POSITION, TEXCOORD, NORMAL)
     std::vector<D3D11_INPUT_ELEMENT_DESC> Layout;
     {
         D3D11_INPUT_ELEMENT_DESC p{};
         p.SemanticName = "POSITION";
         p.SemanticIndex = 0;
-        p.Format = DXGI_FORMAT_R32G32B32_FLOAT;
+        p.Format = DXGI_FORMAT_R32G32B32_FLOAT; // 12 bytes
         p.InputSlot = 0;
         p.AlignedByteOffset = 0;
         p.InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
@@ -140,15 +140,28 @@ HRESULT BaseApp::init()
         D3D11_INPUT_ELEMENT_DESC t{};
         t.SemanticName = "TEXCOORD";
         t.SemanticIndex = 0;
-        t.Format = DXGI_FORMAT_R32G32_FLOAT;
+        t.Format = DXGI_FORMAT_R32G32_FLOAT; // 8 bytes
         t.InputSlot = 0;
-        t.AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT;
+        p.AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT; // Empieza después de Pos
         t.InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
         t.InstanceDataStepRate = 0;
         Layout.push_back(t);
+
+        // === ¡¡AQUÍ ESTÁ LA PARTE NUEVA!! ===
+        // (Asegúrate de que tu SimpleVertex en Prerequisites.h tenga XMFLOAT3 Normal)
+        D3D11_INPUT_ELEMENT_DESC n{}; // 'n' de Normal
+        n.SemanticName = "NORMAL";
+        n.SemanticIndex = 0;
+        n.Format = DXGI_FORMAT_R32G32B32_FLOAT; // 12 bytes
+        n.InputSlot = 0;
+        n.AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT; // Empieza después de Tex
+        n.InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
+        n.InstanceDataStepRate = 0;
+        Layout.push_back(n);
+        
     }
 
-    
+// 6.5) DESHABILITAR CULLING 
     D3D11_RASTERIZER_DESC rsDesc = {};
     rsDesc.FillMode = D3D11_FILL_SOLID;
     rsDesc.CullMode = D3D11_CULL_NONE;

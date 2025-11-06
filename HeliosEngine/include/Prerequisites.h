@@ -86,11 +86,10 @@
 }
 
    // ================== Tipos del Engine ==================
-
-   /** Vértice mínimo con posición y coordenadas de textura. */
 struct SimpleVertex {
-    XMFLOAT3 Pos;  /**< (x, y, z) */
-    XMFLOAT2 Tex;  /**< (u, v)   */
+    XMFLOAT3 Pos;
+    XMFLOAT2 Tex;
+    XMFLOAT3 Normal;
 };
 
 /** Buffer constante invariable (cámara). */
@@ -98,7 +97,6 @@ struct CBNeverChanges {
     XMMATRIX mView;
 };
 
-/** Buffer constante que cambia al redimensionar. */
 struct CBChangeOnResize {
     XMMATRIX mProjection;
 };
