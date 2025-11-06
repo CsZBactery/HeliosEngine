@@ -3,7 +3,7 @@
 #include "../include/DeviceContext.h"
 #include "../include/Resource.h" 
 
-HRESULT Window::init(HINSTANCE hInstance, int nCmdShow, WNDPROC wndproc)
+HRESULT Window::init(HINSTANCE hInstance, int nCmdShow, WNDPROC wndproc, void* pUserData)
 {
     m_hInst = hInstance;
 
@@ -39,7 +39,8 @@ HRESULT Window::init(HINSTANCE hInstance, int nCmdShow, WNDPROC wndproc)
         CW_USEDEFAULT, CW_USEDEFAULT,
         rc.right - rc.left,
         rc.bottom - rc.top,
-        nullptr, nullptr, hInstance, nullptr);
+        // ...
+        nullptr, nullptr, hInstance, pUserData);
 
     if (!m_hWnd) {
         MessageBoxW(nullptr, L"CreateWindow failed!", L"Error", MB_OK);

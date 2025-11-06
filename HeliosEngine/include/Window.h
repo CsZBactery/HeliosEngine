@@ -56,7 +56,7 @@ public:
 	 *       @ref m_width y @ref m_height reflejarán el tamaño inicial.
 	 */
 	HRESULT
-		init(HINSTANCE hInstance, int nCmdShow, WNDPROC wndproc);
+		init(HINSTANCE hInstance, int nCmdShow, WNDPROC wndproc, void* pUserData);
 
 	/**
 	 * @brief Actualiza el estado de la ventana.

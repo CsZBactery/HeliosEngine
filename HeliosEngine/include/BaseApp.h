@@ -84,6 +84,14 @@ public:
 	void
 		destroy();
 
+	// Control de zoom de cámara
+	float m_camFactor = 0.35f;   // más pequeño = más cerca (0.2 super cerca, 0.6 más lejos)
+	bool  m_recomputeView = false;
+
+	float m_cameraDistance; // Para guardar la distancia del zoom
+	void  onMouseWheel(int zDelta); // Una función que llamaremos con el scroll
+
+
 private:
 
 	/**
