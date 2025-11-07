@@ -34,7 +34,7 @@ El proyecto sirve como un compendio práctico de los conceptos fundamentales del
 
 1.  Clona el repositorio:
     ```sh
-    git clone [URL-DE-TU-REPO-GIT-AQUI]
+    git clone [https://github.com/CsZBactery/HeliosEngine.git]
     ```
 2.  Abre la solución `HeliosEngine.sln` con Visual Studio 2022.
 3.  Asegúrate de que la configuración de la solución esté en `Debug` (o `Release`) y `x64`.
