@@ -3,12 +3,11 @@
 #include "../include/DeviceContext.h"
 #include "../include/Resource.h" 
 
-// ¡¡¡ASEGÚRATE DE QUE LA FIRMA TENGA 'void* pUserData'!!!
 HRESULT Window::init(HINSTANCE hInstance, int nCmdShow, WNDPROC wndproc, void* pUserData)
 {
     m_hInst = hInstance;
 
-    // ---- Clase de ventana (WIDE) ----
+    
     WNDCLASSEXW wcex{};
     wcex.cbSize = sizeof(WNDCLASSEXW);
     wcex.style = CS_HREDRAW | CS_VREDRAW;
@@ -26,12 +25,12 @@ HRESULT Window::init(HINSTANCE hInstance, int nCmdShow, WNDPROC wndproc, void* p
     if (!RegisterClassExW(&wcex))
         return E_FAIL;
 
-    // ---- Tamaño deseado del área cliente ----
+    
     RECT rc = { 0, 0, 1200, 950 };
     m_rect = rc;
     AdjustWindowRect(&rc, WS_OVERLAPPEDWINDOW, FALSE);
 
-    // ---- Crear ventana (WIDE) ----
+    // ---- Crear ventana----
     m_hWnd = CreateWindowExW(
         0,
         L"TutorialWindowClass",
@@ -41,7 +40,7 @@ HRESULT Window::init(HINSTANCE hInstance, int nCmdShow, WNDPROC wndproc, void* p
         rc.right - rc.left,
         rc.bottom - rc.top,
         nullptr, nullptr, hInstance,
-        pUserData); // <-- ¡¡¡ESTE ES EL ARREGLO!!! ¡¡NO ES 'nullptr'!!
+        pUserData); 
 
     if (!m_hWnd) {
         MessageBoxW(nullptr, L"CreateWindow failed!", L"Error", MB_OK);
@@ -52,7 +51,7 @@ HRESULT Window::init(HINSTANCE hInstance, int nCmdShow, WNDPROC wndproc, void* p
     ShowWindow(m_hWnd, nCmdShow);
     UpdateWindow(m_hWnd);
 
-    // ---- Guardar dimensiones del área cliente ----
+   
     GetClientRect(m_hWnd, &m_rect);
     m_width = static_cast<UINT>(m_rect.right - m_rect.left);
     m_height = static_cast<UINT>(m_rect.bottom - m_rect.top);

@@ -15,7 +15,7 @@
 #include <thread>
 #include <cfloat>
 
-// ---- Config Windows: ¡antes de windows.h! ----
+
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -93,8 +93,6 @@ struct SimpleVertex {
     XMFLOAT2 Tex;
     XMFLOAT3 Normal;
 };
-
-// --- ¡LA VERSIÓN ANTIGUA (duplicada) HA SIDO BORRADA! ---
 
 /** Buffer constante invariable (cámara). */
 struct CBNeverChanges {

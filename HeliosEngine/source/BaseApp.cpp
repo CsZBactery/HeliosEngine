@@ -1,10 +1,10 @@
 ﻿#include "../include/BaseApp.h"
 #include <algorithm>
 #include <cstring>
-#include <string> // Necesario para std::to_string
-#include <d3dx11.h> // ¡Necesario para cargar texturas!
+#include <string> 
+#include <d3dx11.h> 
 
-// ================= HLSL (VERSIÓN 100% LIMPIA) =================
+// ================= HLSL =================
 static const char* kHlslSource = R"(
 cbuffer CBNeverChanges      : register(b0) { float4x4 gView; }
 cbuffer CBChangeOnResize    : register(b1) { float4x4 gProj; }
@@ -74,14 +74,14 @@ int BaseApp::run(HINSTANCE hInst, int nCmdShow)
             float dt = float(curr.QuadPart - prev.QuadPart) / float(freq.QuadPart);
             prev = curr;
 
-            update(dt); // ¡Pasamos 'dt' a update!
+            update(dt); 
             render();
         }
     }
     return int(msg.wParam);
 }
 
-// AABB helper (VERSIÓN LIMPIA)
+// AABB helper
 static void ComputeAABB(const std::vector<SimpleVertex>& vtx, XMFLOAT3& outMin, XMFLOAT3& outMax)
 {
     if (vtx.empty()) { outMin = { 0,0,0 }; outMax = { 0,0,0 }; return; }
@@ -113,7 +113,7 @@ HRESULT BaseApp::init()
 {
     HRESULT hr = S_OK;
 
-    // --- 1-5: Inicialización de DirectX (OK) ---
+    // --- 1-5: Inicialización de DirectX ---
     hr = m_swapChain.init(m_device, m_deviceContext, m_backBuffer, m_window);
     if (FAILED(hr)) { ERROR(L"BaseApp", L"init", L"Failed SwapChain"); return hr; }
     hr = m_renderTargetView.init(m_device, m_backBuffer, DXGI_FORMAT_R8G8B8A8_UNORM);
@@ -127,7 +127,7 @@ HRESULT BaseApp::init()
     hr = m_viewport.init(m_window);
     if (FAILED(hr)) { ERROR(L"BaseApp", L"init", L"Failed Viewport"); return hr; }
 
-    // --- 6: InputLayout (CON NORMALES) (OK) ---
+    // --- 6: InputLayout ---
     std::vector<D3D11_INPUT_ELEMENT_DESC> Layout;
     {
         D3D11_INPUT_ELEMENT_DESC p{};
@@ -147,7 +147,7 @@ HRESULT BaseApp::init()
         Layout.push_back(n);
     }
 
-    // --- 6.5: Rasterizer (Cull None) (OK) ---
+    // --- 6.5: Rasterizer ---
     D3D11_RASTERIZER_DESC rsDesc = {};
     rsDesc.FillMode = D3D11_FILL_SOLID;
     rsDesc.CullMode = D3D11_CULL_NONE;
@@ -159,17 +159,17 @@ HRESULT BaseApp::init()
     m_deviceContext.m_deviceContext->RSSetState(pRasterState);
     pRasterState->Release();
 
-    // --- 7: Shaders (OK) ---
+    // --- 7: Shaders ---
     hr = m_shaderProgram.initFromSource(m_device, kHlslSource, Layout);
     if (FAILED(hr)) { ERROR(L"BaseApp", L"init", L"Failed ShaderProgram"); return hr; }
 
-    // --- 8: Cargar modelo OBJ (OK) ---
-    bool loadedOBJ = false; // ¡Declarada aquí!
+    // --- 8: Cargar modelo OBJ ---
+    bool loadedOBJ = false; 
     {
         ModelLoader loader;
         const std::string objPath = MakeAssetPath("Assets\\Moto\\repsol3.obj");
         OutputDebugStringA(("OBJ path: " + objPath + "\n").c_str());
-        loadedOBJ = loader.LoadOBJ(objPath, m_mesh, /*flipV=*/true); // ¡flipV es true!
+        loadedOBJ = loader.LoadOBJ(objPath, m_mesh, /*flipV=*/true);
         if (!loadedOBJ) {
             ERROR(L"BaseApp", L"init", L"OBJ Load FAILED -> using fallback quad");
         }
@@ -178,9 +178,9 @@ HRESULT BaseApp::init()
         OutputDebugStringA(("Mesh loaded. Vertices: " + std::to_string(m_mesh.m_numVertex) + ", Indices: " + std::to_string(m_mesh.m_numIndex) + "\n").c_str());
     }
 
-    // --- 8.5: Cargar Textura (OK) ---
+    // --- 8.5: Cargar Textura ---
     {
-        const std::wstring texturePath = L"Assets\\Textures\\seafloor.dds";
+        const std::wstring texturePath = L"Assets\\Textures\\texturexbox.png";
         HRESULT hr_tex = D3DX11CreateShaderResourceViewFromFileW(
             m_device.m_device, texturePath.c_str(),
             nullptr, nullptr, &m_pModelTextureSRV, nullptr
@@ -193,17 +193,15 @@ HRESULT BaseApp::init()
         }
     }
 
-    // --- 9: Cámara y Proyección (¡¡¡CORREGIDO!!!) ---
-    // ¡Tu modelo es PEQUEÑO ahora (7k verts), usa una cámara NORMAL!
-    m_cameraDistance = 5.0f; // ¡Empezamos a 5 unidades!
+    // --- 9: Cámara y Proyección ---
+    m_cameraDistance = 5.0f;
 
     // Proyección con rango normal
     float aspect = (float)m_window.m_width / (float)m_window.m_height;
     float fovY = XMConvertToRadians(45.0f);
-    m_Projection = XMMatrixPerspectiveFovLH(fovY, aspect, 0.1f, 1000.0f); // ¡Rango normal!
-    // --- FIN DE CÁMARA MANUAL ---
+    m_Projection = XMMatrixPerspectiveFovLH(fovY, aspect, 0.1f, 1000.0f);
 
-    // --- 10: Buffers (OK) ---
+    // --- 10: Buffers ---
     hr = m_cbNeverChanges.init(m_device, sizeof(CBNeverChanges));
     if (FAILED(hr)) { ERROR(L"BaseApp", L"init", L"Failed cbNeverChanges"); return hr; }
     hr = m_cbChangeOnResize.init(m_device, sizeof(CBChangeOnResize));
@@ -223,14 +221,14 @@ HRESULT BaseApp::init()
     hr = m_indexBuffer.init(m_device, m_mesh, D3D11_BIND_INDEX_BUFFER);
     if (FAILED(hr)) { ERROR(L"BaseApp", L"init", L"Failed Index Buffer"); return hr; }
 
-    // --- 11: Sampler State (OK) ---
+    // --- 11: Sampler State ---
     hr = m_samplerState.init(m_device);
     if (FAILED(hr)) { ERROR(L"BaseApp", L"init", L"Failed SamplerState"); return hr; }
 
     return S_OK;
 }
 
-// === ¡UPDATE CON ROTACIÓN Y GIRO! (OK) ===
+// === ¡UPDATE CON ROTACIÓN Y GIRO ===
 void BaseApp::update(float deltaTime)
 {
     // === 1. CALCULAR LA CÁMARA CON EL ZOOM ===
@@ -242,8 +240,8 @@ void BaseApp::update(float deltaTime)
 
     // === 2. CALCULAR LA ROTACIÓN DEL MODELO ===
     m_modelRotation += deltaTime * 0.4f;
-    XMMATRIX rotX = XMMatrixRotationX(XMConvertToRadians(-90.0f)); // Levantar
-    XMMATRIX rotY = XMMatrixRotationY(m_modelRotation); // Girar
+    XMMATRIX rotX = XMMatrixRotationX(XMConvertToRadians(-90.0f)); 
+    XMMATRIX rotY = XMMatrixRotationY(m_modelRotation);
     m_World = rotX * rotY;
 
     // === 3. ACTUALIZAR LOS BUFFERS ===
@@ -257,15 +255,15 @@ void BaseApp::update(float deltaTime)
     m_cbChangesEveryFrame.update(m_deviceContext, nullptr, 0, nullptr, &cb, 0, 0);
 }
 
-// === ¡Función de Zoom Suave! (¡¡CORREGIDA!!) ===
+// === ¡Función de Zoom ===
 void BaseApp::onMouseWheel(int zDelta)
 {
-    // ¡Zoom suave para un modelo pequeño!
+    
     float zoomSpeed = 1.2f;
     if (zDelta > 0) { m_cameraDistance /= zoomSpeed; }
     else { m_cameraDistance *= zoomSpeed; }
 
-    // ¡Límites normales para un modelo pequeño!
+    
     if (m_cameraDistance < 0.1f) { m_cameraDistance = 0.1f; }
     if (m_cameraDistance > 1000.0f) { m_cameraDistance = 1000.0f; }
 
@@ -275,7 +273,7 @@ void BaseApp::onMouseWheel(int zDelta)
 
 void BaseApp::render()
 {
-    const float Clear[4] = { 1.0f, 1.0f, 1.0f, 1.0f }; // ¡FONDO BLANCO!
+    const float Clear[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
     m_renderTargetView.render(m_deviceContext, m_depthStencilView, 1, Clear);
 
     m_viewport.render(m_deviceContext);
@@ -291,7 +289,7 @@ void BaseApp::render()
 
     m_deviceContext.m_deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-    // === ¡Aplica la textura al shader! ===
+    // === ¡ Textura al shader! ===
     if (m_pModelTextureSRV)
     {
         m_deviceContext.m_deviceContext->PSSetShaderResources(0, 1, &m_pModelTextureSRV);
@@ -304,7 +302,7 @@ void BaseApp::render()
 void BaseApp::destroy()
 {
     if (m_deviceContext.m_deviceContext) m_deviceContext.m_deviceContext->ClearState();
-    SAFE_RELEASE(m_pModelTextureSRV); // ¡Libera la textura!
+    SAFE_RELEASE(m_pModelTextureSRV);
     m_samplerState.destroy();
     m_cbNeverChanges.destroy();
     m_cbChangeOnResize.destroy();
@@ -321,17 +319,17 @@ void BaseApp::destroy()
     m_device.destroy();
 }
 
-// === ¡¡¡LA VERSIÓN 100% CORRECTA DE WNDPROC!!! ===
+
 LRESULT CALLBACK BaseApp::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
-    // ¡¡¡EL PUNTERO DEBE OBTENERSE ANTES DEL SWITCH!!!
+    
     BaseApp* pApp = reinterpret_cast<BaseApp*>(GetWindowLongPtr(hWnd, GWLP_USERDATA));
 
     switch (message)
     {
     case WM_CREATE:
     {
-        // "Guarda" el puntero 'this' en la ventana
+        
         CREATESTRUCT* pCreate = reinterpret_cast<CREATESTRUCT*>(lParam);
         SetWindowLongPtr(hWnd, GWLP_USERDATA, (LONG_PTR)pCreate->lpCreateParams);
     }
@@ -343,10 +341,10 @@ LRESULT CALLBACK BaseApp::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM
     }
     return 0;
 
-    // Zoom con Scroll
+    
     case WM_MOUSEWHEEL:
     {
-        if (pApp) // ¡Esto ahora funcionará!
+        if (pApp) 
         {
             int zDelta = GET_WHEEL_DELTA_WPARAM(wParam);
             pApp->onMouseWheel(zDelta);
@@ -354,20 +352,20 @@ LRESULT CALLBACK BaseApp::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM
     }
     return 0;
 
-    // Zoom con Teclas
+    
     case WM_KEYDOWN:
     {
-        if (pApp) // ¡Esto ahora funcionará!
+        if (pApp) 
         {
             switch (wParam)
             {
             case VK_OEM_PLUS:
             case VK_ADD:
-                pApp->onMouseWheel(1); // Acercar
+                pApp->onMouseWheel(1);
                 break;
             case VK_OEM_MINUS:
             case VK_SUBTRACT:
-                pApp->onMouseWheel(-1); // Alejar
+                pApp->onMouseWheel(-1);
                 break;
             }
         }

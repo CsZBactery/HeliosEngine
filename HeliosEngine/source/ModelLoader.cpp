@@ -1,18 +1,15 @@
 ﻿#include "../include/ModelLoader.h"
 #include <iostream>
-#include <fstream>   // Para leer archivos (ifstream)
-#include <sstream>   // Para parsear líneas (stringstream)
+#include <fstream> 
+#include <sstream> 
 #include <vector>
 #include <string>
-#include <map>       // Para vértices únicos
-#include <tuple>     // Para la función auxiliar
+#include <map> 
+#include <tuple>
 
-// ----------------------------------------------------------------------------------
-// Funciones Auxiliares (Namespace anónimo)
-// ----------------------------------------------------------------------------------
 namespace {
     /**
-     * @brief Parsea un token de cara (ej: "1/2/3") y extrae los índices v, vt, vn.
+     * @brief Parsea un token de cara y extrae los índices v, vt, vn.
      */
     std::tuple<int, int, int> parseFaceIndex(const std::string& token) {
         int v = 0, vt = 0, vn = 0;
@@ -35,10 +32,10 @@ namespace {
 
         return std::make_tuple(v, vt, vn);
     }
-} // fin del namespace anónimo
+} 
 
 // ----------------------------------------------------------------------------------
-// Implementación del Parser (Adaptado a tu .h)
+// Implementación del Parser
 // ----------------------------------------------------------------------------------
 bool
 ModelLoader::LoadOBJ(const std::string& objPath, MeshComponent& outMesh, bool flipV)
@@ -52,14 +49,11 @@ ModelLoader::LoadOBJ(const std::string& objPath, MeshComponent& outMesh, bool fl
     std::vector<XMFLOAT2> temp_texCoords;
     std::vector<XMFLOAT3> temp_normals;
 
-    // ¡¡IMPORTANTE!! Añadir valores dummy en [0]
-    // El formato OBJ usa índices 1-basados (empieza a contar en 1, no en 0)
-    // Poner un dummy en [0] hace que podamos usar el índice 'v' directamente.
     temp_positions.push_back({ 0, 0, 0 });
     temp_texCoords.push_back({ 0, 0 });
     temp_normals.push_back({ 0, 0, 0 });
 
-    // 2. Cache para generar el buffer indexado único
+    // 2. Cache para generar el buffer
     std::map<VertexIndices, unsigned int> vertex_cache;
     unsigned int next_index = 0;
 
@@ -89,17 +83,17 @@ ModelLoader::LoadOBJ(const std::string& objPath, MeshComponent& outMesh, bool fl
         else if (token == "vt") { // Coordenadas de textura
             XMFLOAT2 tc;
             ss >> tc.x >> tc.y;
-            if (flipV) { // ¡Usamos el parámetro flipV!
+            if (flipV) {
                 tc.y = 1.0f - tc.y;
             }
             temp_texCoords.push_back(tc);
         }
-        else if (token == "vn") { // Normales
+        else if (token == "vn") {
             XMFLOAT3 norm;
             ss >> norm.x >> norm.y >> norm.z;
             temp_normals.push_back(norm);
         }
-        else if (token == "f") { // Caras y Triangulación
+        else if (token == "f") {
             std::vector<VertexIndices> face_vertices;
             std::string face_token;
             while (ss >> face_token) {
@@ -111,9 +105,9 @@ ModelLoader::LoadOBJ(const std::string& objPath, MeshComponent& outMesh, bool fl
                     });
             }
 
-            if (face_vertices.size() < 3) continue; // Ignorar líneas/puntos
+            if (face_vertices.size() < 3) continue;
 
-            // Triangulación "Fan" (i0, i1, i2), (i0, i2, i3), ...
+            // Triangulación
             for (size_t i = 0; i < face_vertices.size() - 2; ++i) {
                 VertexIndices tri_indices[] = {
                     face_vertices[0],
@@ -124,27 +118,26 @@ ModelLoader::LoadOBJ(const std::string& objPath, MeshComponent& outMesh, bool fl
                 for (int j = 0; j < 3; ++j) {
                     const auto& current_key = tri_indices[j];
 
-                    // Validación (Asegura que los índices no se salgan del rango)
+                    // Validación
                     if (current_key.v <= 0 || (size_t)current_key.v >= temp_positions.size() ||
                         (current_key.vt < 0 || (current_key.vt > 0 && (size_t)current_key.vt >= temp_texCoords.size())) ||
                         (current_key.vn < 0 || (current_key.vn > 0 && (size_t)current_key.vn >= temp_normals.size()))) {
 
-                        // Si faltan UVs o Normales (vt=0 o vn=0), el 'get' de abajo lo manejará.
-                        // Esto es solo para índices positivos que se salen del vector.
+
                         if (current_key.v > 0) {
                             ERROR(L"ModelLoader", L"LoadOBJ", L"Índice de vértice fuera de rango o inválido.");
                             continue;
                         }
                     }
 
-                    // 4. Indexación con Cache
+                    
                     auto it = vertex_cache.find(current_key);
                     if (it != vertex_cache.end()) {
-                        // Vértice ya existe: reusar índice
+                       
                         outMesh.m_index.push_back(it->second);
                     }
                     else {
-                        // Nuevo vértice: crear SimpleVertex
+                        // Nuevo vértice
                         SimpleVertex new_vertex;
                         new_vertex.Pos = temp_positions[current_key.v];
 
@@ -154,26 +147,25 @@ ModelLoader::LoadOBJ(const std::string& objPath, MeshComponent& outMesh, bool fl
                         // Si vn es 0 (no existe), usa (0,0,0). Si no, búscalo.
                         new_vertex.Normal = (current_key.vn > 0) ? temp_normals[current_key.vn] : XMFLOAT3(0, 0, 0);
 
-                        // Añadir nuevo vértice y actualizar cache
+                        // Añadir nuevo vértice
                         outMesh.m_vertex.push_back(new_vertex);
                         vertex_cache[current_key] = next_index;
 
-                        // Añadir índice al buffer de índices
+                        // Añadir índice
                         outMesh.m_index.push_back(next_index);
                         next_index++;
                     }
                 }
             }
         }
-        // Ignorar 'usemtl', 's', 'g', etc.
+        
     }
 
     file.close();
 
-    // 5. Finalización
     outMesh.m_numVertex = static_cast<int>(outMesh.m_vertex.size());
     outMesh.m_numIndex = static_cast<int>(outMesh.m_index.size());
 
     MESSAGE(L"ModelLoader", L"LoadOBJ", L"Parsing OBJ finalizado.");
-    return true; // ¡Devolvemos true en éxito!
+    return true; 
 }

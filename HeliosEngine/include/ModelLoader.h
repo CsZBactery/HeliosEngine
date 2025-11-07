@@ -1,6 +1,6 @@
 ﻿#pragma once
-#include "Prerequisites.h" // ¡Asegúrate que aquí esté tu SimpleVertex (con Normal)!
-#include "MeshComponent.h" // ¡Incluimos la definición de MeshComponent!
+#include "Prerequisites.h" 
+#include "MeshComponent.h" 
 #include <fstream>
 #include <sstream>
 #include <vector>
