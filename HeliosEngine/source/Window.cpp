@@ -3,6 +3,7 @@
 #include "../include/DeviceContext.h"
 #include "../include/Resource.h" 
 
+// ¡¡¡ASEGÚRATE DE QUE LA FIRMA TENGA 'void* pUserData'!!!
 HRESULT Window::init(HINSTANCE hInstance, int nCmdShow, WNDPROC wndproc, void* pUserData)
 {
     m_hInst = hInstance;
@@ -39,8 +40,8 @@ HRESULT Window::init(HINSTANCE hInstance, int nCmdShow, WNDPROC wndproc, void* p
         CW_USEDEFAULT, CW_USEDEFAULT,
         rc.right - rc.left,
         rc.bottom - rc.top,
-        // ...
-        nullptr, nullptr, hInstance, pUserData);
+        nullptr, nullptr, hInstance,
+        pUserData); // <-- ¡¡¡ESTE ES EL ARREGLO!!! ¡¡NO ES 'nullptr'!!
 
     if (!m_hWnd) {
         MessageBoxW(nullptr, L"CreateWindow failed!", L"Error", MB_OK);

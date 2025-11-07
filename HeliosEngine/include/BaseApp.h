@@ -13,6 +13,7 @@
 #include "ModelLoader.h"
 #include "Buffer.h"
 #include "SamplerState.h"
+#include <d3dx11.h>
 
 
 /**
@@ -84,13 +85,6 @@ public:
 	void
 		destroy();
 
-	// Control de zoom de cámara
-	float m_camFactor = 0.35f;   // más pequeño = más cerca (0.2 super cerca, 0.6 más lejos)
-	bool  m_recomputeView = false;
-
-	float m_cameraDistance; // Para guardar la distancia del zoom
-	void  onMouseWheel(int zDelta); // Una función que llamaremos con el scroll
-
 
 private:
 
@@ -145,6 +139,13 @@ private:
 	XMMATRIX                            m_View;              /**< Matriz View actual. */
 	XMMATRIX                            m_Projection;        /**< Matriz Projection actual. */
 	XMFLOAT4                            m_vMeshColor;        /**< Color del mesh (RGBA). */
+
+
+	// === ¡ESTE ES EL ÚNICO BLOQUE CORRECTO! ===
+	float m_cameraDistance;
+	void  onMouseWheel(int zDelta);
+	ID3D11ShaderResourceView* m_pModelTextureSRV = nullptr; // Para la textura
+	float m_modelRotation = 0.0f; // Para que gire
 	///@}
 
 	/** @name Datos subidos a constant buffers */
@@ -154,3 +155,7 @@ private:
 	CBChangesEveryFrame cb;              /**< Payload CPU para b2 (world/color). */
 	///@}
 };
+
+
+
+

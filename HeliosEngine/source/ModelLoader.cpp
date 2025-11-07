@@ -1,187 +1,179 @@
-﻿// --- En ModelLoader.cpp ---
-
-#include "../include/ModelLoader.h"
+﻿#include "../include/ModelLoader.h"
 #include <iostream>
 #include <fstream>   // Para leer archivos (ifstream)
 #include <sstream>   // Para parsear líneas (stringstream)
 #include <vector>
-#include <map>       // Para vértices únicos (¡la clave de la robustez!)
+#include <string>
+#include <map>       // Para vértices únicos
+#include <tuple>     // Para la función auxiliar
 
-// Implementación de la función LoadOBJ
-bool ModelLoader::LoadOBJ(const std::string& objPath, MeshComponent& outMesh, bool flipV)
+// ----------------------------------------------------------------------------------
+// Funciones Auxiliares (Namespace anónimo)
+// ----------------------------------------------------------------------------------
+namespace {
+    /**
+     * @brief Parsea un token de cara (ej: "1/2/3") y extrae los índices v, vt, vn.
+     */
+    std::tuple<int, int, int> parseFaceIndex(const std::string& token) {
+        int v = 0, vt = 0, vn = 0;
+        std::stringstream ss(token);
+        std::string segment;
+
+        // v
+        std::getline(ss, segment, '/');
+        if (!segment.empty()) v = std::stoi(segment);
+
+        // vt
+        if (std::getline(ss, segment, '/')) {
+            if (!segment.empty()) vt = std::stoi(segment);
+        }
+
+        // vn
+        if (std::getline(ss, segment, '/')) {
+            if (!segment.empty()) vn = std::stoi(segment);
+        }
+
+        return std::make_tuple(v, vt, vn);
+    }
+} // fin del namespace anónimo
+
+// ----------------------------------------------------------------------------------
+// Implementación del Parser (Adaptado a tu .h)
+// ----------------------------------------------------------------------------------
+bool
+ModelLoader::LoadOBJ(const std::string& objPath, MeshComponent& outMesh, bool flipV)
 {
-    // --- Almacenamiento temporal para los datos leídos del OBJ ---
-    // El formato .obj guarda posiciones, texturas y normales en listas separadas.
-    std::vector<XMFLOAT3> temp_positions;
-    std::vector<XMFLOAT2> temp_texcoords;
-    std::vector<XMFLOAT3> temp_normals;
-
-    // --- Almacenamiento para las definiciones de caras ---
-    // Guardamos las líneas 'f' para procesarlas al final.
-    std::vector<std::string> face_definitions;
-
-    // --- Mapa de Vértices Únicos (¡La Clave de un Buen Parser!) ---
-    // Un vértice final no es solo una posición, es la combinación ÚNICA
-    // de (posición / textura / normal).
-    // Usamos un mapa para no duplicar vértices.
-    // La clave es el string "v/vt/vn", el valor es el índice final (UINT).
-    std::map<std::string, unsigned int> vertex_map;
-
-    // Limpiamos la malla de salida por si acaso
+    outMesh.m_name = objPath;
     outMesh.m_vertex.clear();
     outMesh.m_index.clear();
 
-    // --- 1. LEER EL ARCHIVO LÍNEA POR LÍNEA ---
+    // 1. Estructuras temporales para datos RAW
+    std::vector<XMFLOAT3> temp_positions;
+    std::vector<XMFLOAT2> temp_texCoords;
+    std::vector<XMFLOAT3> temp_normals;
+
+    // ¡¡IMPORTANTE!! Añadir valores dummy en [0]
+    // El formato OBJ usa índices 1-basados (empieza a contar en 1, no en 0)
+    // Poner un dummy en [0] hace que podamos usar el índice 'v' directamente.
+    temp_positions.push_back({ 0, 0, 0 });
+    temp_texCoords.push_back({ 0, 0 });
+    temp_normals.push_back({ 0, 0, 0 });
+
+    // 2. Cache para generar el buffer indexado único
+    std::map<VertexIndices, unsigned int> vertex_cache;
+    unsigned int next_index = 0;
+
     std::ifstream file(objPath);
-    if (!file.is_open())
-    {
-        // ¡Este error debería aparecer en tu log de salida si la ruta está mal!
-        OutputDebugStringA(("ERROR: ModelLoader no pudo abrir el archivo: " + objPath + "\n").c_str());
+    std::string line;
+
+    if (!file.is_open()) {
+        ERROR(L"ModelLoader", L"LoadOBJ", L"No se pudo abrir el archivo .obj");
         return false;
     }
 
-    std::string line;
-    while (std::getline(file, line))
-    {
-        // Ignorar líneas vacías o comentarios
-        if (line.empty() || line[0] == '#') {
-            continue;
-        }
+    MESSAGE(L"ModelLoader", L"LoadOBJ", L"Iniciando parsing manual...");
+
+    // 3. Lectura línea por línea
+    while (std::getline(file, line)) {
+        if (line.empty() || line[0] == '#') continue;
 
         std::stringstream ss(line);
-        std::string lineHeader;
-        ss >> lineHeader; // Ej: "v", "vt", "vn", "f", "mtllib"
+        std::string token;
+        ss >> token;
 
-        if (lineHeader == "v") // Vértice de Posición
-        {
-            float x, y, z;
-            ss >> x >> y >> z;
-            temp_positions.push_back(XMFLOAT3(x, y, z));
+        if (token == "v") { // Posiciones
+            XMFLOAT3 pos;
+            ss >> pos.x >> pos.y >> pos.z;
+            temp_positions.push_back(pos);
         }
-        else if (lineHeader == "vt") // Vértice de Textura
-        {
-            float u, v;
-            ss >> u >> v;
-            // Invertimos la V si es necesario (Blender/Maya vs DirectX)
-            if (flipV)
-            {
-                v = 1.0f - v;
+        else if (token == "vt") { // Coordenadas de textura
+            XMFLOAT2 tc;
+            ss >> tc.x >> tc.y;
+            if (flipV) { // ¡Usamos el parámetro flipV!
+                tc.y = 1.0f - tc.y;
             }
-            temp_texcoords.push_back(XMFLOAT2(u, v));
+            temp_texCoords.push_back(tc);
         }
-        else if (lineHeader == "vn") // Vértice de Normal
-        {
-            float x, y, z;
-            ss >> x >> y >> z;
-            temp_normals.push_back(XMFLOAT3(x, y, z));
+        else if (token == "vn") { // Normales
+            XMFLOAT3 norm;
+            ss >> norm.x >> norm.y >> norm.z;
+            temp_normals.push_back(norm);
         }
-        else if (lineHeader == "f") // Cara (Face)
-        {
-            // Guardamos la línea de la cara (sin la 'f' inicial)
-            std::string face_data(line.substr(line.find(" ") + 1));
-            face_definitions.push_back(face_data);
+        else if (token == "f") { // Caras y Triangulación
+            std::vector<VertexIndices> face_vertices;
+            std::string face_token;
+            while (ss >> face_token) {
+                auto indices = parseFaceIndex(face_token);
+                face_vertices.push_back({
+                    std::get<0>(indices),
+                    std::get<1>(indices),
+                    std::get<2>(indices)
+                    });
+            }
+
+            if (face_vertices.size() < 3) continue; // Ignorar líneas/puntos
+
+            // Triangulación "Fan" (i0, i1, i2), (i0, i2, i3), ...
+            for (size_t i = 0; i < face_vertices.size() - 2; ++i) {
+                VertexIndices tri_indices[] = {
+                    face_vertices[0],
+                    face_vertices[i + 1],
+                    face_vertices[i + 2]
+                };
+
+                for (int j = 0; j < 3; ++j) {
+                    const auto& current_key = tri_indices[j];
+
+                    // Validación (Asegura que los índices no se salgan del rango)
+                    if (current_key.v <= 0 || (size_t)current_key.v >= temp_positions.size() ||
+                        (current_key.vt < 0 || (current_key.vt > 0 && (size_t)current_key.vt >= temp_texCoords.size())) ||
+                        (current_key.vn < 0 || (current_key.vn > 0 && (size_t)current_key.vn >= temp_normals.size()))) {
+
+                        // Si faltan UVs o Normales (vt=0 o vn=0), el 'get' de abajo lo manejará.
+                        // Esto es solo para índices positivos que se salen del vector.
+                        if (current_key.v > 0) {
+                            ERROR(L"ModelLoader", L"LoadOBJ", L"Índice de vértice fuera de rango o inválido.");
+                            continue;
+                        }
+                    }
+
+                    // 4. Indexación con Cache
+                    auto it = vertex_cache.find(current_key);
+                    if (it != vertex_cache.end()) {
+                        // Vértice ya existe: reusar índice
+                        outMesh.m_index.push_back(it->second);
+                    }
+                    else {
+                        // Nuevo vértice: crear SimpleVertex
+                        SimpleVertex new_vertex;
+                        new_vertex.Pos = temp_positions[current_key.v];
+
+                        // Si vt es 0 (no existe), usa (0,0). Si no, búscalo.
+                        new_vertex.Tex = (current_key.vt > 0) ? temp_texCoords[current_key.vt] : XMFLOAT2(0, 0);
+
+                        // Si vn es 0 (no existe), usa (0,0,0). Si no, búscalo.
+                        new_vertex.Normal = (current_key.vn > 0) ? temp_normals[current_key.vn] : XMFLOAT3(0, 0, 0);
+
+                        // Añadir nuevo vértice y actualizar cache
+                        outMesh.m_vertex.push_back(new_vertex);
+                        vertex_cache[current_key] = next_index;
+
+                        // Añadir índice al buffer de índices
+                        outMesh.m_index.push_back(next_index);
+                        next_index++;
+                    }
+                }
+            }
         }
-        else if (lineHeader == "mtllib" || lineHeader == "usemtl" || lineHeader == "s" || lineHeader == "g" || lineHeader == "o")
-        {
-            // Robustez: Ignoramos líneas que no soportamos (materiales, grupos, etc.)
-            // ¡Esto evita que el parser falle si el .obj tiene materiales!
-        }
+        // Ignorar 'usemtl', 's', 'g', etc.
     }
+
     file.close();
 
-    // --- 2. PROCESAMIENTO DE CARAS (Construcción de la Malla) ---
-    // Ahora leemos todas las caras que guardamos.
+    // 5. Finalización
+    outMesh.m_numVertex = static_cast<int>(outMesh.m_vertex.size());
+    outMesh.m_numIndex = static_cast<int>(outMesh.m_index.size());
 
-    for (const auto& face_data : face_definitions)
-    {
-        std::stringstream ss_face(face_data);
-        std::string vertex_def; // Ej: "1/1/1" o "1//1" o "1"
-
-        // Guarda los índices FINALES de esta cara (ej. 3 para un triángulo, 4 para un quad)
-        std::vector<unsigned int> face_indices;
-
-        // Itera sobre cada vértice de la cara (ej. "1/1/1", "2/2/1", "3/3/1")
-        while (ss_face >> vertex_def)
-        {
-            // Buscamos si ya hemos procesado este vértice compuesto ("v/vt/vn")
-            if (vertex_map.find(vertex_def) == vertex_map.end())
-            {
-                // --- Vértice Nuevo ---
-                // No lo tenemos, así que debemos crearlo.
-                SimpleVertex new_vert{};
-                std::stringstream ss_vert(vertex_def);
-                std::string index_str;
-
-                // Parseamos los índices (v, vt, vn)
-                // Los índices de OBJ empiezan en 1, así que restamos 1.
-
-                // 1. Índice de Posición (v)
-                std::getline(ss_vert, index_str, '/');
-                UINT v_idx = static_cast<UINT>(std::stoul(index_str)) - 1;
-                new_vert.Pos = temp_positions[v_idx];
-
-                // 2. Índice de Textura (vt)
-                if (!ss_vert.eof()) // ¿Hay más después del primer '/'?
-                {
-                    std::getline(ss_vert, index_str, '/');
-                    if (!index_str.empty()) // Si es "v//vn", index_str estará vacío
-                    {
-                        // Comprobación de robustez: ¿Existen coordenadas de textura?
-                        if (!temp_texcoords.empty()) {
-                            UINT vt_idx = static_cast<UINT>(std::stoul(index_str)) - 1;
-                            new_vert.Tex = temp_texcoords[vt_idx];
-                        }
-                    }
-                }
-
-                // 3. Índice de Normal (vn)
-                if (!ss_vert.eof()) // ¿Hay más después del segundo '/'?
-                {
-                    std::getline(ss_vert, index_str, '/');
-                    if (!index_str.empty())
-                    {
-                        // Comprobación de robustez: ¿Existen normales?
-                        if (!temp_normals.empty()) {
-                            UINT vn_idx = static_cast<UINT>(std::stoul(index_str)) - 1;
-                            new_vert.Normal = temp_normals[vn_idx];
-                        }
-                    }
-                }
-
-                // Añadimos el nuevo vértice a la malla final
-                outMesh.m_vertex.push_back(new_vert);
-                UINT new_index = (UINT)outMesh.m_vertex.size() - 1;
-
-                // Guardamos el nuevo índice en el mapa
-                vertex_map[vertex_def] = new_index;
-                face_indices.push_back(new_index);
-            }
-            else
-            {
-                // --- Vértice Existente ---
-                // ¡Ya lo hemos procesado! Simplemente obtenemos su índice del mapa.
-                face_indices.push_back(vertex_map[vertex_def]);
-            }
-        } // Fin del while (procesar una cara)
-
-        // --- 3. TRIANGULACIÓN (Fan Triangulation) ---
-        // Ahora convertimos la cara (que puede tener 3, 4, o más vértices) en triángulos.
-        // Si la cara es (i0, i1, i2, i3), creamos dos triángulos:
-        // (i0, i1, i2) y (i0, i2, i3)
-        // Esto funciona para Quads y N-Gons (siempre que sean convexos)
-
-        for (size_t i = 1; i + 1 < face_indices.size(); ++i)
-        {
-            outMesh.m_index.push_back(face_indices[0]);
-            outMesh.m_index.push_back(face_indices[i]);
-            outMesh.m_index.push_back(face_indices[i + 1]);
-        }
-    } // Fin del for (procesar todas las caras)
-
-    // Llenamos los contadores finales
-    outMesh.m_numVertex = (int)outMesh.m_vertex.size();
-    outMesh.m_numIndex = (int)outMesh.m_index.size();
-
-    OutputDebugStringA("ModelLoader: Carga de OBJ robusta finalizada.\n");
-    return true;
+    MESSAGE(L"ModelLoader", L"LoadOBJ", L"Parsing OBJ finalizado.");
+    return true; // ¡Devolvemos true en éxito!
 }

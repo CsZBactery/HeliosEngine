@@ -128,9 +128,6 @@
     <ClInclude Include="include\SamplerState.h">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="include\OBJ_Loader.h">
-      <Filter>include</Filter>
-    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Image Include="Assets\Textures\seafloor.dds" />
