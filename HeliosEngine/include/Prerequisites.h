@@ -8,7 +8,7 @@
  * @version 1.0
  */
 
- // ===================== STD =====================
+ // = STD ==
 #include <string>
 #include <sstream>
 #include <vector>
@@ -23,19 +23,19 @@
 #define NOMINMAX
 #endif
 
-// ================== Win32 / Math =================
+// == Math ==
 #include <windows.h>
 #include <xnamath.h>
 
-// ================== DirectX 11 ===================
+// == DirectX 11 ==
 #include <d3d11.h>
 #include <d3dcompiler.h>
 
-// Recursos (si usas RC)
+// Recursos del engine
 #include "Resource.h"
 #include "resource.h"
 
-// =================== MACROS ======================
+// == MACROS ==
 
 /**
  * @def SAFE_RELEASE(x)
@@ -85,7 +85,7 @@
     }                                                         \
 }
 
-   // ================== Tipos del Engine ==================
+   // == Tipos del Engine ==
 
 /** Vértice completo con posición, textura y normal. */
 struct SimpleVertex {

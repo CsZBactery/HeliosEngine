@@ -4,7 +4,7 @@
 #include <string> 
 #include <d3dx11.h> 
 
-// ================= HLSL =================
+// == HLSL ==
 static const char* kHlslSource = R"(
 cbuffer CBNeverChanges      : register(b0) { float4x4 gView; }
 cbuffer CBChangeOnResize    : register(b1) { float4x4 gProj; }
@@ -46,7 +46,7 @@ float4 PS(VS_OUT i):SV_Target
 }; // <-- ¡Punto y coma incluido!
 
 )";
-// ======================================================================
+// ==
 
 BaseApp::BaseApp(HINSTANCE, int) {}
 

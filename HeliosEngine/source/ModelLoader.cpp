@@ -8,9 +8,6 @@
 #include <tuple>
 
 namespace {
-    /**
-     * @brief Parsea un token de cara y extrae los índices v, vt, vn.
-     */
     std::tuple<int, int, int> parseFaceIndex(const std::string& token) {
         int v = 0, vt = 0, vn = 0;
         std::stringstream ss(token);
@@ -34,9 +31,7 @@ namespace {
     }
 } 
 
-// ----------------------------------------------------------------------------------
 // Implementación del Parser
-// ----------------------------------------------------------------------------------
 bool
 ModelLoader::LoadOBJ(const std::string& objPath, MeshComponent& outMesh, bool flipV)
 {
@@ -53,7 +48,7 @@ ModelLoader::LoadOBJ(const std::string& objPath, MeshComponent& outMesh, bool fl
     temp_texCoords.push_back({ 0, 0 });
     temp_normals.push_back({ 0, 0, 0 });
 
-    // 2. Cache para generar el buffer
+    // 2 Generar el buffer
     std::map<VertexIndices, unsigned int> vertex_cache;
     unsigned int next_index = 0;
 
