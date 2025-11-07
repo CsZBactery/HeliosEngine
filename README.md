@@ -4,7 +4,7 @@
 
 ¡HeliosEngine en acción, cargando un modelo `.obj` con texturas usando un parser manual!
 
-![HeliosEngine cargando un modelo .obj](URL_DE_TU_IMAGEN_AQUI)
+![HeliosEngine cargando un modelo .obj](https://github.com/CsZBactery/HeliosEngine/blob/main/HeliosEngine/img/imgXbox.jpg?raw=true)
 
 ---
 
