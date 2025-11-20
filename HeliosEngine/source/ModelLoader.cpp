@@ -1,4 +1,4 @@
-﻿#include "../include/ModelLoader.h"   // Si el .h se llama distinto, ajústalo aquí
+﻿#include "../include/ModelLoader.h" 
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -20,7 +20,7 @@ namespace
         s = s.substr(b, e - b + 1);
     }
 
-    // v / v/vt / v//vn / v/vt/vn
+    
     inline std::tuple<int, int, int> parseFaceIndex(const std::string& token) {
         int v = 0, vt = 0, vn = 0;
         std::stringstream ss(token);
@@ -38,12 +38,12 @@ namespace
         return std::make_tuple(v, vt, vn);
     }
 
-    // Convierte índice OBJ (1-based o negativo) a índice “válido”
+    // Convierte índice OBJ
     // Tenemos slot 0 reservado en los vectores.
     inline int resolveIndex(int idx, size_t size) {
-        if (idx > 0)       return idx;              // 1..N (0 es vacío)
-        else if (idx < 0)  return int(size) + idx;  // negativos desde el final
-        else               return 0;                // 0 => “no dato”
+        if (idx > 0)       return idx;              
+        else if (idx < 0)  return int(size) + idx; 
+        else               return 0;    
     }
 
     inline XMFLOAT3 normalize(const XMFLOAT3& v) {
@@ -54,7 +54,7 @@ namespace
 }
 
 // ----------------------------------------------------------
-// Implementación del Parser OBJ (OBJParser)
+// Implementación del Parser OBJ
 // ----------------------------------------------------------
 bool OBJParser::LoadOBJ(const std::string& objPath, MeshComponent& outMesh, bool flipV)
 {

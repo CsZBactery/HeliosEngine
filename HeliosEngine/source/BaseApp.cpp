@@ -271,16 +271,23 @@ void BaseApp::update(float deltaTime)
 
     // --- Cámara en órbita suave alrededor del modelo
     const float r = m_cameraDistance;
-    const float y = r * 0.33f;               // un poco elevada
+
+    // Sube un poco la cámara
+    const float eyeY = r * 0.5f;      // prueba 0.4f, 0.5f, 0.6f
     const float ex = sinf(m_orbitAngle) * r;
     const float ez = -cosf(m_orbitAngle) * r;
-    XMVECTOR Eye = XMVectorSet(ex, y, ez, 1.0f);
-    XMVECTOR At = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
+
+    // Punto al que miras (subido)
+    const float targetY = 1.5f;          // si sigue bajo, prueba 2.0f, 2.5f
+
+    XMVECTOR Eye = XMVectorSet(ex, eyeY, ez, 1.0f);
+    XMVECTOR At = XMVectorSet(0.0f, targetY, 0.0f, 1.0f);
     XMVECTOR Up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+
     m_View = XMMatrixLookAtLH(Eye, At, Up);
 
     // --- World: inclina -90° en X para colocar la malla, + giro sobre Y
-    XMMATRIX rotX = XMMatrixRotationX(XMConvertToRadians(-90.0f));
+    XMMATRIX rotX = XMMatrixRotationX(XMConvertToRadians(0.0f));
     XMMATRIX rotY = XMMatrixRotationY(m_spinAngle);
     m_World = rotX * rotY;
 
