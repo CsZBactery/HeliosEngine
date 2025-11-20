@@ -128,6 +128,9 @@
     <ClInclude Include="include\SamplerState.h">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\stb_image.h">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Image Include="Assets\Textures\seafloor.dds" />
