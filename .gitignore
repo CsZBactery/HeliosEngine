@@ -416,3 +416,10 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# SDKs y binarios pesados
+fbxl*/*
+fbxlibs/*
+**/*.lib
+**/*.dll
+**/*.pdb
