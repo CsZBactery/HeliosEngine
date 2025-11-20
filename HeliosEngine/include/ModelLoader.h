@@ -8,8 +8,6 @@
 #include <map>
 #include <tuple>
 
-// Habilita FBX sólo si ya configuraste el SDK (Include/Lib):
-//   Project > C/C++ > Preprocessor > Preprocessor Definitions:  ADD  USE_FBX_SDK
 #ifdef USE_FBX_SDK
 #include <fbxsdk.h>
 #endif
@@ -33,9 +31,12 @@ public:
 
 private:
     struct VertexIndices {
-        int v = 0, vt = 0, vn = 0;
+        int v = 0;
+        int vt = 0;
+        int vn = 0;
+
         bool operator<(const VertexIndices& o) const {
-            if (v != o.v) return v < o.v;
+            if (v != o.v)  return v < o.v;
             if (vt != o.vt) return vt < o.vt;
             return vn < o.vn;
         }
@@ -49,10 +50,13 @@ class Model3D final : public IResource
 {
 public:
     explicit Model3D(const std::string& name, ModelType modelType)
-        : IResource(name), m_modelType(modelType) {
+        : IResource(name)
+        , m_modelType(modelType)
+    {
         m_type = ResourceType::Model3D;
         m_state = ResourceState::Unloaded;
     }
+
     ~Model3D() override = default;
 
     // Carga desde disco (no crea GPU). Guarda path y parsea a m_meshes.
@@ -69,23 +73,32 @@ public:
 
     // Accesores
     const std::vector<MeshComponent>& GetMeshes() const { return m_meshes; }
-    ModelType GetModelType() const { return m_modelType; }
+    ModelType                        GetModelType() const { return m_modelType; }
     const std::vector<std::string>& GetTextureFiles() const { return m_textureFileNames; }
 
 private:
     // ---------- Implementaciones por formato ----------
     bool loadOBJ_Internal(const std::string& path);
+
 #ifdef USE_FBX_SDK
     bool loadFBX_Internal(const std::string& path);
 
     // Utilidades FBX (solo si se compila con SDK)
     static bool TriangulateScene(FbxScene* scene);
-    void ExtractMeshesFromFbx(FbxScene* scene);
-    void ExtractSingleMesh(FbxMesh* fbxMesh, const FbxAMatrix& xform);
+    void        ExtractMeshesFromFbx(FbxScene* scene);
+    void        ExtractSingleMesh(FbxMesh* fbxMesh, const FbxAMatrix& xform);
 
     // Conversión básica FBX -> XMFLOAT
-    static XMFLOAT3 ToXM(const FbxVector4& v) { return XMFLOAT3((float)v[0], (float)v[1], (float)v[2]); }
-    static XMFLOAT2 ToXM(const FbxVector2& v, bool flipV) { return XMFLOAT2((float)v[0], flipV ? (1.0f - (float)v[1]) : (float)v[1]); }
+    static XMFLOAT3 ToXM(const FbxVector4& v) {
+        return XMFLOAT3((float)v[0], (float)v[1], (float)v[2]);
+    }
+
+    static XMFLOAT2 ToXM(const FbxVector2& v, bool flipV) {
+        return XMFLOAT2(
+            (float)v[0],
+            flipV ? (1.0f - (float)v[1]) : (float)v[1]
+        );
+    }
 
     // Handles del SDK
     FbxManager* m_fbxManager = nullptr;

@@ -1,4 +1,4 @@
-﻿#include "../include/ModelLoader.h"
+﻿#include "../include/ModelLoader.h"   // Si el .h se llama distinto, ajústalo aquí
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -9,7 +9,7 @@
 #include <cmath>
 
 // -----------------------------
-// Helpers
+// Helpers (namespace anónimo)
 // -----------------------------
 namespace
 {
@@ -38,11 +38,12 @@ namespace
         return std::make_tuple(v, vt, vn);
     }
 
-    // Convierte índice OBJ (1-based o negativo) a índice “válido” (nuestros vectores tienen slot 0 vacío)
+    // Convierte índice OBJ (1-based o negativo) a índice “válido”
+    // Tenemos slot 0 reservado en los vectores.
     inline int resolveIndex(int idx, size_t size) {
-        if (idx > 0)       return idx;                 // 1..N (dejamos 0 como “no dato”)
-        else if (idx < 0)  return int(size) + idx;     // negativos relativos al final
-        else               return 0;                   // 0 => “no dato”
+        if (idx > 0)       return idx;              // 1..N (0 es vacío)
+        else if (idx < 0)  return int(size) + idx;  // negativos desde el final
+        else               return 0;                // 0 => “no dato”
     }
 
     inline XMFLOAT3 normalize(const XMFLOAT3& v) {
@@ -53,9 +54,9 @@ namespace
 }
 
 // ----------------------------------------------------------
-// Implementación del Parser OBJ
+// Implementación del Parser OBJ (OBJParser)
 // ----------------------------------------------------------
-bool ModelLoader::LoadOBJ(const std::string& objPath, MeshComponent& outMesh, bool flipV)
+bool OBJParser::LoadOBJ(const std::string& objPath, MeshComponent& outMesh, bool flipV)
 {
     outMesh.m_name = objPath;
     outMesh.m_vertex.clear();
@@ -66,16 +67,16 @@ bool ModelLoader::LoadOBJ(const std::string& objPath, MeshComponent& outMesh, bo
     std::vector<XMFLOAT2> temp_texCoords(1, XMFLOAT2(0, 0));
     std::vector<XMFLOAT3> temp_normals(1, XMFLOAT3(0, 0, 0));
 
-    // ¡OJO! Tipo calificado
-    std::map<ModelLoader::VertexIndices, unsigned int> vertex_cache;
+    // Usa el tipo anidado OBJParser::VertexIndices
+    std::map<OBJParser::VertexIndices, unsigned int> vertex_cache;
     unsigned int next_index = 0;
 
     std::ifstream file(objPath.c_str());
     if (!file.is_open()) {
-        ERROR(L"ModelLoader", L"LoadOBJ", L"No se pudo abrir el archivo .obj");
+        ERROR(L"OBJParser", L"LoadOBJ", L"No se pudo abrir el archivo .obj");
         return false;
     }
-    MESSAGE(L"ModelLoader", L"LoadOBJ", L"Iniciando parsing manual...");
+    MESSAGE(L"OBJParser", L"LoadOBJ", L"Iniciando parsing manual...");
 
     std::string line;
     while (std::getline(file, line))
@@ -101,8 +102,8 @@ bool ModelLoader::LoadOBJ(const std::string& objPath, MeshComponent& outMesh, bo
             temp_normals.push_back(n);
         }
         else if (tok == "f") {
-            // ¡OJO! Tipo calificado
-            std::vector<ModelLoader::VertexIndices> polygon;
+            // Polígono de caras
+            std::vector<OBJParser::VertexIndices> polygon;
             std::string vtok;
 
             while (ls >> vtok) {
@@ -114,31 +115,33 @@ bool ModelLoader::LoadOBJ(const std::string& objPath, MeshComponent& outMesh, bo
                 ivn = resolveIndex(ivn, temp_normals.size());
 
                 if (iv <= 0 || iv >= (int)temp_positions.size()) {
-                    ERROR(L"ModelLoader", L"LoadOBJ", L"Índice de posición fuera de rango");
+                    ERROR(L"OBJParser", L"LoadOBJ", L"Índice de posición fuera de rango");
                     continue;
                 }
                 if (ivt < 0 || ivt >= (int)temp_texCoords.size()) ivt = 0;
                 if (ivn < 0 || ivn >= (int)temp_normals.size())   ivn = 0;
 
-                polygon.push_back(ModelLoader::VertexIndices{ iv, ivt, ivn });
+                polygon.push_back(OBJParser::VertexIndices{ iv, ivt, ivn });
             }
 
             if (polygon.size() < 3) continue;
 
-            // Triangulación fan: (0, i+1, i+2)
+            // Triangulación tipo fan: (0, i+1, i+2)
             for (size_t i = 0; i + 2 < polygon.size(); ++i) {
-                ModelLoader::VertexIndices tri[3] = {
+                OBJParser::VertexIndices tri[3] = {
                     polygon[0], polygon[i + 1], polygon[i + 2]
                 };
 
                 for (int k = 0; k < 3; ++k) {
-                    const ModelLoader::VertexIndices& key = tri[k];
+                    const OBJParser::VertexIndices& key = tri[k];
 
-                    std::map<ModelLoader::VertexIndices, unsigned int>::iterator it = vertex_cache.find(key);
+                    auto it = vertex_cache.find(key);
                     if (it != vertex_cache.end()) {
+                        // Reutiliza índice
                         outMesh.m_index.push_back(it->second);
                     }
                     else {
+                        // Crea vértice nuevo
                         SimpleVertex v{};
                         v.Pos = temp_positions[key.v];
                         v.Tex = (key.vt != 0) ? temp_texCoords[key.vt] : XMFLOAT2(0, 0);
@@ -153,7 +156,7 @@ bool ModelLoader::LoadOBJ(const std::string& objPath, MeshComponent& outMesh, bo
             }
         }
         else {
-            // Ignorar (o, g, s, usemtl, mtllib, etc.)
+            // Ignorar otras líneas: o, g, s, usemtl, mtllib, etc.
         }
     }
     file.close();
@@ -164,8 +167,10 @@ bool ModelLoader::LoadOBJ(const std::string& objPath, MeshComponent& outMesh, bo
         const XMFLOAT3& n = outMesh.m_vertex[i].Normal;
         if (n.x != 0 || n.y != 0 || n.z != 0) { needNormals = false; break; }
     }
+
     if (needNormals && outMesh.m_index.size() >= 3) {
         std::vector<XMFLOAT3> acc(outMesh.m_vertex.size(), XMFLOAT3(0, 0, 0));
+
         for (size_t i = 0; i + 2 < outMesh.m_index.size(); i += 3) {
             unsigned ia = outMesh.m_index[i + 0];
             unsigned ib = outMesh.m_index[i + 1];
@@ -187,6 +192,7 @@ bool ModelLoader::LoadOBJ(const std::string& objPath, MeshComponent& outMesh, bo
             acc[ib].x += N.x; acc[ib].y += N.y; acc[ib].z += N.z;
             acc[ic].x += N.x; acc[ic].y += N.y; acc[ic].z += N.z;
         }
+
         for (size_t i = 0; i < outMesh.m_vertex.size(); ++i) {
             outMesh.m_vertex[i].Normal = normalize(acc[i]);
         }
@@ -196,10 +202,10 @@ bool ModelLoader::LoadOBJ(const std::string& objPath, MeshComponent& outMesh, bo
     outMesh.m_numIndex = (int)outMesh.m_index.size();
 
     if (outMesh.m_numVertex == 0 || outMesh.m_numIndex == 0) {
-        ERROR(L"ModelLoader", L"LoadOBJ", L"El OBJ no generó vértices/índices.");
+        ERROR(L"OBJParser", L"LoadOBJ", L"El OBJ no generó vértices/índices.");
         return false;
     }
 
-    MESSAGE(L"ModelLoader", L"LoadOBJ", L"Parsing OBJ finalizado.");
+    MESSAGE(L"OBJParser", L"LoadOBJ", L"Parsing OBJ finalizado.");
     return true;
 }

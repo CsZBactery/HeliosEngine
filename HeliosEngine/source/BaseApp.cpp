@@ -1,4 +1,5 @@
 ﻿#include "../include/BaseApp.h"
+#include "../include/ModelLoader.h" 
 #include <algorithm>
 #include <cstring>
 #include <string> 
@@ -159,9 +160,9 @@ HRESULT BaseApp::init()
     hr = m_shaderProgram.initFromSource(m_device, kHlslSource, Layout);
     if (FAILED(hr)) { ERROR(L"BaseApp", L"init", L"Failed ShaderProgram"); return hr; }
 
-    // 8) Cargar modelo OBJ (ruta absoluta)
+    // 8) Cargar modelo OBJ 
     {
-        ModelLoader loader;
+        OBJParser loader;
         const std::string objPath = MakeAssetPath("Assets\\Moto\\repsol3.obj");
         OutputDebugStringA(("OBJ path: " + objPath + "\n").c_str());
 
@@ -175,8 +176,10 @@ HRESULT BaseApp::init()
             };
             m_mesh.m_index = { 0,1,2, 0,2,3 };
         }
+
         m_mesh.m_numVertex = (int)m_mesh.m_vertex.size();
         m_mesh.m_numIndex = (int)m_mesh.m_index.size();
+
         OutputDebugStringA(("Mesh loaded. V=" + std::to_string(m_mesh.m_numVertex) +
             " I=" + std::to_string(m_mesh.m_numIndex) + "\n").c_str());
     }
