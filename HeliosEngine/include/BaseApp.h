@@ -13,6 +13,7 @@
 #include "ModelLoader.h"
 #include "Buffer.h"
 #include "SamplerState.h"
+#include "ModelLoader.h"
 
 // Si usas funciones antiguas de D3DX para cargar texturas (opcional)
 #include <d3d11.h>

@@ -140,15 +140,15 @@
       <FloatingPointModel>Fast</FloatingPointModel>
       <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
       <ExceptionHandling>Sync</ExceptionHandling>
-      <AdditionalIncludeDirectories>$(ProjectDir)third_party\include;DXUT\Core;DXUT\Optional;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)third_party\include;DXUT\Core;DXUT\Optional;%(AdditionalIncludeDirectories);./include/fbx/;./include/fbx/;$(FBX_SDK)\include</AdditionalIncludeDirectories>
       <AdditionalOptions> %(AdditionalOptions)</AdditionalOptions>
-      <PreprocessorDefinitions>WIN32;_WIN32_WINNT=0x0602;WINVER=0x0602;UNICODE;_UNICODE</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32; FBXSDK_SHARED;_WIN32_WINNT=0x0602;WINVER=0x0602;UNICODE;_UNICODE</PreprocessorDefinitions>
       <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
     </ClCompile>
     <Link>
       <AdditionalOptions> %(AdditionalOptions)</AdditionalOptions>
-      <AdditionalDependencies>d3d11.lib;dxgi.lib;d3dcompiler.lib</AdditionalDependencies>
+      <AdditionalDependencies>d3d11.lib;libfbxsdk.lib;libxml2.lib;zlib.lib;dxgi.lib;d3dcompiler.lib</AdditionalDependencies>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <LargeAddressAware>true</LargeAddressAware>
@@ -157,6 +157,8 @@
       <TargetMachine>MachineX86</TargetMachine>
       <UACExecutionLevel>AsInvoker</UACExecutionLevel>
       <DelayLoadDLLs>%(DelayLoadDLLs)</DelayLoadDLLs>
+      <AdditionalLibraryDirectories>$(SolutionDir)lib/fbxlibs/;$(FBX_SDK)\lib\vs2019\x64\debug;;$(SolutionDir)lib/fbxlibs/;$(SolutionDir)lib/fbxlibs/</AdditionalLibraryDirectories>
+      <ImportLibrary>$(SolutionDir)/lib/$(PlatformTarget)/$(TargetName).lib</ImportLibrary>
     </Link>
     <Manifest>
       <EnableDPIAwareness>true</EnableDPIAwareness>
@@ -182,14 +184,14 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <FloatingPointModel>Fast</FloatingPointModel>
       <ExceptionHandling>Sync</ExceptionHandling>
-      <AdditionalIncludeDirectories>$(ProjectDir)third_party\include;DXUT\Core;DXUT\Optional;$(DXSDK_DIR)Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)third_party\include;DXUT\Core;DXUT\Optional;$(DXSDK_DIR)Include;%(AdditionalIncludeDirectories);./include/fbx/;$(FBX_SDK)\include;C:\Program Files\Autodesk\FBX\FBX SDK\2020.3.7\include</AdditionalIncludeDirectories>
       <AdditionalOptions> %(AdditionalOptions)</AdditionalOptions>
-      <PreprocessorDefinitions>WIN32;_WIN32_WINNT=0x0602;WINVER=0x0602;UNICODE;_UNICODE</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32; FBXSDK_SHARED;_WIN32_WINNT=0x0602;WINVER=0x0602;UNICODE;_UNICODE</PreprocessorDefinitions>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
     </ClCompile>
     <Link>
       <AdditionalOptions> %(AdditionalOptions)</AdditionalOptions>
-      <AdditionalDependencies>d3d11.lib;d3dcompiler.lib;d3dx11.lib;dxguid.lib;user32.lib;gdi32.lib;kernel32.lib</AdditionalDependencies>
+      <AdditionalDependencies>d3d11.lib;libfbxsdk.lib;libxml2.lib;zlib.lib;d3dcompiler.lib;d3dx11.lib;dxguid.lib;user32.lib;gdi32.lib;kernel32.lib</AdditionalDependencies>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <LargeAddressAware>true</LargeAddressAware>
@@ -198,7 +200,8 @@
       <TargetMachine>MachineX64</TargetMachine>
       <UACExecutionLevel>AsInvoker</UACExecutionLevel>
       <DelayLoadDLLs>%(DelayLoadDLLs)</DelayLoadDLLs>
-      <AdditionalLibraryDirectories>$(DXSDK_DIR)Lib\x64</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(SolutionDir)lib/fbxlibs/;$(FBX_SDK)\lib\vs2019\x64\debug;$(DXSDK_DIR)Lib\x64;C:\Program Files\Autodesk\FBX\FBX SDK\2020.3.7\lib\x64\debug</AdditionalLibraryDirectories>
+      <ImportLibrary>$(SolutionDir)/lib/$(PlatformTarget)/$(TargetName).lib</ImportLibrary>
     </Link>
     <Manifest>
       <EnableDPIAwareness>true</EnableDPIAwareness>
@@ -226,13 +229,13 @@
       <FloatingPointModel>Fast</FloatingPointModel>
       <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
       <ExceptionHandling>Sync</ExceptionHandling>
-      <AdditionalIncludeDirectories>$(ProjectDir)third_party\include;DXUT\Core;DXUT\Optional;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)third_party\include;DXUT\Core;DXUT\Optional;%(AdditionalIncludeDirectories);./include/fbx/;./include/fbx/;$(FBX_SDK)\include</AdditionalIncludeDirectories>
       <AdditionalOptions> %(AdditionalOptions)</AdditionalOptions>
-      <PreprocessorDefinitions>WIN32;_WIN32_WINNT=0x0602;WINVER=0x0602;UNICODE;_UNICODE</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32; FBXSDK_SHARED;_WIN32_WINNT=0x0602;WINVER=0x0602;UNICODE;_UNICODE</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <AdditionalOptions> %(AdditionalOptions)</AdditionalOptions>
-      <AdditionalDependencies>d3d11.lib;dxgi.lib;d3dcompiler.lib</AdditionalDependencies>
+      <AdditionalDependencies>d3d11.lib;libfbxsdk.lib;libxml2.lib;zlib.lib;dxgi.lib;d3dcompiler.lib</AdditionalDependencies>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
       <OptimizeReferences>true</OptimizeReferences>
@@ -243,6 +246,8 @@
       <TargetMachine>MachineX86</TargetMachine>
       <UACExecutionLevel>AsInvoker</UACExecutionLevel>
       <DelayLoadDLLs>%(DelayLoadDLLs)</DelayLoadDLLs>
+      <AdditionalLibraryDirectories>$(SolutionDir)lib/fbxlibs/;$(FBX_SDK)\lib\vs2019\x64\debug;;$(SolutionDir)lib/fbxlibs/;$(SolutionDir)lib/fbxlibs/</AdditionalLibraryDirectories>
+      <ImportLibrary>$(SolutionDir)/lib/$(PlatformTarget)/$(TargetName).lib</ImportLibrary>
     </Link>
     <Manifest>
       <EnableDPIAwareness>true</EnableDPIAwareness>
@@ -269,13 +274,13 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <FloatingPointModel>Fast</FloatingPointModel>
       <ExceptionHandling>Sync</ExceptionHandling>
-      <AdditionalIncludeDirectories>$(ProjectDir)third_party\include;DXUT\Core;DXUT\Optional;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)third_party\include;DXUT\Core;DXUT\Optional;%(AdditionalIncludeDirectories);./include/fbx/;./include/fbx/;$(FBX_SDK)\include</AdditionalIncludeDirectories>
       <AdditionalOptions> %(AdditionalOptions)</AdditionalOptions>
-      <PreprocessorDefinitions>WIN32;_WIN32_WINNT=0x0602;WINVER=0x0602;UNICODE;_UNICODE</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32; FBXSDK_SHARED;_WIN32_WINNT=0x0602;WINVER=0x0602;UNICODE;_UNICODE</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <AdditionalOptions> %(AdditionalOptions)</AdditionalOptions>
-      <AdditionalDependencies>d3d11.lib;d3dcompiler.lib;d3dx11.lib;dxguid.lib;user32.lib;gdi32.lib;kernel32.lib</AdditionalDependencies>
+      <AdditionalDependencies>d3d11.lib;libfbxsdk.lib;libxml2.lib;zlib.lib;d3dcompiler.lib;d3dx11.lib;dxguid.lib;user32.lib;gdi32.lib;kernel32.lib</AdditionalDependencies>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
       <OptimizeReferences>true</OptimizeReferences>
@@ -286,6 +291,8 @@
       <TargetMachine>MachineX64</TargetMachine>
       <UACExecutionLevel>AsInvoker</UACExecutionLevel>
       <DelayLoadDLLs>%(DelayLoadDLLs)</DelayLoadDLLs>
+      <AdditionalLibraryDirectories>$(SolutionDir)lib/fbxlibs/;$(FBX_SDK)\lib\vs2019\x64\debug;;$(SolutionDir)lib/fbxlibs/;$(SolutionDir)lib/fbxlibs/</AdditionalLibraryDirectories>
+      <ImportLibrary>$(SolutionDir)/lib/$(PlatformTarget)/$(TargetName).lib</ImportLibrary>
     </Link>
     <Manifest>
       <EnableDPIAwareness>true</EnableDPIAwareness>
@@ -313,13 +320,13 @@
       <FloatingPointModel>Fast</FloatingPointModel>
       <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
       <ExceptionHandling>Sync</ExceptionHandling>
-      <AdditionalIncludeDirectories>$(ProjectDir)third_party\include;DXUT\Core;DXUT\Optional;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)third_party\include;DXUT\Core;DXUT\Optional;%(AdditionalIncludeDirectories);./include/fbx/;./include/fbx/;$(FBX_SDK)\include</AdditionalIncludeDirectories>
       <AdditionalOptions> %(AdditionalOptions)</AdditionalOptions>
-      <PreprocessorDefinitions>WIN32;_WIN32_WINNT=0x0602;WINVER=0x0602;UNICODE;_UNICODE</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32; FBXSDK_SHARED;_WIN32_WINNT=0x0602;WINVER=0x0602;UNICODE;_UNICODE</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <AdditionalOptions> %(AdditionalOptions)</AdditionalOptions>
-      <AdditionalDependencies>d3d11.lib;dxgi.lib;d3dcompiler.lib</AdditionalDependencies>
+      <AdditionalDependencies>d3d11.lib;libfbxsdk.lib;libxml2.lib;zlib.lib;dxgi.lib;d3dcompiler.lib</AdditionalDependencies>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
       <OptimizeReferences>true</OptimizeReferences>
@@ -330,6 +337,8 @@
       <TargetMachine>MachineX86</TargetMachine>
       <UACExecutionLevel>AsInvoker</UACExecutionLevel>
       <DelayLoadDLLs>%(DelayLoadDLLs)</DelayLoadDLLs>
+      <AdditionalLibraryDirectories>$(SolutionDir)lib/fbxlibs/;$(FBX_SDK)\lib\vs2019\x64\debug;;$(SolutionDir)lib/fbxlibs/;$(SolutionDir)lib/fbxlibs/</AdditionalLibraryDirectories>
+      <ImportLibrary>$(SolutionDir)/lib/$(PlatformTarget)/$(TargetName).lib</ImportLibrary>
     </Link>
     <Manifest>
       <EnableDPIAwareness>true</EnableDPIAwareness>
@@ -356,13 +365,13 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <FloatingPointModel>Fast</FloatingPointModel>
       <ExceptionHandling>Sync</ExceptionHandling>
-      <AdditionalIncludeDirectories>$(ProjectDir)third_party\include;DXUT\Core;DXUT\Optional;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)third_party\include;DXUT\Core;DXUT\Optional;%(AdditionalIncludeDirectories);./include/fbx/;./include/fbx/;$(FBX_SDK)\include</AdditionalIncludeDirectories>
       <AdditionalOptions> %(AdditionalOptions)</AdditionalOptions>
-      <PreprocessorDefinitions>WIN32;_WIN32_WINNT=0x0602;WINVER=0x0602;UNICODE;_UNICODE</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32; FBXSDK_SHARED;_WIN32_WINNT=0x0602;WINVER=0x0602;UNICODE;_UNICODE</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <AdditionalOptions> %(AdditionalOptions)</AdditionalOptions>
-      <AdditionalDependencies>d3d11.lib;d3dcompiler.lib;d3dx11.lib;dxguid.lib;user32.lib;gdi32.lib;kernel32.lib</AdditionalDependencies>
+      <AdditionalDependencies>d3d11.lib;libfbxsdk.lib;libxml2.lib;zlib.lib;d3dcompiler.lib;d3dx11.lib;dxguid.lib;user32.lib;gdi32.lib;kernel32.lib</AdditionalDependencies>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
       <OptimizeReferences>true</OptimizeReferences>
@@ -373,6 +382,8 @@
       <TargetMachine>MachineX64</TargetMachine>
       <UACExecutionLevel>AsInvoker</UACExecutionLevel>
       <DelayLoadDLLs>%(DelayLoadDLLs)</DelayLoadDLLs>
+      <AdditionalLibraryDirectories>$(SolutionDir)lib/fbxlibs/;$(FBX_SDK)\lib\vs2019\x64\debug;;$(SolutionDir)lib/fbxlibs/;$(SolutionDir)lib/fbxlibs/</AdditionalLibraryDirectories>
+      <ImportLibrary>$(SolutionDir)/lib/$(PlatformTarget)/$(TargetName).lib</ImportLibrary>
     </Link>
     <Manifest>
       <EnableDPIAwareness>true</EnableDPIAwareness>
