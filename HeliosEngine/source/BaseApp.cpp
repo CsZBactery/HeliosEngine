@@ -181,17 +181,18 @@ HRESULT BaseApp::init()
             " I=" + std::to_string(m_mesh.m_numIndex) + "\n").c_str());
     }
 
-    // 8.5) Cargar textura (ruta absoluta + tu Texture wrapper)
+    // 8.5) Cargar textura (wrapper)
     {
-        const std::string texBase = MakeAssetPath("Assets\\Textures\\texturexbox"); // sin .png
-        hr = m_textureCube.init(m_device, texBase, ExtensionType::PNG);
-        if (FAILED(hr)) {
-            ERROR(L"BaseApp", L"init", L"Failed to load texturexbox.png");
+        const std::string texBase = MakeAssetPath("Assets\\Textures\\logxbox");
+        HRESULT hr_tex = m_textureCube.init(m_device, texBase, ExtensionType::PNG);
+        if (FAILED(hr_tex)) {
+            ERROR(L"BaseApp", L"init", L"Failed to load logxbox.png");
         }
         else {
-            OutputDebugStringA("Texture loaded OK\n");
+            OutputDebugStringA("Texture (logxbox.png) loaded OK\n");
         }
     }
+
 
     // 9) Auto-encuadre por AABB (centra y calcula distancia)
     {
