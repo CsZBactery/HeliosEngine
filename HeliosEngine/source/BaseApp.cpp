@@ -186,13 +186,14 @@ HRESULT BaseApp::init()
 
     // 8.5) Cargar textura (wrapper)
     {
-        const std::string texBase = MakeAssetPath("Assets\\Textures\\logxbox");
+        const std::string texBase = MakeAssetPath("Assets\\Textures\\LV");
+
         HRESULT hr_tex = m_textureCube.init(m_device, texBase, ExtensionType::PNG);
         if (FAILED(hr_tex)) {
-            ERROR(L"BaseApp", L"init", L"Failed to load logxbox.png");
+            OutputDebugStringA("FAILED loading Tex_0041_0.png\n");
         }
         else {
-            OutputDebugStringA("Texture (logxbox.png) loaded OK\n");
+            OutputDebugStringA("OK loading Tex_0041_0.png\n");
         }
     }
 
