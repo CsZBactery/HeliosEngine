@@ -186,7 +186,7 @@ HRESULT BaseApp::init()
 
     // 8.5) Cargar textura (wrapper)
     {
-        const std::string texBase = MakeAssetPath("Assets\\Textures\\LV");
+        const std::string texBase = MakeAssetPath("Assets\\Textures\\BaseColor.png");
 
         HRESULT hr_tex = m_textureCube.init(m_device, texBase, ExtensionType::PNG);
         if (FAILED(hr_tex)) {
