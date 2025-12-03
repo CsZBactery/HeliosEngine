@@ -140,7 +140,7 @@
       <FloatingPointModel>Fast</FloatingPointModel>
       <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
       <ExceptionHandling>Sync</ExceptionHandling>
-      <AdditionalIncludeDirectories>$(ProjectDir)third_party\include;DXUT\Core;DXUT\Optional;%(AdditionalIncludeDirectories);./include/fbx/;./include/fbx/;$(FBX_SDK)\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)third_party\include;DXUT\Core;DXUT\Optional;%(AdditionalIncludeDirectories);./include/fbx/;./include/fbx/;$(FBX_SDK)\include;C:\Users\cesar\OneDrive\Documentos\HeliosEngine\HeliosEngine\imgui-docking\backends;C:\Users\cesar\OneDrive\Documentos\HeliosEngine\HeliosEngine\imgui-docking</AdditionalIncludeDirectories>
       <AdditionalOptions> %(AdditionalOptions)</AdditionalOptions>
       <PreprocessorDefinitions>WIN32; FBXSDK_SHARED;_WIN32_WINNT=0x0602;WINVER=0x0602;UNICODE;_UNICODE</PreprocessorDefinitions>
       <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
@@ -184,7 +184,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <FloatingPointModel>Fast</FloatingPointModel>
       <ExceptionHandling>Sync</ExceptionHandling>
-      <AdditionalIncludeDirectories>$(ProjectDir)third_party\include;DXUT\Core;DXUT\Optional;$(DXSDK_DIR)Include;%(AdditionalIncludeDirectories);./include/fbx/;$(FBX_SDK)\include;C:\Program Files\Autodesk\FBX\FBX SDK\2020.3.7\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)third_party\include;DXUT\Core;DXUT\Optional;$(DXSDK_DIR)Include;%(AdditionalIncludeDirectories);./include/fbx/;$(FBX_SDK)\include;C:\Program Files\Autodesk\FBX\FBX SDK\2020.3.7\include;C:\Users\cesar\OneDrive\Documentos\HeliosEngine\HeliosEngine\imgui-docking\backends;C:\Users\cesar\OneDrive\Documentos\HeliosEngine\HeliosEngine\imgui-docking</AdditionalIncludeDirectories>
       <AdditionalOptions> %(AdditionalOptions)</AdditionalOptions>
       <PreprocessorDefinitions>WIN32; FBXSDK_SHARED;_WIN32_WINNT=0x0602;WINVER=0x0602;UNICODE;_UNICODE</PreprocessorDefinitions>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
@@ -229,7 +229,7 @@
       <FloatingPointModel>Fast</FloatingPointModel>
       <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
       <ExceptionHandling>Sync</ExceptionHandling>
-      <AdditionalIncludeDirectories>$(ProjectDir)third_party\include;DXUT\Core;DXUT\Optional;%(AdditionalIncludeDirectories);./include/fbx/;./include/fbx/;$(FBX_SDK)\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)third_party\include;DXUT\Core;DXUT\Optional;%(AdditionalIncludeDirectories);./include/fbx/;./include/fbx/;$(FBX_SDK)\include;C:\Users\cesar\OneDrive\Documentos\HeliosEngine\HeliosEngine\imgui-docking\backends;C:\Users\cesar\OneDrive\Documentos\HeliosEngine\HeliosEngine\imgui-docking</AdditionalIncludeDirectories>
       <AdditionalOptions> %(AdditionalOptions)</AdditionalOptions>
       <PreprocessorDefinitions>WIN32; FBXSDK_SHARED;_WIN32_WINNT=0x0602;WINVER=0x0602;UNICODE;_UNICODE</PreprocessorDefinitions>
     </ClCompile>
@@ -274,7 +274,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <FloatingPointModel>Fast</FloatingPointModel>
       <ExceptionHandling>Sync</ExceptionHandling>
-      <AdditionalIncludeDirectories>$(ProjectDir)third_party\include;DXUT\Core;DXUT\Optional;%(AdditionalIncludeDirectories);./include/fbx/;./include/fbx/;$(FBX_SDK)\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)third_party\include;DXUT\Core;DXUT\Optional;%(AdditionalIncludeDirectories);./include/fbx/;./include/fbx/;$(FBX_SDK)\include;C:\Users\cesar\OneDrive\Documentos\HeliosEngine\HeliosEngine\imgui-docking\backends;C:\Users\cesar\OneDrive\Documentos\HeliosEngine\HeliosEngine\imgui-docking</AdditionalIncludeDirectories>
       <AdditionalOptions> %(AdditionalOptions)</AdditionalOptions>
       <PreprocessorDefinitions>WIN32; FBXSDK_SHARED;_WIN32_WINNT=0x0602;WINVER=0x0602;UNICODE;_UNICODE</PreprocessorDefinitions>
     </ClCompile>
@@ -320,7 +320,7 @@
       <FloatingPointModel>Fast</FloatingPointModel>
       <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
       <ExceptionHandling>Sync</ExceptionHandling>
-      <AdditionalIncludeDirectories>$(ProjectDir)third_party\include;DXUT\Core;DXUT\Optional;%(AdditionalIncludeDirectories);./include/fbx/;./include/fbx/;$(FBX_SDK)\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)third_party\include;DXUT\Core;DXUT\Optional;%(AdditionalIncludeDirectories);./include/fbx/;./include/fbx/;$(FBX_SDK)\include;C:\Users\cesar\OneDrive\Documentos\HeliosEngine\HeliosEngine\imgui-docking\backends;C:\Users\cesar\OneDrive\Documentos\HeliosEngine\HeliosEngine\imgui-docking</AdditionalIncludeDirectories>
       <AdditionalOptions> %(AdditionalOptions)</AdditionalOptions>
       <PreprocessorDefinitions>WIN32; FBXSDK_SHARED;_WIN32_WINNT=0x0602;WINVER=0x0602;UNICODE;_UNICODE</PreprocessorDefinitions>
     </ClCompile>
@@ -365,7 +365,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <FloatingPointModel>Fast</FloatingPointModel>
       <ExceptionHandling>Sync</ExceptionHandling>
-      <AdditionalIncludeDirectories>$(ProjectDir)third_party\include;DXUT\Core;DXUT\Optional;%(AdditionalIncludeDirectories);./include/fbx/;./include/fbx/;$(FBX_SDK)\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)third_party\include;DXUT\Core;DXUT\Optional;%(AdditionalIncludeDirectories);./include/fbx/;./include/fbx/;$(FBX_SDK)\include;C:\Users\cesar\OneDrive\Documentos\HeliosEngine\HeliosEngine\imgui-docking\backends;C:\Users\cesar\OneDrive\Documentos\HeliosEngine\HeliosEngine\imgui-docking</AdditionalIncludeDirectories>
       <AdditionalOptions> %(AdditionalOptions)</AdditionalOptions>
       <PreprocessorDefinitions>WIN32; FBXSDK_SHARED;_WIN32_WINNT=0x0602;WINVER=0x0602;UNICODE;_UNICODE</PreprocessorDefinitions>
     </ClCompile>
@@ -451,6 +451,7 @@
     <ClInclude Include="include\stb_image.h" />
     <ClInclude Include="include\SwapChain.h" />
     <ClInclude Include="include\Texture.h" />
+    <ClInclude Include="include\UserInterface.h" />
     <ClInclude Include="include\Viewport.h" />
     <ClInclude Include="include\Window.h" />
     <ResourceCompile Include="HeliosEngine.rc" />

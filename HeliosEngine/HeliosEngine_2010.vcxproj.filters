@@ -21,6 +21,9 @@
     <Filter Include="include\ECS">
       <UniqueIdentifier>{20677c5b-18f3-43b0-a828-9b6cd90a218d}</UniqueIdentifier>
     </Filter>
+    <Filter Include="imgui">
+      <UniqueIdentifier>{85f683aa-83f5-4e11-abec-34a5d463c224}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="HeliosEngine.cpp">
@@ -145,6 +148,9 @@
     </ClInclude>
     <ClInclude Include="include\ECS\Transform.h">
       <Filter>include\ECS</Filter>
+    </ClInclude>
+    <ClInclude Include="include\UserInterface.h">
+      <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

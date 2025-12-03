@@ -25,68 +25,77 @@
  * @file BaseApp.h
  * @brief Orquesta la ventana, inicializa D3D11 y ejecuta el game loop.
  */
+#include "UserInterface.h"
+#include "ECS/Actor.h"
+
 class BaseApp {
 public:
+    // Tu constructor personalizado (necesario para tu .cpp)
     BaseApp(HINSTANCE hInst, int nCmdShow);
+
+    // Destructor
     ~BaseApp() { destroy(); }
 
-    int     run(HINSTANCE hInst, int nCmdShow);
-    HRESULT init();
-    void    update(float deltaTime);
-    void    render();
-    void    destroy();
+    int
+        run(HINSTANCE hInst, int nCmdShow);
+
+    HRESULT
+        init();
+
+    void
+        update(float deltaTime);
+
+    void
+        render();
+
+    void
+        destroy();
 
 private:
-    // WndProc estático (guardamos this en GWLP_USERDATA)
-    static LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
+    static LRESULT CALLBACK
+        WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 
-    // --- Plataforma / Dispositivo ---
-    Window        m_window;
-    Device        m_device;
-    DeviceContext m_deviceContext;
-    SwapChain     m_swapChain;
+private:
+    Window                          m_window;
+    Device                          m_device;
+    DeviceContext                   m_deviceContext;
+    SwapChain                       m_swapChain;
+    Texture                         m_backBuffer;
+    RenderTargetView                m_renderTargetView;
+    Texture                         m_depthStencil;
+    DepthStencilView                m_depthStencilView;
+    Viewport                        m_viewport;
+    ShaderProgram                   m_shaderProgram;
 
-    // --- Render targets / profundidad ---
-    Texture          m_backBuffer;
-    RenderTargetView m_renderTargetView;
-    Texture          m_depthStencil;
-    DepthStencilView m_depthStencilView;
-    Viewport         m_viewport;
+    // MeshComponent                 m_mesh;
+    // Buffer                        m_vertexBuffer;
+    // Buffer                        m_indexBuffer;
 
-    // --- Pipeline programable ---
-    ShaderProgram m_shaderProgram;
+    Buffer                          m_cbNeverChanges;
+    Buffer                          m_cbChangeOnResize;
+    Buffer                          m_cbChangesEveryFrame;
 
-    // --- Geometría y buffers ---
-    MeshComponent m_mesh;
-    Buffer        m_vertexBuffer;
-    Buffer        m_indexBuffer;
-    Buffer        m_cbNeverChanges;       // b0 (view)
-    Buffer        m_cbChangeOnResize;     // b1 (projection)
-    Buffer        m_cbChangesEveryFrame;  // b2 (world/color)
-    Texture       m_textureCube;          // Wrapper de textura (opcional)
-    SamplerState  m_samplerState;
+    Texture                         m_cyberGunAlbedo;       // Tu textura especifica
+    SamplerState                    m_samplerState;
 
-    // --- Transformaciones / cámara ---
-    XMMATRIX m_World;
-    XMMATRIX m_View;
-    XMMATRIX m_Projection;
-    XMFLOAT4 m_vMeshColor{ 1, 1, 1, 1 };
+    // Matrices y Variables Globales
+    XMMATRIX                        m_World;
+    XMMATRIX                        m_View;
+    XMMATRIX                        m_Projection;
+    XMFLOAT4                        m_vMeshColor;
 
-    // Textura directa (cuando cargas con D3DX/stb)
-    ID3D11ShaderResourceView* m_pModelTextureSRV = nullptr;
+    // Actores
+    std::vector<EU::TSharedPointer<Actor>> m_actors;
+    EU::TSharedPointer<Actor>              m_cyberGun;
 
-    // --- Cámara y animación ---
-    float m_cameraDistance = 6.0f;   // zoom base (rueda del mouse)
-    float m_spinAngle = 0.0f;   // rotación del modelo (radianes)
-    float m_orbitAngle = 0.0f;   // órbita de cámara (radianes)
-    float m_spinSpeedDeg = 20.0f;  // vel. giro del modelo (grados/seg)
-    float m_orbitSpeedDeg = 10.0f;  // vel. órbita de cámara (grados/seg)
+    // Recursos
+    Model3D* m_model;
 
-    // Entrada
-    void onMouseWheel(int zDelta);
+    // Estructuras de Constant Buffers
+    CBChangeOnResize                    cbChangesOnResize;
+    CBNeverChanges                      cbNeverChanges;
+    CBChangesEveryFrame                 cb;
 
-    // --- Payloads CPU para Constant Buffers ---
-    CBChangeOnResize    cbChangesOnResize;
-    CBNeverChanges      cbNeverChanges;
-    CBChangesEveryFrame cb;
+    // Interfaz de Usuario
+    UserInterface                       UI;
 };
