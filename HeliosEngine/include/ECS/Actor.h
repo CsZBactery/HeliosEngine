@@ -1,13 +1,13 @@
 ﻿#pragma once
-#include "../include/Prerequisites.h"
-#include "../include/ECS/Entity.h"
-#include "../include/Buffer.h"
-#include "../include/Texture.h"
-#include "../include//ECS/Transform.h"
-#include "../include/SamplerState.h"
+#include "Prerequisites.h"
+#include "Entity.h"
+#include "Buffer.h"
+#include "Texture.h"
+#include "Transform.h"
+#include "SamplerState.h"
 //#include "Rasterizer.h"
 //#include "BlendState.h"
-#include "../include/ShaderProgram.h"
+#include "ShaderProgram.h"
 //#include "DepthStencilState.h"
 
 class Device;

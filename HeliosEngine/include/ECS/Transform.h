@@ -1,5 +1,5 @@
 ﻿#pragma once
-#include "../include/Prerequisites.h"
+#include "Prerequisites.h"
 #include "EngineUtilities/Vectors/Vector3.h"
 #include "Component.h"
 

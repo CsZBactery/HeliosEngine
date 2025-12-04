@@ -1,79 +1,100 @@
-#pragma once
+ï»¿#pragma once
 #include "Prerequisites.h"
-
-/**
- * @file MeshComponent.h
- * @brief Declaración de @c MeshComponent: contenedor ligero de datos de malla (vértices e índices)
- *        con puntos de extensión para ciclo de vida y render.
- */
-
+#include "ECS\Component.h"
 class DeviceContext;
-
 /**
  * @class MeshComponent
- * @brief Representa una malla 3D básica: nombre, arreglo de vértices e índices, y contadores.
+ * @brief Componente ECS que almacena la informaciï¿½n de geometrï¿½a (malla) de un actor.
  *
- * Esta clase almacena los datos de geometría (vértices e índices) y ofrece métodos de ciclo de vida
- * (init/update/render/destroy) para integrarse con el motor. El dibujo real suele realizarse a través
- * de buffers (vertex/index buffers) y el @c DeviceContext.
+ * Un @c MeshComponent contiene los vï¿½rtices e ï¿½ndices que describen la geometrï¿½a de un objeto.
+ * Forma parte del sistema ECS y se asocia a entidades como @c Actor.
+ *
+ * La malla incluye:
+ * - Lista de vï¿½rtices (posiciï¿½n, normal, UV, etc.).
+ * - Lista de ï¿½ndices que definen las primitivas (triï¿½ngulos, lï¿½neas).
+ * - Contadores de vï¿½rtices e ï¿½ndices.
  */
 class
-    MeshComponent {
+	MeshComponent : public Component {
 public:
-    /**
-     * @brief Constructor por defecto. Inicializa los contadores a 0.
-     */
-    MeshComponent() : m_numVertex(0), m_numIndex(0) {}
+	/**
+	 * @brief Constructor por defecto.
+	 *
+	 * Inicializa el componente de malla con cero vï¿½rtices e ï¿½ndices
+	 * y lo registra como tipo @c MESH en el sistema ECS.
+	 */
+	MeshComponent() : m_numVertex(0), m_numIndex(0), Component(ComponentType::MESH) {}
 
-    /**
-     * @brief Destructor virtual por defecto.
-     */
-    virtual
-        ~MeshComponent() = default;
+	/**
+	 * @brief Destructor virtual por defecto.
+	 */
+	virtual
+		~MeshComponent() = default;
 
-    /**
-     * @brief Punto de inicialización de la malla (reservas, generación de datos, etc.).
-     *
-     * No modifica la firma ni los datos; úsese para preparar el componente antes del render.
-     */
-    void
-        init();
+	/**
+	 * @brief Inicializa el componente de malla.
+	 *
+	 * Mï¿½todo heredado de @c Component.
+	 * Puede usarse para reservar memoria o cargar datos en mallas derivadas.
+	 */
+	void
+		init() override {};
 
-    /**
-     * @brief Actualiza la lógica asociada a la malla (animaciones, morphing, etc.).
-     * @param deltaTime Tiempo transcurrido desde el último frame (en segundos).
-     */
-    void
-        update(float deltaTime);
+	/**
+	 * @brief Actualiza la malla.
+	 *
+	 * Mï¿½todo heredado de @c Component.
+	 * ï¿½til para actualizar animaciones de vï¿½rtices, morphing u otros procesos relacionados.
+	 *
+	 * @param deltaTime Tiempo transcurrido desde la ï¿½ltima actualizaciï¿½n.
+	 */
+	void
+		update(float deltaTime) override {};
 
-    /**
-     * @brief Solicita el render de la malla utilizando el contexto de dispositivo proporcionado.
-     * @param deviceContext Contexto de dispositivo a través del cual se emiten los comandos de dibujo.
-     *
-     * Nota: típicamente esta función asume que los buffers y shaders ya están configurados externamente.
-     */
-    void
-        render(DeviceContext& deviceContext);
+	/**
+	 * @brief Renderiza la malla.
+	 *
+	 * Mï¿½todo heredado de @c Component.
+	 * Normalmente se usarï¿½a junto con @c DeviceContext para dibujar buffers
+	 * asociados a la malla.
+	 *
+	 * @param deviceContext Contexto del dispositivo para operaciones grï¿½ficas.
+	 */
+	void
+		render(DeviceContext& deviceContext) override {};
 
-    /**
-     * @brief Libera o limpia recursos asociados a la malla si aplica.
-     */
-    void
-        destroy();
+	/**
+	 * @brief Libera los recursos asociados al componente de malla.
+	 *
+	 * Mï¿½todo heredado de @c Component.
+	 * En implementaciones mï¿½s complejas, puede liberar buffers de GPU.
+	 */
+	void
+		destroy() override {};
 
 public:
-    /** @brief Nombre simbólico/descriptivo de la malla. */
-    std::string m_name;
+	/**
+	 * @brief Nombre de la malla.
+	 */
+	std::string m_name;
 
-    /** @brief Arreglo de vértices (posición, UV, normal, etc.) de la malla. */
-    std::vector<SimpleVertex> m_vertex;
+	/**
+	 * @brief Lista de vï¿½rtices de la malla.
+	 */
+	std::vector<SimpleVertex> m_vertex;
 
-    /** @brief Arreglo de índices (triángulos u otra topología) de la malla. */
-    std::vector<unsigned int> m_index;
+	/**
+	 * @brief Lista de ï¿½ndices que definen las primitivas de la malla.
+	 */
+	std::vector<unsigned int> m_index;
 
-    /** @brief Cantidad de vértices válidos en @c m_vertex. */
-    int m_numVertex;
+	/**
+	 * @brief Nï¿½mero total de vï¿½rtices en la malla.
+	 */
+	int m_numVertex;
 
-    /** @brief Cantidad de índices válidos en @c m_index. */
-    int m_numIndex;
+	/**
+	 * @brief Nï¿½mero total de ï¿½ndices en la malla.
+	 */
+	int m_numIndex;
 };

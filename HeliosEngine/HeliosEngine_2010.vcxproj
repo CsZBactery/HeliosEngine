@@ -31,40 +31,41 @@
     <ProjectGuid>{D29C6982-A589-4081-89B1-91E78D7C41E2}</ProjectGuid>
     <RootNamespace>HeliosEngine</RootNamespace>
     <Keyword>Win32Proj</Keyword>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
-    <CharacterSet>Unicode</CharacterSet>
+    <CharacterSet>MultiByte</CharacterSet>
     <PlatformToolset>v143</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|X64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
-    <CharacterSet>Unicode</CharacterSet>
+    <CharacterSet>MultiByte</CharacterSet>
     <PlatformToolset>v143</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <WholeProgramOptimization>true</WholeProgramOptimization>
-    <CharacterSet>Unicode</CharacterSet>
+    <CharacterSet>MultiByte</CharacterSet>
     <PlatformToolset>v143</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|X64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <WholeProgramOptimization>true</WholeProgramOptimization>
-    <CharacterSet>Unicode</CharacterSet>
+    <CharacterSet>MultiByte</CharacterSet>
     <PlatformToolset>v143</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Profile|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <WholeProgramOptimization>true</WholeProgramOptimization>
-    <CharacterSet>Unicode</CharacterSet>
+    <CharacterSet>MultiByte</CharacterSet>
     <PlatformToolset>v143</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Profile|X64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <WholeProgramOptimization>true</WholeProgramOptimization>
-    <CharacterSet>Unicode</CharacterSet>
+    <CharacterSet>MultiByte</CharacterSet>
     <PlatformToolset>v143</PlatformToolset>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
@@ -92,43 +93,55 @@
     <LinkIncremental>true</LinkIncremental>
     <GenerateManifest>true</GenerateManifest>
     <ExecutablePath>$(DXSDK_DIR)Utilities\bin\x86;$(ExecutablePath)</ExecutablePath>
-    <IncludePath>$((WindowsSDK_IncludePath);$(VC_IncludePath);$(WindowsSdkDir)Include\um;$(WindowsSdkDir)Include\shared;$(WindowsSdkDir)Include\ucrt;$(SolutionDir)include;$(DXSDK_DIR)Include;$(IncludePath)</IncludePath>
+    <IncludePath>$(DXSDK_DIR)Include;$(IncludePath)</IncludePath>
     <LibraryPath>$(WindowsSDK_LibraryPath_x64);$(VC_LibraryPath_x64);$(WindowsSdkDir)Lib\um\x64;$(WindowsSdkDir)Lib\ucrt\x64;$(DXSDK_DIR)Lib\x64</LibraryPath>
+    <OutDir>$(SolutionDir)bin/$(PlatformShortName)/</OutDir>
+    <IntDir>$(SolutionDir)intermediate/$(ProjectName)/$(PlatformShortName)/$(Configuration)/</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|X64'">
     <LinkIncremental>true</LinkIncremental>
     <GenerateManifest>true</GenerateManifest>
     <ExecutablePath>$(DXSDK_DIR)Utilities\bin\x64;$(DXSDK_DIR)Utilities\bin\x86;$(ExecutablePath)</ExecutablePath>
-    <IncludePath>$((WindowsSDK_IncludePath);$(VC_IncludePath);$(WindowsSdkDir)Include\um;$(WindowsSdkDir)Include\shared;$(WindowsSdkDir)Include\ucrt;$(SolutionDir)include;$(DXSDK_DIR)Include;$(IncludePath)</IncludePath>
+    <IncludePath>$(DXSDK_DIR)Include;$(IncludePath)</IncludePath>
     <LibraryPath>$(WindowsSDK_LibraryPath_x64);$(VC_LibraryPath_x64);$(WindowsSdkDir)Lib\um\x64;$(WindowsSdkDir)Lib\ucrt\x64;$(DXSDK_DIR)Lib\x64</LibraryPath>
+    <OutDir>$(SolutionDir)bin/$(PlatformShortName)/</OutDir>
+    <IntDir>$(SolutionDir)intermediate/$(ProjectName)/$(PlatformShortName)/$(Configuration)/</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
     <GenerateManifest>true</GenerateManifest>
     <ExecutablePath>$(DXSDK_DIR)Utilities\bin\x86;$(ExecutablePath)</ExecutablePath>
-    <IncludePath>$(WindowsSDK_IncludePath);$(VC_IncludePath);$(WindowsSdkDir)Include\um;$(WindowsSdkDir)Include\shared;$(WindowsSdkDir)Include\ucrt;$(SolutionDir)include;$(DXSDK_DIR)Include;$(IncludePath)</IncludePath>
+    <IncludePath>$(DXSDK_DIR)Include;$(IncludePath)</IncludePath>
     <LibraryPath>$(WindowsSDK_LibraryPath_x64);$(VC_LibraryPath_x64);$(WindowsSdkDir)Lib\um\x64;$(WindowsSdkDir)Lib\ucrt\x64;$(DXSDK_DIR)Lib\x64</LibraryPath>
+    <OutDir>$(SolutionDir)bin/$(PlatformShortName)/</OutDir>
+    <IntDir>$(SolutionDir)intermediate/$(ProjectName)/$(PlatformShortName)/$(Configuration)/</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|X64'">
     <LinkIncremental>false</LinkIncremental>
     <GenerateManifest>true</GenerateManifest>
     <ExecutablePath>$(DXSDK_DIR)Utilities\bin\x64;$(DXSDK_DIR)Utilities\bin\x86;$(ExecutablePath)</ExecutablePath>
-    <IncludePath>$(WindowsSDK_IncludePath);$(VC_IncludePath);$(WindowsSdkDir)Include\um;$(WindowsSdkDir)Include\shared;$(WindowsSdkDir)Include\ucrt;$(SolutionDir)include;$(DXSDK_DIR)Include;$(IncludePath)</IncludePath>
+    <IncludePath>$(DXSDK_DIR)Include;$(IncludePath)</IncludePath>
     <LibraryPath>$(WindowsSDK_LibraryPath_x64);$(VC_LibraryPath_x64);$(WindowsSdkDir)Lib\um\x64;$(WindowsSdkDir)Lib\ucrt\x64;$(DXSDK_DIR)Lib\x64</LibraryPath>
+    <OutDir>$(SolutionDir)bin/$(PlatformShortName)/</OutDir>
+    <IntDir>$(SolutionDir)intermediate/$(ProjectName)/$(PlatformShortName)/$(Configuration)/</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Profile|Win32'">
     <LinkIncremental>false</LinkIncremental>
     <GenerateManifest>true</GenerateManifest>
     <ExecutablePath>$(DXSDK_DIR)Utilities\bin\x86;$(ExecutablePath)</ExecutablePath>
-    <IncludePath>$(WindowsSdkDir)Include\um;$(WindowsSdkDir)Include\shared;$(WindowsSdkDir)Include\ucrt;$(SolutionDir)include;$(DXSDK_DIR)Include;$(IncludePath)</IncludePath>
+    <IncludePath>$(DXSDK_DIR)Include;$(IncludePath)</IncludePath>
     <LibraryPath>$(WindowsSdkDir)Lib\um\x64;$(WindowsSdkDir)Lib\ucrt\x64;$(DXSDK_DIR)Lib\x64</LibraryPath>
+    <OutDir>$(SolutionDir)bin/$(PlatformShortName)/</OutDir>
+    <IntDir>$(SolutionDir)intermediate/$(ProjectName)/$(PlatformShortName)/$(Configuration)/</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Profile|X64'">
     <LinkIncremental>false</LinkIncremental>
     <GenerateManifest>true</GenerateManifest>
     <ExecutablePath>$(DXSDK_DIR)Utilities\bin\x64;$(DXSDK_DIR)Utilities\bin\x86;$(ExecutablePath)</ExecutablePath>
-    <IncludePath>$(WindowsSdkDir)Include\um;$(WindowsSdkDir)Include\shared;$(WindowsSdkDir)Include\ucrt;$(SolutionDir)include;$(DXSDK_DIR)Include;$(IncludePath)</IncludePath>
+    <IncludePath>$(DXSDK_DIR)Include;$(IncludePath)</IncludePath>
     <LibraryPath>$(WindowsSdkDir)Lib\um\x64;$(WindowsSdkDir)Lib\ucrt\x64;$(DXSDK_DIR)Lib\x64</LibraryPath>
+    <OutDir>$(SolutionDir)bin/$(PlatformShortName)/</OutDir>
+    <IntDir>$(SolutionDir)intermediate/$(ProjectName)/$(PlatformShortName)/$(Configuration)/</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -140,15 +153,19 @@
       <FloatingPointModel>Fast</FloatingPointModel>
       <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
       <ExceptionHandling>Sync</ExceptionHandling>
-      <AdditionalIncludeDirectories>$(ProjectDir)third_party\include;DXUT\Core;DXUT\Optional;%(AdditionalIncludeDirectories);./include/fbx/;./include/fbx/;$(FBX_SDK)\include;C:\Users\cesar\OneDrive\Documentos\HeliosEngine\HeliosEngine\imgui-docking\backends;C:\Users\cesar\OneDrive\Documentos\HeliosEngine\HeliosEngine\imgui-docking</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>./include/;DXUT\Core;DXUT\Optional;./include/fbx/;C:\Users\cesar\OneDrive\Documentos\HeliosEngine\HeliosEngine\imgui-docking\backends;C:\Users\cesar\OneDrive\Documentos\HeliosEngine\HeliosEngine\imgui-docking;</AdditionalIncludeDirectories>
       <AdditionalOptions> %(AdditionalOptions)</AdditionalOptions>
-      <PreprocessorDefinitions>WIN32; FBXSDK_SHARED;_WIN32_WINNT=0x0602;WINVER=0x0602;UNICODE;_UNICODE</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32; FBXSDK_SHARED;_WIN32_WINNT=0x0602;WINVER=0x0602;</PreprocessorDefinitions>
       <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
+      <SupportJustMyCode>true</SupportJustMyCode>
+      <SDLCheck>false</SDLCheck>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
       <AdditionalOptions> %(AdditionalOptions)</AdditionalOptions>
-      <AdditionalDependencies>d3d11.lib;libfbxsdk.lib;libxml2.lib;zlib.lib;dxgi.lib;d3dcompiler.lib</AdditionalDependencies>
+      <AdditionalDependencies>d3d11.lib;d3dcompiler.lib;libfbxsdk.lib;libxml2.lib;zlib.lib;&lt;opciones diferentes&gt;</AdditionalDependencies>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <LargeAddressAware>true</LargeAddressAware>
@@ -157,7 +174,7 @@
       <TargetMachine>MachineX86</TargetMachine>
       <UACExecutionLevel>AsInvoker</UACExecutionLevel>
       <DelayLoadDLLs>%(DelayLoadDLLs)</DelayLoadDLLs>
-      <AdditionalLibraryDirectories>$(SolutionDir)lib/fbxlibs/;$(FBX_SDK)\lib\vs2019\x64\debug;;$(SolutionDir)lib/fbxlibs/;$(SolutionDir)lib/fbxlibs/</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(SolutionDir)lib/$(PlatformTarget)/;$(ProjectDir)libs\fbx\x64\debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <ImportLibrary>$(SolutionDir)/lib/$(PlatformTarget)/$(TargetName).lib</ImportLibrary>
     </Link>
     <Manifest>
@@ -184,14 +201,19 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <FloatingPointModel>Fast</FloatingPointModel>
       <ExceptionHandling>Sync</ExceptionHandling>
-      <AdditionalIncludeDirectories>$(ProjectDir)third_party\include;DXUT\Core;DXUT\Optional;$(DXSDK_DIR)Include;%(AdditionalIncludeDirectories);./include/fbx/;$(FBX_SDK)\include;C:\Program Files\Autodesk\FBX\FBX SDK\2020.3.7\include;C:\Users\cesar\OneDrive\Documentos\HeliosEngine\HeliosEngine\imgui-docking\backends;C:\Users\cesar\OneDrive\Documentos\HeliosEngine\HeliosEngine\imgui-docking</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>./include/;DXUT\Core;DXUT\Optional;./include/fbx/;C:\Users\cesar\OneDrive\Documentos\HeliosEngine\HeliosEngine\imgui-docking\backends;C:\Users\cesar\OneDrive\Documentos\HeliosEngine\HeliosEngine\imgui-docking;</AdditionalIncludeDirectories>
       <AdditionalOptions> %(AdditionalOptions)</AdditionalOptions>
-      <PreprocessorDefinitions>WIN32; FBXSDK_SHARED;_WIN32_WINNT=0x0602;WINVER=0x0602;UNICODE;_UNICODE</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32; FBXSDK_SHARED;_WIN32_WINNT=0x0602;WINVER=0x0602;</PreprocessorDefinitions>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
+      <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
+      <SupportJustMyCode>true</SupportJustMyCode>
+      <SDLCheck>false</SDLCheck>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
       <AdditionalOptions> %(AdditionalOptions)</AdditionalOptions>
-      <AdditionalDependencies>d3d11.lib;libfbxsdk.lib;libxml2.lib;zlib.lib;d3dcompiler.lib;d3dx11.lib;dxguid.lib;user32.lib;gdi32.lib;kernel32.lib</AdditionalDependencies>
+      <AdditionalDependencies>d3d11.lib;d3dcompiler.lib;libfbxsdk.lib;libxml2.lib;zlib.lib;&lt;opciones diferentes&gt;</AdditionalDependencies>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <LargeAddressAware>true</LargeAddressAware>
@@ -200,7 +222,7 @@
       <TargetMachine>MachineX64</TargetMachine>
       <UACExecutionLevel>AsInvoker</UACExecutionLevel>
       <DelayLoadDLLs>%(DelayLoadDLLs)</DelayLoadDLLs>
-      <AdditionalLibraryDirectories>$(SolutionDir)lib/fbxlibs/;$(FBX_SDK)\lib\vs2019\x64\debug;$(DXSDK_DIR)Lib\x64;C:\Program Files\Autodesk\FBX\FBX SDK\2020.3.7\lib\x64\debug</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(SolutionDir)lib/$(PlatformTarget)/;$(ProjectDir)libs\fbx\x64\debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <ImportLibrary>$(SolutionDir)/lib/$(PlatformTarget)/$(TargetName).lib</ImportLibrary>
     </Link>
     <Manifest>
@@ -229,13 +251,19 @@
       <FloatingPointModel>Fast</FloatingPointModel>
       <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
       <ExceptionHandling>Sync</ExceptionHandling>
-      <AdditionalIncludeDirectories>$(ProjectDir)third_party\include;DXUT\Core;DXUT\Optional;%(AdditionalIncludeDirectories);./include/fbx/;./include/fbx/;$(FBX_SDK)\include;C:\Users\cesar\OneDrive\Documentos\HeliosEngine\HeliosEngine\imgui-docking\backends;C:\Users\cesar\OneDrive\Documentos\HeliosEngine\HeliosEngine\imgui-docking</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>./include/;DXUT\Core;DXUT\Optional;./include/fbx/;C:\Users\cesar\OneDrive\Documentos\HeliosEngine\HeliosEngine\imgui-docking\backends;C:\Users\cesar\OneDrive\Documentos\HeliosEngine\HeliosEngine\imgui-docking;</AdditionalIncludeDirectories>
       <AdditionalOptions> %(AdditionalOptions)</AdditionalOptions>
-      <PreprocessorDefinitions>WIN32; FBXSDK_SHARED;_WIN32_WINNT=0x0602;WINVER=0x0602;UNICODE;_UNICODE</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32; FBXSDK_SHARED;_WIN32_WINNT=0x0602;WINVER=0x0602;</PreprocessorDefinitions>
+      <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
+      <SupportJustMyCode>true</SupportJustMyCode>
+      <SDLCheck>false</SDLCheck>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
+      <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
       <AdditionalOptions> %(AdditionalOptions)</AdditionalOptions>
-      <AdditionalDependencies>d3d11.lib;libfbxsdk.lib;libxml2.lib;zlib.lib;dxgi.lib;d3dcompiler.lib</AdditionalDependencies>
+      <AdditionalDependencies>d3d11.lib;d3dcompiler.lib;libfbxsdk.lib;libxml2.lib;zlib.lib;&lt;opciones diferentes&gt;</AdditionalDependencies>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
       <OptimizeReferences>true</OptimizeReferences>
@@ -246,7 +274,7 @@
       <TargetMachine>MachineX86</TargetMachine>
       <UACExecutionLevel>AsInvoker</UACExecutionLevel>
       <DelayLoadDLLs>%(DelayLoadDLLs)</DelayLoadDLLs>
-      <AdditionalLibraryDirectories>$(SolutionDir)lib/fbxlibs/;$(FBX_SDK)\lib\vs2019\x64\debug;;$(SolutionDir)lib/fbxlibs/;$(SolutionDir)lib/fbxlibs/</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(SolutionDir)lib/$(PlatformTarget)/;$(ProjectDir)libs\fbx\x64\debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <ImportLibrary>$(SolutionDir)/lib/$(PlatformTarget)/$(TargetName).lib</ImportLibrary>
     </Link>
     <Manifest>
@@ -274,13 +302,19 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <FloatingPointModel>Fast</FloatingPointModel>
       <ExceptionHandling>Sync</ExceptionHandling>
-      <AdditionalIncludeDirectories>$(ProjectDir)third_party\include;DXUT\Core;DXUT\Optional;%(AdditionalIncludeDirectories);./include/fbx/;./include/fbx/;$(FBX_SDK)\include;C:\Users\cesar\OneDrive\Documentos\HeliosEngine\HeliosEngine\imgui-docking\backends;C:\Users\cesar\OneDrive\Documentos\HeliosEngine\HeliosEngine\imgui-docking</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>./include/;DXUT\Core;DXUT\Optional;./include/fbx/;C:\Users\cesar\OneDrive\Documentos\HeliosEngine\HeliosEngine\imgui-docking\backends;C:\Users\cesar\OneDrive\Documentos\HeliosEngine\HeliosEngine\imgui-docking;</AdditionalIncludeDirectories>
       <AdditionalOptions> %(AdditionalOptions)</AdditionalOptions>
-      <PreprocessorDefinitions>WIN32; FBXSDK_SHARED;_WIN32_WINNT=0x0602;WINVER=0x0602;UNICODE;_UNICODE</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32; FBXSDK_SHARED;_WIN32_WINNT=0x0602;WINVER=0x0602;</PreprocessorDefinitions>
+      <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
+      <SupportJustMyCode>true</SupportJustMyCode>
+      <SDLCheck>false</SDLCheck>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
+      <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
       <AdditionalOptions> %(AdditionalOptions)</AdditionalOptions>
-      <AdditionalDependencies>d3d11.lib;libfbxsdk.lib;libxml2.lib;zlib.lib;d3dcompiler.lib;d3dx11.lib;dxguid.lib;user32.lib;gdi32.lib;kernel32.lib</AdditionalDependencies>
+      <AdditionalDependencies>d3d11.lib;d3dcompiler.lib;libfbxsdk.lib;libxml2.lib;zlib.lib;&lt;opciones diferentes&gt;</AdditionalDependencies>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
       <OptimizeReferences>true</OptimizeReferences>
@@ -291,7 +325,7 @@
       <TargetMachine>MachineX64</TargetMachine>
       <UACExecutionLevel>AsInvoker</UACExecutionLevel>
       <DelayLoadDLLs>%(DelayLoadDLLs)</DelayLoadDLLs>
-      <AdditionalLibraryDirectories>$(SolutionDir)lib/fbxlibs/;$(FBX_SDK)\lib\vs2019\x64\debug;;$(SolutionDir)lib/fbxlibs/;$(SolutionDir)lib/fbxlibs/</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(SolutionDir)lib/$(PlatformTarget)/;$(ProjectDir)libs\fbx\x64\debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <ImportLibrary>$(SolutionDir)/lib/$(PlatformTarget)/$(TargetName).lib</ImportLibrary>
     </Link>
     <Manifest>
@@ -320,13 +354,19 @@
       <FloatingPointModel>Fast</FloatingPointModel>
       <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
       <ExceptionHandling>Sync</ExceptionHandling>
-      <AdditionalIncludeDirectories>$(ProjectDir)third_party\include;DXUT\Core;DXUT\Optional;%(AdditionalIncludeDirectories);./include/fbx/;./include/fbx/;$(FBX_SDK)\include;C:\Users\cesar\OneDrive\Documentos\HeliosEngine\HeliosEngine\imgui-docking\backends;C:\Users\cesar\OneDrive\Documentos\HeliosEngine\HeliosEngine\imgui-docking</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>./include/;DXUT\Core;DXUT\Optional;./include/fbx/;C:\Users\cesar\OneDrive\Documentos\HeliosEngine\HeliosEngine\imgui-docking\backends;C:\Users\cesar\OneDrive\Documentos\HeliosEngine\HeliosEngine\imgui-docking;</AdditionalIncludeDirectories>
       <AdditionalOptions> %(AdditionalOptions)</AdditionalOptions>
-      <PreprocessorDefinitions>WIN32; FBXSDK_SHARED;_WIN32_WINNT=0x0602;WINVER=0x0602;UNICODE;_UNICODE</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32; FBXSDK_SHARED;_WIN32_WINNT=0x0602;WINVER=0x0602;</PreprocessorDefinitions>
+      <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
+      <SupportJustMyCode>true</SupportJustMyCode>
+      <SDLCheck>false</SDLCheck>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
+      <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
       <AdditionalOptions> %(AdditionalOptions)</AdditionalOptions>
-      <AdditionalDependencies>d3d11.lib;libfbxsdk.lib;libxml2.lib;zlib.lib;dxgi.lib;d3dcompiler.lib</AdditionalDependencies>
+      <AdditionalDependencies>d3d11.lib;d3dcompiler.lib;libfbxsdk.lib;libxml2.lib;zlib.lib;&lt;opciones diferentes&gt;</AdditionalDependencies>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
       <OptimizeReferences>true</OptimizeReferences>
@@ -337,7 +377,7 @@
       <TargetMachine>MachineX86</TargetMachine>
       <UACExecutionLevel>AsInvoker</UACExecutionLevel>
       <DelayLoadDLLs>%(DelayLoadDLLs)</DelayLoadDLLs>
-      <AdditionalLibraryDirectories>$(SolutionDir)lib/fbxlibs/;$(FBX_SDK)\lib\vs2019\x64\debug;;$(SolutionDir)lib/fbxlibs/;$(SolutionDir)lib/fbxlibs/</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(SolutionDir)lib/$(PlatformTarget)/;$(ProjectDir)libs\fbx\x64\debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <ImportLibrary>$(SolutionDir)/lib/$(PlatformTarget)/$(TargetName).lib</ImportLibrary>
     </Link>
     <Manifest>
@@ -365,13 +405,19 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <FloatingPointModel>Fast</FloatingPointModel>
       <ExceptionHandling>Sync</ExceptionHandling>
-      <AdditionalIncludeDirectories>$(ProjectDir)third_party\include;DXUT\Core;DXUT\Optional;%(AdditionalIncludeDirectories);./include/fbx/;./include/fbx/;$(FBX_SDK)\include;C:\Users\cesar\OneDrive\Documentos\HeliosEngine\HeliosEngine\imgui-docking\backends;C:\Users\cesar\OneDrive\Documentos\HeliosEngine\HeliosEngine\imgui-docking</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>./include/;DXUT\Core;DXUT\Optional;./include/fbx/;C:\Users\cesar\OneDrive\Documentos\HeliosEngine\HeliosEngine\imgui-docking\backends;C:\Users\cesar\OneDrive\Documentos\HeliosEngine\HeliosEngine\imgui-docking;</AdditionalIncludeDirectories>
       <AdditionalOptions> %(AdditionalOptions)</AdditionalOptions>
-      <PreprocessorDefinitions>WIN32; FBXSDK_SHARED;_WIN32_WINNT=0x0602;WINVER=0x0602;UNICODE;_UNICODE</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32; FBXSDK_SHARED;_WIN32_WINNT=0x0602;WINVER=0x0602;</PreprocessorDefinitions>
+      <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
+      <SupportJustMyCode>true</SupportJustMyCode>
+      <SDLCheck>false</SDLCheck>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
+      <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
       <AdditionalOptions> %(AdditionalOptions)</AdditionalOptions>
-      <AdditionalDependencies>d3d11.lib;libfbxsdk.lib;libxml2.lib;zlib.lib;d3dcompiler.lib;d3dx11.lib;dxguid.lib;user32.lib;gdi32.lib;kernel32.lib</AdditionalDependencies>
+      <AdditionalDependencies>d3d11.lib;d3dcompiler.lib;libfbxsdk.lib;libxml2.lib;zlib.lib;&lt;opciones diferentes&gt;</AdditionalDependencies>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
       <OptimizeReferences>true</OptimizeReferences>
@@ -382,7 +428,7 @@
       <TargetMachine>MachineX64</TargetMachine>
       <UACExecutionLevel>AsInvoker</UACExecutionLevel>
       <DelayLoadDLLs>%(DelayLoadDLLs)</DelayLoadDLLs>
-      <AdditionalLibraryDirectories>$(SolutionDir)lib/fbxlibs/;$(FBX_SDK)\lib\vs2019\x64\debug;;$(SolutionDir)lib/fbxlibs/;$(SolutionDir)lib/fbxlibs/</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(SolutionDir)lib/$(PlatformTarget)/;$(ProjectDir)libs\fbx\x64\debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <ImportLibrary>$(SolutionDir)/lib/$(PlatformTarget)/$(TargetName).lib</ImportLibrary>
     </Link>
     <Manifest>
@@ -412,18 +458,27 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="HeliosEngine.cpp" />
+    <ClCompile Include="imgui-docking\backends\imgui_impl_dx11.cpp" />
+    <ClCompile Include="imgui-docking\backends\imgui_impl_win32.cpp" />
+    <ClCompile Include="imgui-docking\imgui.cpp" />
+    <ClCompile Include="imgui-docking\imgui_demo.cpp" />
+    <ClCompile Include="imgui-docking\imgui_draw.cpp" />
+    <ClCompile Include="imgui-docking\imgui_tables.cpp" />
+    <ClCompile Include="imgui-docking\imgui_widgets.cpp" />
     <ClCompile Include="source\BaseApp.cpp" />
     <ClCompile Include="source\Buffer.cpp" />
     <ClCompile Include="source\DepthStencilView.cpp" />
     <ClCompile Include="source\Device.cpp" />
     <ClCompile Include="source\DeviceContext.cpp" />
+    <ClCompile Include="source\ECS\Actor.cpp" />
     <ClCompile Include="source\InputLayout.cpp" />
-    <ClCompile Include="source\ModelLoader.cpp" />
+    <ClCompile Include="source\Model3D.cpp" />
     <ClCompile Include="source\RenderTargetView.cpp" />
     <ClCompile Include="source\SamplerState.cpp" />
     <ClCompile Include="source\ShaderProgram.cpp" />
     <ClCompile Include="source\SwapChain.cpp" />
     <ClCompile Include="source\Texture.cpp" />
+    <ClCompile Include="source\UserInterface.cpp" />
     <ClCompile Include="source\Viewport.cpp" />
     <ClCompile Include="source\Window.cpp" />
   </ItemGroup>
@@ -431,6 +486,14 @@
     <None Include="HeliosEngine.fx" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="imgui-docking\backends\imgui_impl_dx11.h" />
+    <ClInclude Include="imgui-docking\backends\imgui_impl_win32.h" />
+    <ClInclude Include="imgui-docking\imconfig.h" />
+    <ClInclude Include="imgui-docking\imgui.h" />
+    <ClInclude Include="imgui-docking\imgui_internal.h" />
+    <ClInclude Include="imgui-docking\imstb_rectpack.h" />
+    <ClInclude Include="imgui-docking\imstb_textedit.h" />
+    <ClInclude Include="imgui-docking\imstb_truetype.h" />
     <ClInclude Include="include\BaseApp.h" />
     <ClInclude Include="include\Buffer.h" />
     <ClInclude Include="include\DepthStencilView.h" />
@@ -440,12 +503,30 @@
     <ClInclude Include="include\ECS\Component.h" />
     <ClInclude Include="include\ECS\Entity.h" />
     <ClInclude Include="include\ECS\Transform.h" />
+    <ClInclude Include="include\EngineUtilities\Matrix\Matrix2x2.h" />
+    <ClInclude Include="include\EngineUtilities\Matrix\Matrix3x3.h" />
+    <ClInclude Include="include\EngineUtilities\Matrix\Matrix4x4.h" />
+    <ClInclude Include="include\EngineUtilities\Memory\TSharedPointer.h" />
+    <ClInclude Include="include\EngineUtilities\Memory\TStaticPtr.h" />
+    <ClInclude Include="include\EngineUtilities\Memory\TUniquePtr.h" />
+    <ClInclude Include="include\EngineUtilities\Memory\TWeakPointer.h" />
+    <ClInclude Include="include\EngineUtilities\Structures\TArray.h" />
+    <ClInclude Include="include\EngineUtilities\Structures\TMap.h" />
+    <ClInclude Include="include\EngineUtilities\Structures\TPair.h" />
+    <ClInclude Include="include\EngineUtilities\Structures\TSet.h" />
+    <ClInclude Include="include\EngineUtilities\Utilities\EngineMath.h" />
+    <ClInclude Include="include\EngineUtilities\Vectors\Quaternion.h" />
+    <ClInclude Include="include\EngineUtilities\Vectors\Vector2.h" />
+    <ClInclude Include="include\EngineUtilities\Vectors\Vector3.h" />
+    <ClInclude Include="include\EngineUtilities\Vectors\Vector4.h" />
     <ClInclude Include="include\InputLayout.h" />
+    <ClInclude Include="include\IResource.h" />
     <ClInclude Include="include\MeshComponent.h" />
-    <ClInclude Include="include\ModelLoader.h" />
+    <ClInclude Include="include\Model3D.h" />
     <ClInclude Include="include\Prerequisites.h" />
     <ClInclude Include="include\RenderTargetView.h" />
     <ClInclude Include="include\Resource.h" />
+    <ClInclude Include="include\ResourceManager.h" />
     <ClInclude Include="include\SamplerState.h" />
     <ClInclude Include="include\ShaderProgram.h" />
     <ClInclude Include="include\stb_image.h" />

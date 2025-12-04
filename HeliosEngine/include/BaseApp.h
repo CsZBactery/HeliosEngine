@@ -10,21 +10,11 @@
 #include "Viewport.h"
 #include "ShaderProgram.h"
 #include "MeshComponent.h"
-#include "ModelLoader.h"
 #include "Buffer.h"
 #include "SamplerState.h"
-#include "ModelLoader.h"
 
-// Si usas funciones antiguas de D3DX para cargar texturas (opcional)
-#include <d3d11.h>
-#ifdef _HAS_D3DX11    // define esto en tu proyecto si de verdad usas D3DX
-#include <d3dx11.h>
-#endif
-
-/**
- * @file BaseApp.h
- * @brief Orquesta la ventana, inicializa D3D11 y ejecuta el game loop.
- */
+// Inclusiones adicionales necesarias para tu proyecto
+#include "Model3D.h"
 #include "UserInterface.h"
 #include "ECS/Actor.h"
 

@@ -1,362 +1,409 @@
 ﻿#include "../include/BaseApp.h"
-#include "../include/ModelLoader.h" 
-#include <algorithm>
-#include <cstring>
-#include <string> 
-#include <d3dx11.h> 
+#include "../include/ResourceManager.h"
 
-// == HLSL ==
-static const char* kHlslSource = R"(
-cbuffer CBNeverChanges      : register(b0) { float4x4 gView; }
-cbuffer CBChangeOnResize    : register(b1) { float4x4 gProj; }
-cbuffer CBChangesEveryFrame : register(b2) { float4x4 gWorld; float4 vMeshColor; }
+// Necesario para que funcione tu interfaz ImGui
+extern LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
-Texture2D    gTxDiffuse : register(t0);
-SamplerState gSamLinear : register(s0);
+BaseApp::BaseApp(HINSTANCE hInst, int nCmdShow) {
 
-struct VS_IN  { 
-    float3 Pos   : POSITION; 
-    float2 Tex   : TEXCOORD0; 
-    float3 Normal: NORMAL; 
-};
-struct VS_OUT { 
-    float4 Pos:SV_POSITION; 
-    float2 Tex:TEXCOORD0; 
-};
-
-VS_OUT VS(VS_IN i)
-{
-    VS_OUT o;
-    float4 w = mul(float4(i.Pos,1), gWorld);
-    float4 v = mul(w, gView);
-    o.Pos    = mul(v, gProj);
-    o.Tex    = i.Tex;
-    return o;
 }
 
-float4 PS(VS_OUT i):SV_Target
-{
-    // Prueba rápida (dejar comentada normalmente)
-    // return float4(i.Tex.x, i.Tex.y, 0.0, 1.0);
-
-    return gTxDiffuse.Sample(gSamLinear, i.Tex) * vMeshColor;
-}
-)";
-// ==================================================
-
-// ---- Helpers ----
-static void ComputeAABB(const std::vector<SimpleVertex>& vtx, XMFLOAT3& outMin, XMFLOAT3& outMax)
-{
-    if (vtx.empty()) { outMin = { 0,0,0 }; outMax = { 0,0,0 }; return; }
-    XMFLOAT3 mn = vtx[0].Pos, mx = vtx[0].Pos;
-    for (const auto& v : vtx) {
-        mn.x = std::min(mn.x, v.Pos.x); mn.y = std::min(mn.y, v.Pos.y); mn.z = std::min(mn.z, v.Pos.z);
-        mx.x = std::max(mx.x, v.Pos.x); mx.y = std::max(mx.y, v.Pos.y); mx.z = std::max(mx.z, v.Pos.z);
+int
+BaseApp::run(HINSTANCE hInst, int nCmdShow) {
+    if (FAILED(m_window.init(hInst, nCmdShow, WndProc))) {
+        return 0;
     }
-    outMin = mn; outMax = mx;
-}
-
-static std::string MakeAssetPath(const char* rel)
-{
-    wchar_t exePathW[MAX_PATH]{};
-    GetModuleFileNameW(nullptr, exePathW, MAX_PATH);
-    std::wstring exePath(exePathW);
-    size_t pos = exePath.find_last_of(L"\\/");
-    std::wstring base = (pos == std::wstring::npos) ? L"." : exePath.substr(0, pos);
-    std::wstring fullW = base + L"\\" + std::wstring(rel, rel + std::strlen(rel));
-    std::string  fullA(fullW.begin(), fullW.end());
-    return fullA;
-}
-
-// ---- BaseApp ----
-BaseApp::BaseApp(HINSTANCE, int) {}
-
-int BaseApp::run(HINSTANCE hInst, int nCmdShow)
-{
-    // Asegúrate que Window::init tenga overload para recibir this en lpCreateParams
-    if (FAILED(m_window.init(hInst, nCmdShow, WndProc, this))) return 0;
-    if (FAILED(init())) return 0;
-
+    if (FAILED(init()))
+        return 0;
+    // Main message loop
     MSG msg = {};
     LARGE_INTEGER freq, prev;
     QueryPerformanceFrequency(&freq);
     QueryPerformanceCounter(&prev);
-
     while (WM_QUIT != msg.message)
     {
-        if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
+        if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
         {
-            TranslateMessage(&msg); DispatchMessage(&msg);
+            TranslateMessage(&msg);
+            DispatchMessage(&msg);
         }
         else
         {
-            LARGE_INTEGER curr; QueryPerformanceCounter(&curr);
-            float dt = float(curr.QuadPart - prev.QuadPart) / float(freq.QuadPart);
+            LARGE_INTEGER curr;
+            QueryPerformanceCounter(&curr);
+            float deltaTime = static_cast<float>(curr.QuadPart - prev.QuadPart) / freq.QuadPart;
             prev = curr;
-            update(dt);
+            update(deltaTime);
             render();
         }
     }
-    return int(msg.wParam);
+    return (int)msg.wParam;
 }
 
-HRESULT BaseApp::init()
-{
+HRESULT
+BaseApp::init() {
     HRESULT hr = S_OK;
 
-    // 1) SwapChain/Device/Context + 2) RTV
+    // Crear swapchain
     hr = m_swapChain.init(m_device, m_deviceContext, m_backBuffer, m_window);
-    if (FAILED(hr)) { ERROR(L"BaseApp", L"init", L"Failed SwapChain"); return hr; }
+
+    if (FAILED(hr)) {
+        ERROR("Main", "InitDevice",
+            ("Failed to initialize SwpaChian. HRESULT: " + std::to_string(hr)).c_str());
+        return hr;
+    }
+
+    // Crear render target view
     hr = m_renderTargetView.init(m_device, m_backBuffer, DXGI_FORMAT_R8G8B8A8_UNORM);
-    if (FAILED(hr)) { ERROR(L"BaseApp", L"init", L"Failed RTV"); return hr; }
 
-    // 3) Depth texture (match MSAA con backbuffer) + 4) DSV
-    D3D11_TEXTURE2D_DESC bbDesc{}; m_backBuffer.m_texture->GetDesc(&bbDesc);
-    hr = m_depthStencil.init(m_device, m_window.m_width, m_window.m_height,
-        DXGI_FORMAT_D24_UNORM_S8_UINT, D3D11_BIND_DEPTH_STENCIL,
-        bbDesc.SampleDesc.Count, bbDesc.SampleDesc.Quality);
-    if (FAILED(hr)) { ERROR(L"BaseApp", L"init", L"Failed Depth Texture"); return hr; }
-    hr = m_depthStencilView.init(m_device, m_depthStencil, DXGI_FORMAT_D24_UNORM_S8_UINT);
-    if (FAILED(hr)) { ERROR(L"BaseApp", L"init", L"Failed DSV"); return hr; }
+    if (FAILED(hr)) {
+        ERROR("Main", "InitDevice",
+            ("Failed to initialize RenderTargetView. HRESULT: " + std::to_string(hr)).c_str());
+        return hr;
+    }
 
-    // 5) Viewport
+    // Crear textura de depth stencil
+    hr = m_depthStencil.init(m_device,
+        m_window.m_width,
+        m_window.m_height,
+        DXGI_FORMAT_D24_UNORM_S8_UINT,
+        D3D11_BIND_DEPTH_STENCIL,
+        4,
+        0);
+
+    if (FAILED(hr)) {
+        ERROR("Main", "InitDevice",
+            ("Failed to initialize DepthStencil. HRESULT: " + std::to_string(hr)).c_str());
+        return hr;
+    }
+
+    // Crear el depth stencil view
+    hr = m_depthStencilView.init(m_device,
+        m_depthStencil,
+        DXGI_FORMAT_D24_UNORM_S8_UINT);
+
+    if (FAILED(hr)) {
+        ERROR("Main", "InitDevice",
+            ("Failed to initialize DepthStencilView. HRESULT: " + std::to_string(hr)).c_str());
+        return hr;
+    }
+
+
+    // Crear el m_viewport
     hr = m_viewport.init(m_window);
-    if (FAILED(hr)) { ERROR(L"BaseApp", L"init", L"Failed Viewport"); return hr; }
 
-    // 6) InputLayout (Pos, Tex, Normal)
+    if (FAILED(hr)) {
+        ERROR("Main", "InitDevice",
+            ("Failed to initialize Viewport. HRESULT: " + std::to_string(hr)).c_str());
+        return hr;
+    }
+
+    // Load Resources -> Modelos, Texturas e Interfaz de usuario
+
+    // Set CyberGun Actor
+    m_cyberGun = EU::MakeShared<Actor>(m_device);
+
+    if (!m_cyberGun.isNull()) {
+        // Crear vertex buffer y index buffer para el modelo
+        std::vector<MeshComponent> cyberGunMeshes;
+        // RUTA DE MODELO
+        m_model = new Model3D("Assets/repsol3.obj", ModelType::FBX); //MODELO
+        cyberGunMeshes = m_model->GetMeshes();
+
+        std::vector<Texture> cyberGunTextures;
+        // RUTA DE TEXTURA
+        hr = m_cyberGunAlbedo.init(m_device, "Assets/LV.png", ExtensionType::JPG); //MATERIAL
+
+        // Load the Texture
+        if (FAILED(hr)) {
+            ERROR("Main", "InitDevice",
+                ("Failed to initialize cyberGunAlbedo. HRESULT: " + std::to_string(hr)).c_str());
+            return hr;
+        }
+        cyberGunTextures.push_back(m_cyberGunAlbedo);
+
+        m_cyberGun->setMesh(m_device, cyberGunMeshes);
+        m_cyberGun->setTextures(cyberGunTextures);
+        m_cyberGun->setName("CyberGun");
+        m_actors.push_back(m_cyberGun);
+
+        m_cyberGun->getComponent<Transform>()->setTransform(
+            EU::Vector3(0.0f, 0.0f, 0.0f), // Posici�n
+            EU::Vector3(0.0f, 0.0f, 0.0f), // Rotaci�n
+            EU::Vector3(1.0f, 1.0f, 1.0f)  // Escala
+        );
+
+    }
+    else {
+        ERROR("Main", "InitDevice", "Failed to create cyber Gun Actor.");
+        return E_FAIL;
+    }
+
+    // Define the input layout
     std::vector<D3D11_INPUT_ELEMENT_DESC> Layout;
-    {
-        D3D11_INPUT_ELEMENT_DESC p{};
-        p.SemanticName = "POSITION"; p.Format = DXGI_FORMAT_R32G32B32_FLOAT;
-        p.InputSlot = 0; p.AlignedByteOffset = 0; p.InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
-        Layout.push_back(p);
+    D3D11_INPUT_ELEMENT_DESC position;
+    position.SemanticName = "POSITION";
+    position.SemanticIndex = 0;
+    position.Format = DXGI_FORMAT_R32G32B32_FLOAT;
+    position.InputSlot = 0;
+    position.AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT /*0*/;
+    position.InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
+    position.InstanceDataStepRate = 0;
+    Layout.push_back(position);
 
-        D3D11_INPUT_ELEMENT_DESC t{};
-        t.SemanticName = "TEXCOORD"; t.Format = DXGI_FORMAT_R32G32_FLOAT;
-        t.InputSlot = 0; t.AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT; t.InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
-        Layout.push_back(t);
+    D3D11_INPUT_ELEMENT_DESC texcoord;
+    texcoord.SemanticName = "TEXCOORD";
+    texcoord.SemanticIndex = 0;
+    texcoord.Format = DXGI_FORMAT_R32G32_FLOAT;
+    texcoord.InputSlot = 0;
+    texcoord.AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT /*0*/;
+    texcoord.InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
+    texcoord.InstanceDataStepRate = 0;
+    Layout.push_back(texcoord);
 
-        D3D11_INPUT_ELEMENT_DESC n{};
-        n.SemanticName = "NORMAL"; n.Format = DXGI_FORMAT_R32G32B32_FLOAT;
-        n.InputSlot = 0; n.AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT; n.InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
-        Layout.push_back(n);
+    D3D11_INPUT_ELEMENT_DESC normal;
+    normal.SemanticName = "NORMAL";
+    normal.SemanticIndex = 0;
+    normal.Format = DXGI_FORMAT_R32G32B32_FLOAT;
+    normal.InputSlot = 0;
+    normal.AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT;
+    normal.InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
+    normal.InstanceDataStepRate = 0;
+    Layout.push_back(normal);
+
+    // Create the Shader Program
+    hr = m_shaderProgram.init(m_device, "HeliosEngine.fx", Layout);
+    if (FAILED(hr)) {
+        ERROR("Main", "InitDevice",
+            ("Failed to initialize ShaderProgram. HRESULT: " + std::to_string(hr)).c_str());
+        return hr;
     }
 
-    // 6.5) Rasterizer (sin culling para evitar caras “faltantes”)
-    {
-        D3D11_RASTERIZER_DESC rsDesc = {};
-        rsDesc.FillMode = D3D11_FILL_SOLID;
-        rsDesc.CullMode = D3D11_CULL_NONE;
-        rsDesc.FrontCounterClockwise = FALSE;
-        rsDesc.DepthClipEnable = TRUE;
-        ID3D11RasterizerState* pRS = nullptr;
-        hr = m_device.m_device->CreateRasterizerState(&rsDesc, &pRS);
-        if (FAILED(hr)) { ERROR(L"BaseApp", L"init", L"Failed RasterizerState"); return hr; }
-        m_deviceContext.m_deviceContext->RSSetState(pRS);
-        pRS->Release();
+    //// Create vertex buffer
+    //hr = m_vertexBuffer.init(m_device, TRex[0], D3D11_BIND_VERTEX_BUFFER);
+    //
+    //if (FAILED(hr)) {
+    //  ERROR("Main", "InitDevice",
+    //    ("Failed to initialize VertexBuffer. HRESULT: " + std::to_string(hr)).c_str());
+    //  return hr;
+    //}
+    //
+    //// Create index buffer
+    //hr = m_indexBuffer.init(m_device, TRex[0], D3D11_BIND_INDEX_BUFFER);
+    //
+    //if (FAILED(hr)) {
+    //  ERROR("Main", "InitDevice",
+    //    ("Failed to initialize IndexBuffer. HRESULT: " + std::to_string(hr)).c_str());
+    //  return hr;
+    //}
+
+    //auto& resourceMan = ResourceManager::getInstance();
+    //std::shared_ptr<Model3D> model = resourceMan.GetOrLoad<Model3D>("CubeModel", "CyberGun.fbx", ModelType::FBX);
+
+
+    // Create the constant buffers
+    hr = m_cbNeverChanges.init(m_device, sizeof(CBNeverChanges));
+    if (FAILED(hr)) {
+        ERROR("Main", "InitDevice",
+            ("Failed to initialize NeverChanges Buffer. HRESULT: " + std::to_string(hr)).c_str());
+        return hr;
     }
 
-    // 7) ShaderProgram desde HLSL embebido
-    hr = m_shaderProgram.initFromSource(m_device, kHlslSource, Layout);
-    if (FAILED(hr)) { ERROR(L"BaseApp", L"init", L"Failed ShaderProgram"); return hr; }
-
-    // 8) Cargar modelo OBJ 
-    {
-        OBJParser loader;
-        const std::string objPath = MakeAssetPath("Assets\\Moto\\repsol3.obj");
-        OutputDebugStringA(("OBJ path: " + objPath + "\n").c_str());
-
-        if (!loader.LoadOBJ(objPath, m_mesh, /*flipV=*/true)) {
-            ERROR(L"BaseApp", L"init", L"OBJ Load FAILED -> using fallback quad");
-            m_mesh.m_vertex = {
-                { XMFLOAT3(-1,0,-1), XMFLOAT2(0,0), XMFLOAT3(0,1,0) },
-                { XMFLOAT3(1,0,-1), XMFLOAT2(1,0), XMFLOAT3(0,1,0) },
-                { XMFLOAT3(1,0, 1), XMFLOAT2(1,1), XMFLOAT3(0,1,0) },
-                { XMFLOAT3(-1,0, 1), XMFLOAT2(0,1), XMFLOAT3(0,1,0) },
-            };
-            m_mesh.m_index = { 0,1,2, 0,2,3 };
-        }
-
-        m_mesh.m_numVertex = (int)m_mesh.m_vertex.size();
-        m_mesh.m_numIndex = (int)m_mesh.m_index.size();
-
-        OutputDebugStringA(("Mesh loaded. V=" + std::to_string(m_mesh.m_numVertex) +
-            " I=" + std::to_string(m_mesh.m_numIndex) + "\n").c_str());
+    hr = m_cbChangeOnResize.init(m_device, sizeof(CBChangeOnResize));
+    if (FAILED(hr)) {
+        ERROR("Main", "InitDevice",
+            ("Failed to initialize ChangeOnResize Buffer. HRESULT: " + std::to_string(hr)).c_str());
+        return hr;
     }
 
-    // 8.5) Cargar textura (wrapper)
-    {
-        const std::string texBase = MakeAssetPath("Assets\\Textures\\BaseColor.png");
+    //hr = m_cbChangesEveryFrame.init(m_device, sizeof(CBChangesEveryFrame));
+    //if (FAILED(hr)) {
+    //  ERROR("Main", "InitDevice",
+    //    ("Failed to initialize ChangesEveryFrame Buffer. HRESULT: " + std::to_string(hr)).c_str());
+    //  return hr;
+    //}  
 
-        HRESULT hr_tex = m_textureCube.init(m_device, texBase, ExtensionType::PNG);
-        if (FAILED(hr_tex)) {
-            OutputDebugStringA("FAILED loading Tex_0041_0.png\n");
-        }
-        else {
-            OutputDebugStringA("OK loading Tex_0041_0.png\n");
-        }
-    }
+    // Create the sample state
+    //hr = m_samplerState.init(m_device);
+    //if (FAILED(hr)) {
+    //  ERROR("Main", "InitDevice",
+    //    ("Failed to initialize SamplerState. HRESULT: " + std::to_string(hr)).c_str());
+    //  return hr;
+    //}
+
+    // Initialize the world matrices
+    //m_World = XMMatrixIdentity();
+
+    // Initialize the view matrix
+    XMVECTOR Eye = XMVectorSet(0.0f, 18.0f, -18.0f, 0.0f); // COORDENADAS DE CAMARA
+    XMVECTOR At = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+    XMVECTOR Up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+    m_View = XMMatrixLookAtLH(Eye, At, Up);
 
 
-    // 9) Auto-encuadre por AABB (centra y calcula distancia)
-    {
-        XMFLOAT3 aabbMin, aabbMax; ComputeAABB(m_mesh.m_vertex, aabbMin, aabbMax);
-        XMVECTOR vMin = XMLoadFloat3(&aabbMin);
-        XMVECTOR vMax = XMLoadFloat3(&aabbMax);
-        XMVECTOR vCenter = 0.5f * (vMin + vMax);
-        XMVECTOR vExt = 0.5f * (vMax - vMin);
-        float radius = XMVectorGetX(XMVector3Length(vExt)); // esfera contenedora aprox
-
-        // World: trasladar el modelo para que su centro quede en el origen
-        XMFLOAT3 fCenter; XMStoreFloat3(&fCenter, vCenter);
-        m_World = XMMatrixTranslation(-fCenter.x, -fCenter.y, -fCenter.z);
-
-        // Proyección
-        float aspect = (float)m_window.m_width / (float)m_window.m_height;
-        float fovY = XMConvertToRadians(45.0f);
-        m_Projection = XMMatrixPerspectiveFovLH(fovY, aspect, 0.01f, 10000.0f);
-
-        // Distancia de cámara cómoda
-        float fovX = 2.0f * atanf(tanf(fovY * 0.5f) * aspect);
-        float dist = std::max(radius / sinf(fovX * 0.5f), radius / sinf(fovY * 0.5f)) * 1.35f;
-        m_cameraDistance = std::max(dist, 1.0f); // por si radius ~ 0
-
-        // Vista inicial (ligeramente oblicua)
-        XMVECTOR Eye = XMVectorSet(0.7f, 0.45f, -1.0f, 0.0f);
-        Eye = XMVector3Normalize(Eye) * m_cameraDistance;
-        XMVECTOR At = XMVectorZero();
-        XMVECTOR Up = XMVectorSet(0, 1, 0, 0);
-        m_View = XMMatrixLookAtLH(Eye, At, Up);
-    }
-
-    // 10) Constant Buffers
-    if (FAILED(m_cbNeverChanges.init(m_device, sizeof(CBNeverChanges))))         return E_FAIL;
-    if (FAILED(m_cbChangeOnResize.init(m_device, sizeof(CBChangeOnResize))))     return E_FAIL;
-    if (FAILED(m_cbChangesEveryFrame.init(m_device, sizeof(CBChangesEveryFrame)))) return E_FAIL;
-
+    // Initialize the projection matrix
     cbNeverChanges.mView = XMMatrixTranspose(m_View);
+    m_Projection = XMMatrixPerspectiveFovLH(XM_PIDIV4, m_window.m_width / (FLOAT)m_window.m_height, 0.01f, 100.0f);
     cbChangesOnResize.mProjection = XMMatrixTranspose(m_Projection);
-    m_vMeshColor = XMFLOAT4(1, 1, 1, 1);
-    cb.mWorld = XMMatrixTranspose(m_World);
-    cb.vMeshColor = m_vMeshColor;
 
-    m_cbNeverChanges.update(m_deviceContext, nullptr, 0, nullptr, &cbNeverChanges, 0, 0);
-    m_cbChangeOnResize.update(m_deviceContext, nullptr, 0, nullptr, &cbChangesOnResize, 0, 0);
-    m_cbChangesEveryFrame.update(m_deviceContext, nullptr, 0, nullptr, &cb, 0, 0);
-
-    // 11) VB/IB + Topology
-    hr = m_vertexBuffer.init(m_device, m_mesh, D3D11_BIND_VERTEX_BUFFER);
-    if (FAILED(hr)) { ERROR(L"BaseApp", L"init", L"Failed VertexBuffer"); return hr; }
-    hr = m_indexBuffer.init(m_device, m_mesh, D3D11_BIND_INDEX_BUFFER);
-    if (FAILED(hr)) { ERROR(L"BaseApp", L"init", L"Failed IndexBuffer"); return hr; }
-    m_deviceContext.IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
-    // 12) Sampler
-    if (FAILED(m_samplerState.init(m_device))) { ERROR(L"BaseApp", L"init", L"Failed SamplerState"); return E_FAIL; }
-
-    // Rotación inicial
-    //m_modelRotation = 0.0f;//
+    // UI INIT
+    UI.init(
+        m_window.m_hWnd,
+        m_device.m_device,
+        m_deviceContext.m_deviceContext
+    );
 
     return S_OK;
 }
 
 void BaseApp::update(float deltaTime)
 {
-    // --- Velocidades (grados/seg) -> rad/seg
-    const float spinW = XMConvertToRadians(m_spinSpeedDeg);   // rotación del modelo
-    const float orbitW = XMConvertToRadians(m_orbitSpeedDeg);  // órbita de cámara
+    // UI UPDATE
+    UI.update();
+    ImGui::Begin("Test");
+    ImGui::End();
 
-    // --- Avanzar ángulos
-    m_spinAngle += spinW * deltaTime;
-    m_orbitAngle += orbitW * deltaTime;
+    // NUEVA VENTANA TRANSFORM
+    ImGui::Begin("Transform");
 
-    // --- Cámara en órbita suave alrededor del modelo
-    const float r = m_cameraDistance;
+    if (!m_cyberGun.isNull()) {
+        // Obtenemos el componente Transform del actor
+        auto transform = m_cyberGun->getComponent<Transform>();
 
-    // Sube un poco la cámara
-    const float eyeY = r * 0.5f;      // prueba 0.4f, 0.5f, 0.6f
-    const float ex = sinf(m_orbitAngle) * r;
-    const float ez = -cosf(m_orbitAngle) * r;
+        if (transform) {
+            //  POSITION 
+            EU::Vector3 pos = transform->getPosition();
+            float fPos[3] = { pos.x, pos.y, pos.z };
+            // Si el usuario mueve los valores (DragFloat3 devuelve true), actualizamos el transform
+            if (ImGui::DragFloat3("Position", fPos, 0.01f)) {
+                transform->setPosition(EU::Vector3(fPos[0], fPos[1], fPos[2]));
+            }
 
-    // Punto al que miras (subido)
-    const float targetY = 1.5f;          // si sigue bajo, prueba 2.0f, 2.5f
+            //  ROTATION 
+            EU::Vector3 rot = transform->getRotation();
+            float fRot[3] = { rot.x, rot.y, rot.z };
+            if (ImGui::DragFloat3("Rotation", fRot, 0.01f)) {
+                transform->setRotation(EU::Vector3(fRot[0], fRot[1], fRot[2]));
+            }
 
-    XMVECTOR Eye = XMVectorSet(ex, eyeY, ez, 1.0f);
-    XMVECTOR At = XMVectorSet(0.0f, targetY, 0.0f, 1.0f);
-    XMVECTOR Up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+            //  SCALE
+            EU::Vector3 sca = transform->getScale();
+            float fSca[3] = { sca.x, sca.y, sca.z };
+            if (ImGui::DragFloat3("Scale", fSca, 0.01f)) {
+                transform->setScale(EU::Vector3(fSca[0], fSca[1], fSca[2]));
+            }
+        }
+    }
+    ImGui::End();
 
-    m_View = XMMatrixLookAtLH(Eye, At, Up);
 
-    // --- World: inclina -90° en X para colocar la malla, + giro sobre Y
-    XMMATRIX rotX = XMMatrixRotationX(XMConvertToRadians(0.0f));
-    XMMATRIX rotY = XMMatrixRotationY(m_spinAngle);
-    m_World = rotX * rotY;
+    // Update our time
+    static float t = 0.0f;
+    if (m_swapChain.m_driverType == D3D_DRIVER_TYPE_REFERENCE)
+    {
+        t += (float)XM_PI * 0.0125f;
+    }
+    else
+    {
+        static DWORD dwTimeStart = 0;
+        DWORD dwTimeCur = GetTickCount();
+        if (dwTimeStart == 0)
+            dwTimeStart = dwTimeCur;
+        t = (dwTimeCur - dwTimeStart) / 1000.0f;
+    }
+    // Update User Interface
 
-    // --- Subir constantes
+    // Actualizar la matriz de proyecci�n y vista
     cbNeverChanges.mView = XMMatrixTranspose(m_View);
-    cbChangesOnResize.mProjection = XMMatrixTranspose(m_Projection);
-    cb.mWorld = XMMatrixTranspose(m_World);
-    cb.vMeshColor = m_vMeshColor;
-
     m_cbNeverChanges.update(m_deviceContext, nullptr, 0, nullptr, &cbNeverChanges, 0, 0);
+    m_Projection = XMMatrixPerspectiveFovLH(XM_PIDIV4, m_window.m_width / (FLOAT)m_window.m_height, 0.01f, 100.0f);
+    cbChangesOnResize.mProjection = XMMatrixTranspose(m_Projection);
     m_cbChangeOnResize.update(m_deviceContext, nullptr, 0, nullptr, &cbChangesOnResize, 0, 0);
-    m_cbChangesEveryFrame.update(m_deviceContext, nullptr, 0, nullptr, &cb, 0, 0);
+
+
+    // Update Actors
+    for (auto& actor : m_actors) {
+        actor->update(deltaTime, m_deviceContext);
+    }
+
+    // Modify the color
+    //m_vMeshColor.x = 1.0f;
+    //m_vMeshColor.y = 1.0f;
+    //m_vMeshColor.z = 1.0f;
+
+    // Rotate cube around the origin
+    // Aplicar escala
+    //XMMATRIX scaleMatrix = XMMatrixScaling(1.0f, 1.0f, 1.0f);
+    // Aplicar rotacion
+    //XMMATRIX rotationMatrix = XMMatrixRotationRollPitchYaw(-0.60f, 3.0f, -0.20f);
+    // Aplicar traslacion
+    //XMMATRIX translationMatrix = XMMatrixTranslation(2.0f, -4.9f, 11.0f);
+
+    // Componer la matriz final en el orden: scale -> rotation -> translation
+    //m_World = scaleMatrix * rotationMatrix * translationMatrix;
+    //cb.mWorld = XMMatrixTranspose(m_World);
+    //cb.vMeshColor = m_vMeshColor;
+    //m_cbChangesEveryFrame.update(m_deviceContext, nullptr, 0, nullptr, &cb, 0, 0);
 }
 
+void
+BaseApp::render() {
+    // Set Render Target View
+    float ClearColor[4] = { 0.1f, 0.1f, 0.1f, 1.0f };
+    m_renderTargetView.render(m_deviceContext, m_depthStencilView, 1, ClearColor);
 
-void BaseApp::onMouseWheel(int zDelta)
-{
-    const float zoomSpeed = 1.2f;
-    if (zDelta > 0) m_cameraDistance /= zoomSpeed;
-    else            m_cameraDistance *= zoomSpeed;
-
-    m_cameraDistance = std::max(0.1f, std::min(m_cameraDistance, 10000.0f));
-
-    std::string dbg = "Camera Distance: " + std::to_string(m_cameraDistance) + "\n";
-    OutputDebugStringA(dbg.c_str());
-}
-
-void BaseApp::render()
-{
-    const float Clear[4] = { 0.05f, 0.05f, 0.05f, 1.0f };
-    m_renderTargetView.render(m_deviceContext, m_depthStencilView, 1, Clear);
-
+    // Set Viewport
     m_viewport.render(m_deviceContext);
+
+    // Set depth stencil view
     m_depthStencilView.render(m_deviceContext);
+
+    // Set shader program
     m_shaderProgram.render(m_deviceContext);
 
-    // VB/IB
-    m_vertexBuffer.render(m_deviceContext, 0, 1);
-    m_indexBuffer.render(m_deviceContext, 0, 1, false, DXGI_FORMAT_R32_UINT);
-
-    // CBs + textura + sampler
+    // Asignar buffers constantes
     m_cbNeverChanges.render(m_deviceContext, 0, 1);
     m_cbChangeOnResize.render(m_deviceContext, 1, 1);
-    m_cbChangesEveryFrame.render(m_deviceContext, 2, 1);
-    m_cbChangesEveryFrame.render(m_deviceContext, 2, 1, true);
-    m_textureCube.render(m_deviceContext, 0, 1);
-    m_samplerState.render(m_deviceContext, 0, 1);
 
-    // Topología
-    m_deviceContext.IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    // Render all actors
+    for (auto& actor : m_actors) {
+        actor->render(m_deviceContext);
+    }
 
-    // Draw
-    m_deviceContext.DrawIndexed(m_mesh.m_numIndex, 0, 0);
+    // Render UI
+    UI.render();
 
+    // Render the cube
+     // Asignar buffers Vertex e Index
+    //m_vertexBuffer.render(m_deviceContext, 0, 1);
+    //m_indexBuffer.render(m_deviceContext, 0, 1, false, DXGI_FORMAT_R32_UINT);
+    //m_cbChangesEveryFrame.render(m_deviceContext, 2, 1);
+    //m_cbChangesEveryFrame.render(m_deviceContext, 2, 1, true);
+    // Asignar textura y sampler
+    //m_textureCube.render(m_deviceContext, 0, 1);
+    //m_samplerState.render(m_deviceContext, 0, 1);
+    //m_deviceContext.DrawIndexed(TRex[0].m_numIndex, 0, 0);
+    // Set primitive topology
+    //m_deviceContext.IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+    // Present our back buffer to our front buffer
     m_swapChain.present();
 }
 
-void BaseApp::destroy()
-{
+void
+BaseApp::destroy() {
     if (m_deviceContext.m_deviceContext) m_deviceContext.m_deviceContext->ClearState();
 
-    m_samplerState.destroy();
-    m_textureCube.destroy();
+    if (m_model) delete m_model; // Limpieza de memoria 
+
+    //m_samplerState.destroy();
+    //m_textureCube.destroy();
+
     m_cbNeverChanges.destroy();
     m_cbChangeOnResize.destroy();
-    m_cbChangesEveryFrame.destroy();
-    m_vertexBuffer.destroy();
-    m_indexBuffer.destroy();
+    //m_cbChangesEveryFrame.destroy();
+    //m_vertexBuffer.destroy();
+    //m_indexBuffer.destroy();
     m_shaderProgram.destroy();
     m_depthStencil.destroy();
     m_depthStencilView.destroy();
@@ -365,12 +412,15 @@ void BaseApp::destroy()
     m_backBuffer.destroy();
     m_deviceContext.destroy();
     m_device.destroy();
+
+    UI.destroy();
 }
 
-LRESULT CALLBACK BaseApp::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
-{
-    BaseApp* pApp = reinterpret_cast<BaseApp*>(GetWindowLongPtr(hWnd, GWLP_USERDATA));
-
+LRESULT
+BaseApp::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
+    //HANDLER DE IMGUI
+    if (ImGui_ImplWin32_WndProcHandler(hWnd, message, wParam, lParam))
+        return true;
     switch (message)
     {
     case WM_CREATE:
@@ -379,28 +429,13 @@ LRESULT CALLBACK BaseApp::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM
         SetWindowLongPtr(hWnd, GWLP_USERDATA, (LONG_PTR)pCreate->lpCreateParams);
     }
     return 0;
-
-    case WM_MOUSEWHEEL:
-        if (pApp) { pApp->onMouseWheel(GET_WHEEL_DELTA_WPARAM(wParam)); }
-        return 0;
-
-    case WM_KEYDOWN:
-        if (pApp) {
-            switch (wParam) {
-            case VK_OEM_PLUS:
-            case VK_ADD:      pApp->onMouseWheel(+120); break;
-            case VK_OEM_MINUS:
-            case VK_SUBTRACT: pApp->onMouseWheel(-120); break;
-            }
-        }
-        return 0;
-
     case WM_PAINT:
     {
-        PAINTSTRUCT ps; BeginPaint(hWnd, &ps); EndPaint(hWnd, &ps);
+        PAINTSTRUCT ps;
+        BeginPaint(hWnd, &ps);
+        EndPaint(hWnd, &ps);
     }
     return 0;
-
     case WM_DESTROY:
         PostQuitMessage(0);
         return 0;
