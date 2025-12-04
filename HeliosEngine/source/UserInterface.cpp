@@ -53,10 +53,12 @@ UserInterface::render() {
 
 void
 UserInterface::destroy() {
-
-    ImGui_ImplDX11_Shutdown();
-    ImGui_ImplWin32_Shutdown();
-    ImGui::DestroyContext();
+ 
+   if (ImGui::GetCurrentContext()) {
+       ImGui_ImplDX11_Shutdown();
+       ImGui_ImplWin32_Shutdown();
+       ImGui::DestroyContext();
+    }
 }
 
 void

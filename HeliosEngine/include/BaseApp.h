@@ -57,15 +57,14 @@ private:
     Viewport                        m_viewport;
     ShaderProgram                   m_shaderProgram;
 
-    // MeshComponent                 m_mesh;
-    // Buffer                        m_vertexBuffer;
-    // Buffer                        m_indexBuffer;
-
     Buffer                          m_cbNeverChanges;
     Buffer                          m_cbChangeOnResize;
     Buffer                          m_cbChangesEveryFrame;
 
-    Texture                         m_cyberGunAlbedo;       // Tu textura especifica
+    // --- CAMBIO DE NOMBRE AQUÍ ---
+    Texture                         m_repsolTexture;       // Antes m_cyberGunAlbedo
+    // -----------------------------
+
     SamplerState                    m_samplerState;
 
     // Matrices y Variables Globales
@@ -76,7 +75,10 @@ private:
 
     // Actores
     std::vector<EU::TSharedPointer<Actor>> m_actors;
-    EU::TSharedPointer<Actor>              m_cyberGun;
+
+    // --- CAMBIO DE NOMBRE AQUÍ ---
+    EU::TSharedPointer<Actor>              m_repsolActor;  // Antes m_cyberGun
+    // -----------------------------
 
     // Recursos
     Model3D* m_model;
