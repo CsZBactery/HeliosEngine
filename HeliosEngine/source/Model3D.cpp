@@ -1,4 +1,4 @@
-﻿#include "../include/Model3D.h"
+﻿#include "Model3D.h"
 
 bool
 Model3D::load(const std::string& path) {
@@ -17,7 +17,7 @@ bool Model3D::init()
 {
 	// Inicializar recursos GPU, buffers, etc.
 	LoadFBXModel(m_filePath);
-	return false;
+	return true;
 }
 
 void Model3D::unload()

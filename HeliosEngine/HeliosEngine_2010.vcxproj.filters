@@ -62,9 +62,6 @@
     <ClCompile Include="source\DeviceContext.cpp">
       <Filter>source</Filter>
     </ClCompile>
-    <ClCompile Include="source\RenderTargetView.cpp">
-      <Filter>source</Filter>
-    </ClCompile>
     <ClCompile Include="source\SwapChain.cpp">
       <Filter>source</Filter>
     </ClCompile>
@@ -125,6 +122,9 @@
     <ClCompile Include="source\ECS\Actor.cpp">
       <Filter>source\ECS</Filter>
     </ClCompile>
+    <ClCompile Include="source\RenderTargetView.cpp">
+      <Filter>source</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="HeliosEngine.fx">
@@ -142,9 +142,6 @@
       <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="include\DeviceContext.h">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\RenderTargetView.h">
       <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="include\SwapChain.h">
@@ -283,6 +280,9 @@
     </ClInclude>
     <ClInclude Include="include\ResourceManager.h">
       <Filter>include\Utilities</Filter>
+    </ClInclude>
+    <ClInclude Include="include\RenderTargetView.h">
+      <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
