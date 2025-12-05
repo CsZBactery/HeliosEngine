@@ -153,7 +153,7 @@
       <FloatingPointModel>Fast</FloatingPointModel>
       <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
       <ExceptionHandling>Sync</ExceptionHandling>
-      <AdditionalIncludeDirectories>./include/;DXUT\Core;DXUT\Optional;./include/fbx/;C:\Users\cesar\OneDrive\Documentos\HeliosEngine\HeliosEngine\imgui-docking\backends;C:\Users\cesar\OneDrive\Documentos\HeliosEngine\HeliosEngine\imgui-docking;</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>./include/;DXUT\Core;DXUT\Optional;./include/fbx/;C:\Dev\HeliosEngine\HeliosEngine\imgui-docking\backends;C:\Dev\HeliosEngine\HeliosEngine\imgui-docking</AdditionalIncludeDirectories>
       <AdditionalOptions> %(AdditionalOptions)</AdditionalOptions>
       <PreprocessorDefinitions>WIN32; FBXSDK_SHARED;_WIN32_WINNT=0x0602;WINVER=0x0602;</PreprocessorDefinitions>
       <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
@@ -201,7 +201,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <FloatingPointModel>Fast</FloatingPointModel>
       <ExceptionHandling>Sync</ExceptionHandling>
-      <AdditionalIncludeDirectories>./include/;DXUT\Core;DXUT\Optional;./include/fbx/;C:\Users\cesar\OneDrive\Documentos\HeliosEngine\HeliosEngine\imgui-docking\backends;C:\Users\cesar\OneDrive\Documentos\HeliosEngine\HeliosEngine\imgui-docking;</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>./include/;DXUT\Core;DXUT\Optional;./include/fbx/;C:\Dev\HeliosEngine\HeliosEngine\imgui-docking\backends;C:\Dev\HeliosEngine\HeliosEngine\imgui-docking</AdditionalIncludeDirectories>
       <AdditionalOptions> %(AdditionalOptions)</AdditionalOptions>
       <PreprocessorDefinitions>WIN32; FBXSDK_SHARED;_WIN32_WINNT=0x0602;WINVER=0x0602;</PreprocessorDefinitions>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
@@ -251,7 +251,7 @@
       <FloatingPointModel>Fast</FloatingPointModel>
       <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
       <ExceptionHandling>Sync</ExceptionHandling>
-      <AdditionalIncludeDirectories>./include/;DXUT\Core;DXUT\Optional;./include/fbx/;C:\Users\cesar\OneDrive\Documentos\HeliosEngine\HeliosEngine\imgui-docking\backends;C:\Users\cesar\OneDrive\Documentos\HeliosEngine\HeliosEngine\imgui-docking;</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>./include/;DXUT\Core;DXUT\Optional;./include/fbx/;C:\Dev\HeliosEngine\HeliosEngine\imgui-docking\backends;C:\Dev\HeliosEngine\HeliosEngine\imgui-docking</AdditionalIncludeDirectories>
       <AdditionalOptions> %(AdditionalOptions)</AdditionalOptions>
       <PreprocessorDefinitions>WIN32; FBXSDK_SHARED;_WIN32_WINNT=0x0602;WINVER=0x0602;</PreprocessorDefinitions>
       <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
@@ -302,7 +302,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <FloatingPointModel>Fast</FloatingPointModel>
       <ExceptionHandling>Sync</ExceptionHandling>
-      <AdditionalIncludeDirectories>./include/;DXUT\Core;DXUT\Optional;./include/fbx/;C:\Users\cesar\OneDrive\Documentos\HeliosEngine\HeliosEngine\imgui-docking\backends;C:\Users\cesar\OneDrive\Documentos\HeliosEngine\HeliosEngine\imgui-docking;</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>./include/;DXUT\Core;DXUT\Optional;./include/fbx/;C:\Dev\HeliosEngine\HeliosEngine\imgui-docking\backends;C:\Dev\HeliosEngine\HeliosEngine\imgui-docking</AdditionalIncludeDirectories>
       <AdditionalOptions> %(AdditionalOptions)</AdditionalOptions>
       <PreprocessorDefinitions>WIN32; FBXSDK_SHARED;_WIN32_WINNT=0x0602;WINVER=0x0602;</PreprocessorDefinitions>
       <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
@@ -354,7 +354,7 @@
       <FloatingPointModel>Fast</FloatingPointModel>
       <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
       <ExceptionHandling>Sync</ExceptionHandling>
-      <AdditionalIncludeDirectories>./include/;DXUT\Core;DXUT\Optional;./include/fbx/;C:\Users\cesar\OneDrive\Documentos\HeliosEngine\HeliosEngine\imgui-docking\backends;C:\Users\cesar\OneDrive\Documentos\HeliosEngine\HeliosEngine\imgui-docking;</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>./include/;DXUT\Core;DXUT\Optional;./include/fbx/;C:\Dev\HeliosEngine\HeliosEngine\imgui-docking\backends;C:\Dev\HeliosEngine\HeliosEngine\imgui-docking</AdditionalIncludeDirectories>
       <AdditionalOptions> %(AdditionalOptions)</AdditionalOptions>
       <PreprocessorDefinitions>WIN32; FBXSDK_SHARED;_WIN32_WINNT=0x0602;WINVER=0x0602;</PreprocessorDefinitions>
       <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
@@ -405,7 +405,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <FloatingPointModel>Fast</FloatingPointModel>
       <ExceptionHandling>Sync</ExceptionHandling>
-      <AdditionalIncludeDirectories>./include/;DXUT\Core;DXUT\Optional;./include/fbx/;C:\Users\cesar\OneDrive\Documentos\HeliosEngine\HeliosEngine\imgui-docking\backends;C:\Users\cesar\OneDrive\Documentos\HeliosEngine\HeliosEngine\imgui-docking;</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>./include/;DXUT\Core;DXUT\Optional;./include/fbx/;C:\Dev\HeliosEngine\HeliosEngine\imgui-docking\backends;C:\Dev\HeliosEngine\HeliosEngine\imgui-docking</AdditionalIncludeDirectories>
       <AdditionalOptions> %(AdditionalOptions)</AdditionalOptions>
       <PreprocessorDefinitions>WIN32; FBXSDK_SHARED;_WIN32_WINNT=0x0602;WINVER=0x0602;</PreprocessorDefinitions>
       <DebugInformationFormat>EditAndContinue</DebugInformationFormat>

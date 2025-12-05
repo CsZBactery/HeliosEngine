@@ -1,12 +1,15 @@
 ﻿#include "../include/BaseApp.h"
 #include "../include/ResourceManager.h"
-#include <direct.h> // Para imprimir directorio actual
+#include <direct.h> 
 
 extern LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 BaseApp::BaseApp(HINSTANCE hInst, int nCmdShow) {}
 
 int BaseApp::run(HINSTANCE hInst, int nCmdShow) {
+    // Configuración regional para evitar errores de lectura de FBX en español
+    setlocale(LC_ALL, "C");
+
     if (FAILED(m_window.init(hInst, nCmdShow, WndProc))) return 0;
     if (FAILED(init())) return 0;
 
@@ -36,13 +39,6 @@ int BaseApp::run(HINSTANCE hInst, int nCmdShow) {
 HRESULT BaseApp::init() {
     HRESULT hr = S_OK;
 
-    // DEBUG: Imprimir dónde estamos buscando los archivos en la consola de salida
-    char cwd[1024];
-    if (_getcwd(cwd, sizeof(cwd))) {
-        std::string pathMsg = "INFO: Directorio de Trabajo: " + std::string(cwd) + "\n";
-        OutputDebugStringA(pathMsg.c_str());
-    }
-
     // 1. INICIALIZAR HARDWARE
     m_device.init();
     if (!m_device.m_device) {
@@ -58,23 +54,17 @@ HRESULT BaseApp::init() {
     hr = m_renderTargetView.init(m_device, m_backBuffer, DXGI_FORMAT_R8G8B8A8_UNORM);
     if (FAILED(hr)) return hr;
 
-    // [CORRECCIÓN CRÍTICA DE MSAA]
-    // Tu log indica que el RenderTarget tiene Quality=16. 
-    // Forzamos 16 aquí para que coincidan.
+    // Configuración MSAA (Calidad 16 para evitar error gráfico rojo)
     hr = m_depthStencil.init(m_device,
         m_window.m_width,
         m_window.m_height,
         DXGI_FORMAT_D24_UNORM_S8_UINT,
         D3D11_BIND_DEPTH_STENCIL,
-        4,   // Sample Count (4x)
-        16); // Sample Quality (16) <--- ESTO ELIMINA EL ERROR ROJO
+        4,
+        16);
 
-    if (FAILED(hr)) {
-        ERROR("BaseApp", "init", "Failed to create DepthStencil Texture.");
-        return hr;
-    }
+    if (FAILED(hr)) return hr;
 
-    // Usamos los mismos parámetros para la vista
     hr = m_depthStencilView.init(m_device, m_depthStencil, DXGI_FORMAT_D24_UNORM_S8_UINT);
     if (FAILED(hr)) return hr;
 
@@ -85,34 +75,31 @@ HRESULT BaseApp::init() {
     m_repsolActor = EU::MakeShared<Actor>(m_device);
 
     if (!m_repsolActor.isNull()) {
-        // A) Cargar Modelo
-        // Verifica si tu archivo se llama "repsol.obj" o "repsol3.obj" en la carpeta Assets/Moto
-        m_model = new Model3D("Assets/Moto/repsol.obj", ModelType::OBJ);
+        // Cargar Modelo
+        m_model = new Model3D("Assets/Moto/repsol3.obj", ModelType::OBJ);
         std::vector<MeshComponent> myMeshes = m_model->GetMeshes();
 
-        if (myMeshes.empty()) {
-            ERROR("BaseApp", "init", "ERROR: El modelo no cargo. Verifica el nombre (repsol.obj vs repsol3.obj) en Assets/Moto/");
-        }
-
-        // B) Cargar Textura
+        // Cargar Textura
         std::vector<Texture> myTextures;
         hr = m_repsolTexture.init(m_device, "Assets/Textures/LV.png", ExtensionType::PNG);
-
-        if (FAILED(hr)) {
-            ERROR("BaseApp", "init", "ERROR: La textura no cargo. Verifica Assets/Textures/LV.png");
+        if (SUCCEEDED(hr)) {
+            myTextures.push_back(m_repsolTexture);
         }
-        myTextures.push_back(m_repsolTexture);
+        else {
+            // Si falla la textura, seguimos igual (se verá gris/negro)
+            OutputDebugStringA("[WARNING] Textura no encontrada, usando material por defecto.\n");
+        }
 
         m_repsolActor->setMesh(m_device, myMeshes);
         m_repsolActor->setTextures(myTextures);
         m_repsolActor->setName("RepsolBike");
         m_actors.push_back(m_repsolActor);
 
-        // Ajuste de escala por si el modelo es muy grande o pequeño
+        // Transformación Inicial
         m_repsolActor->getComponent<Transform>()->setTransform(
             EU::Vector3(0.0f, 0.0f, 0.0f),
             EU::Vector3(0.0f, 0.0f, 0.0f),
-            EU::Vector3(0.1f, 0.1f, 0.1f)
+            EU::Vector3(0.1f, 0.1f, 0.1f) // Escala inicial pequeña
         );
     }
 
@@ -125,20 +112,15 @@ HRESULT BaseApp::init() {
 
     hr = m_shaderProgram.init(m_device, "Assets/Shaders/HeliosEngine.fx", Layout);
     if (FAILED(hr)) {
-        ERROR("BaseApp", "init", "ERROR: No se cargo Shader. Verifica Assets/Shaders/HeliosEngine.fx");
+        // Intento de fallback
+        m_shaderProgram.init(m_device, "HeliosEngine.fx", Layout);
     }
 
     // 5. BUFFERS & UI
     m_cbNeverChanges.init(m_device, sizeof(CBNeverChanges));
     m_cbChangeOnResize.init(m_device, sizeof(CBChangeOnResize));
 
-    // Cámara
-    XMVECTOR Eye = XMVectorSet(0.0f, 10.0f, -30.0f, 0.0f);
-    XMVECTOR At = XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
-    XMVECTOR Up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-    m_View = XMMatrixLookAtLH(Eye, At, Up);
-
-    cbNeverChanges.mView = XMMatrixTranspose(m_View);
+    // Matriz de proyección inicial
     m_Projection = XMMatrixPerspectiveFovLH(XM_PIDIV4, m_window.m_width / (FLOAT)m_window.m_height, 0.01f, 100.0f);
     cbChangesOnResize.mProjection = XMMatrixTranspose(m_Projection);
 
@@ -149,21 +131,57 @@ HRESULT BaseApp::init() {
 
 void BaseApp::update(float deltaTime) {
     UI.update();
-    ImGui::Begin("Control Moto");
+
+    // Variable estática para el Zoom de la cámara (persiste entre frames)
+    static float cameraZoom = 30.0f;
+
+    // --- VENTANA DE CONTROL IMGUI ---
+    ImGui::Begin("Control de Escena");
+
+    // 1. CONTROL DE CÁMARA (ZOOM)
+    ImGui::TextColored(ImVec4(1, 1, 0, 1), "Camara"); // Texto amarillo
+    ImGui::DragFloat("Zoom (Distancia)", &cameraZoom, 0.5f, 1.0f, 200.0f);
+    ImGui::Separator();
+
+    // 2. CONTROL DEL OBJETO
     if (!m_repsolActor.isNull()) {
         auto t = m_repsolActor->getComponent<Transform>();
         if (t) {
+            ImGui::TextColored(ImVec4(0, 1, 1, 1), "Transformacion Moto"); // Texto cyan
+
+            // POSICIÓN con botón de Reset
             EU::Vector3 pos = t->getPosition(); float fPos[3] = { pos.x, pos.y, pos.z };
-            if (ImGui::DragFloat3("Pos", fPos, 0.1f)) t->setPosition(EU::Vector3(fPos[0], fPos[1], fPos[2]));
+            ImGui::PushItemWidth(200); // Hacemos los sliders más cortos para que quepa el botón
+            if (ImGui::DragFloat3("Posicion", fPos, 0.1f)) t->setPosition(EU::Vector3(fPos[0], fPos[1], fPos[2]));
+            ImGui::PopItemWidth();
+            ImGui::SameLine();
+            if (ImGui::Button("R##Pos")) t->setPosition(EU::Vector3(0, 0, 0)); // Reset Posición
 
+            // ROTACIÓN con botón de Reset
+            EU::Vector3 rot = t->getRotation(); float fRot[3] = { rot.x, rot.y, rot.z };
+            ImGui::PushItemWidth(200);
+            if (ImGui::DragFloat3("Rotacion", fRot, 0.1f)) t->setRotation(EU::Vector3(fRot[0], fRot[1], fRot[2]));
+            ImGui::PopItemWidth();
+            ImGui::SameLine();
+            if (ImGui::Button("R##Rot")) t->setRotation(EU::Vector3(0, 0, 0)); // Reset Rotación
+
+            // ESCALA con botón de Reset (vuelve a 1.0)
             EU::Vector3 s = t->getScale(); float fS[3] = { s.x, s.y, s.z };
-            if (ImGui::DragFloat3("Scale", fS, 0.01f)) t->setScale(EU::Vector3(fS[0], fS[1], fS[2]));
-
-            EU::Vector3 r = t->getRotation(); float fR[3] = { r.x, r.y, r.z };
-            if (ImGui::DragFloat3("Rot", fR, 0.1f)) t->setRotation(EU::Vector3(fR[0], fR[1], fR[2]));
+            ImGui::PushItemWidth(200);
+            if (ImGui::DragFloat3("Escala", fS, 0.01f)) t->setScale(EU::Vector3(fS[0], fS[1], fS[2]));
+            ImGui::PopItemWidth();
+            ImGui::SameLine();
+            if (ImGui::Button("R##Sca")) t->setScale(EU::Vector3(0.1f, 0.1f, 0.1f)); // Reset Escala (a 0.1 por defecto)
         }
     }
     ImGui::End();
+
+    // --- ACTUALIZAR CÁMARA ---
+    // Usamos la variable 'cameraZoom' para alejar o acercar la cámara en el eje Z
+    XMVECTOR Eye = XMVectorSet(0.0f, 10.0f, -cameraZoom, 0.0f);
+    XMVECTOR At = XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
+    XMVECTOR Up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+    m_View = XMMatrixLookAtLH(Eye, At, Up);
 
     cbNeverChanges.mView = XMMatrixTranspose(m_View);
     m_cbNeverChanges.update(m_deviceContext, nullptr, 0, nullptr, &cbNeverChanges, 0, 0);
