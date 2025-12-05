@@ -1,57 +1,158 @@
-# HeliosEngine
+☀️ HeliosEngine
 
-> Este es un compendio de las clases vistas en la materia de Graficas Computacionales 3D. Generación 2026-1.
+Compendio de Gráficas Computacionales 3D | Generación 2026-1
 
-¡HeliosEngine en acción, cargando un modelo `.obj` con texturas usando un parser manual!
+<div align="center">
+<img src="img/Ss2.jpg" alt="HeliosEngine Demo" width="800"/>
 
-![HeliosEngine cargando un modelo .obj](https://github.com/CsZBactery/HeliosEngine/blob/main/HeliosEngine/img/imgXbox.jpg?raw=true)
 
----
 
-## Acerca del Proyecto
 
-**HeliosEngine** es un motor de renderizado 3D en tiempo real construido desde cero utilizando **C++** y la API de **DirectX 11**.
 
-El proyecto sirve como un compendio práctico de los conceptos fundamentales del pipeline gráfico, abarcando desde la inicialización de la ventana (Win32) y el dispositivo Direct3D, hasta la carga y renderizado de geometría compleja con shaders personalizados en HLSL.
+<sub><i>Renderizado en tiempo real de modelo de alta fidelidad con iluminación y texturizado básico.</i></sub>
+</div>
 
-## Características Principales
+📖 Acerca del Proyecto
 
-* **Pipeline de DirectX 11:** Configuración completa del pipeline de D3D11 (Device, DeviceContext, SwapChain, RenderTargetView, DepthStencilView).
-* **Parser Manual de `.obj`:** Un cargador de modelos 3D personalizado y robusto. Es capaz de leer, parsear y triangular geometría (posiciones `v`, coordenadas de textura `vt`, y normales `vn`) desde archivos de formato `.obj`.
-* **Renderizado de Malla:** Creación y enlace de Vertex Buffers e Index Buffers en la GPU a partir de la geometría cargada.
-* **Shaders HLSL:** Shaders de Vértice (VS) y Píxel (PS) escritos en HLSL para manejar las transformaciones (matrices World, View, Projection) y el muestreo de texturas.
-* **Carga de Texturas:** Soporte para cargar texturas de múltiples formatos (incluyendo `.dds`, `.png`, `.jpg`) para ser usadas en el Pixel Shader.
-* **Cámara Interactiva:** Controles de cámara básicos (zoom) para inspeccionar el modelo cargado.
+HeliosEngine es un motor de renderizado 3D en tiempo real construido desde cero (from scratch) utilizando C++ y la API nativa de DirectX 11.
 
-## ⚙️ Cómo Compilar y Ejecutar
+Este proyecto no utiliza motores comerciales (como Unity o Unreal); su propósito es desmitificar la "caja negra" del renderizado gráfico. Sirve como una implementación práctica y académica de los conceptos fundamentales del pipeline gráfico, abarcando:
 
-### Prerrequisitos
+Inicialización de bajo nivel: Win32 API y Contextos de Dispositivo.
 
-* **Visual Studio 2022** (con la carga de trabajo "Desarrollo de escritorio con C++")
-* **Windows 10/11 SDK** (generalmente incluido con la carga de trabajo de Visual Studio)
+Matemáticas 3D: Matrices de Mundo, Vista y Proyección.
 
-### Pasos
+Gestión de Memoria: Buffers de Vértices e Índices en VRAM.
 
-1.  Clona el repositorio:
-    ```sh
-    git clone [https://github.com/CsZBactery/HeliosEngine.git]
-    ```
-2.  Abre la solución `HeliosEngine.sln` con Visual Studio 2022.
-3.  Asegúrate de que la configuración de la solución esté en `Debug` (o `Release`) y `x64`.
-4.  Compila la solución (**Build** > **Build Solution** o `F7`).
-5.  ¡Ejecuta el proyecto (`F5`)!
+Shading Programable: HLSL (Vertex & Pixel Shaders).
 
-> **¡Importante!** El programa espera que los assets (modelos `.obj` y texturas) se encuentren en una carpeta `Assets` ubicada junto al archivo `.exe` generado (ej: `x64/Debug/Assets/Moto/repsol3.obj`).
+✨ Características Principales
 
-## Controles
+🛠️ Core & Pipeline
 
-* **Rueda del Mouse (Scroll):** Acercar / Alejar la cámara.
-* **Teclas `+` / `-`:** Acercar / Alejar la cámara.
+Pipeline DirectX 11 Completo: Implementación robusta de Device, DeviceContext, SwapChain, RenderTargetView y DepthStencilView.
 
-## Estructura Clave del Proyecto
+Anti-Aliasing (MSAA): Configuración automática de calidad de muestreo (4x MSAA) adaptativa a la GPU para bordes suaves.
 
-* `BaseApp`: Clase principal que orquesta la aplicación, maneja el bucle de mensajes de Win32 e inicializa todos los recursos de D3D11.
-* `ModelLoader`: Contiene el **parser manual de `.obj`**, responsable de leer la geometría del archivo y poblar la estructura `MeshComponent`.
-* `ShaderProgram`: Encapsula la compilación y administración de los shaders HLSL (VS/PS) y el Input Layout.
-* `Buffer`: Clase wrapper para los buffers de la GPU (Vertex, Index y Constant Buffers).
-* `Window`, `Device`, `SwapChain`: Clases que encapsulan los objetos COM de DirectX y la lógica de la ventana.
+Game Loop Personalizado: Bucle de mensajes Win32 optimizado con cálculo de DeltaTime de alta precisión.
+
+🎨 Gráficos & Renderizado
+
+Parser Manual de .obj: Cargador de modelos personalizado escrito sin librerías externas para geometría.
+
+Lectura optimizada de posiciones (v), coordenadas de textura (vt) y normales (vn).
+
+Triangulación de geometría compleja.
+
+Soporte de Texturas: Carga nativa de texturas (.png, .jpg, .dds) aplicadas al modelo mediante Shader Resource Views.
+
+Shaders HLSL:
+
+Vertex Shader (VS): Transformación de espacio local a espacio de pantalla.
+
+Pixel Shader (PS): Muestreo de texturas y colorizado básico.
+
+🕹️ Interactividad & UI
+
+Cámara Dinámica: Sistema de cámara con control de Zoom interactivo.
+
+Interfaz de Usuario (ImGui): Integración completa de Dear ImGui para depuración en tiempo real:
+
+Control de Transformaciones (Posición, Rotación, Escala).
+
+Control de Zoom de cámara.
+
+Botones de Reset [R] para restablecer valores por defecto rápidamente.
+
+📂 Arquitectura del Proyecto
+
+Una visión general de las clases más importantes del motor:
+
+Clase
+
+Responsabilidad
+
+BaseApp
+
+El Director. Orquesta la aplicación, maneja la ventana Win32, inicializa el hardware y ejecuta el bucle principal.
+
+Device
+
+La GPU Virtual. Encapsula la creación de recursos de hardware (Buffers, Texturas, Shaders).
+
+DeviceContext
+
+El Artista. Envía comandos de renderizado a la GPU (Draw calls, cambios de estado).
+
+SwapChain
+
+El Presentador. Gestiona el doble búfer (Double Buffering) para mostrar imágenes sin parpadeos (tearing).
+
+ModelLoader
+
+El Traductor. Lee archivos de texto .obj crudos y los convierte en estructuras de vértices C++.
+
+Actor
+
+La Entidad. Representa un objeto en el mundo, uniendo su Malla, su Transformación y sus Texturas.
+
+ShaderProgram
+
+El Programa. Compila y gestiona los shaders HLSL que procesan la geometría y los píxeles.
+
+⚙️ Cómo Compilar y Ejecutar
+
+Prerrequisitos
+
+Visual Studio 2022
+
+Carga de trabajo: "Desarrollo de escritorio con C++"
+
+Windows 10/11 SDK
+
+Pasos de Instalación
+
+Clonar el repositorio:
+
+git clone [https://github.com/CsZBactery/HeliosEngine.git](https://github.com/CsZBactery/HeliosEngine.git)
+
+
+Abrir el proyecto:
+Ejecuta HeliosEngine.sln con Visual Studio 2022.
+
+Configuración de Assets (Crucial):
+El ejecutable busca la carpeta Assets en el directorio de trabajo.
+
+Asegúrate de que la carpeta Assets esté en la raíz del proyecto (junto a los archivos .cpp).
+
+O configura en VS: Propiedades > Depuración > Directorio de trabajo = $(ProjectDir).
+
+Compilar y Ejecutar:
+
+Configuración: Release (Recomendado para evitar conflictos de locale) o Debug.
+
+Plataforma: x64.
+
+Presiona F5 para compilar y lanzar el motor.
+
+🎮 Controles
+
+Input
+
+Acción
+
+Interfaz (Ventana)
+
+Usa el mouse para arrastrar los sliders de posición, rotación o escala.
+
+Botón [R]
+
+Restablece el valor asociado (Posición a 0, Escala a 1, etc.).
+
+Slider Zoom
+
+Acerca o aleja la cámara del objeto.
+
+<div align="center">
+<sub>Desarrollado por <b>[Tu Nombre / CsZBactery]</b> - Gráficas Computacionales 3D</sub>
+</div>
