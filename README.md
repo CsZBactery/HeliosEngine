@@ -1,12 +1,15 @@
-HeliosEngine
+ HeliosEngine
 
 Compendio de Gráficas Computacionales 3D | Generación 2026-1
 
 <div align="center">
 <img src="HeliosEngine/img/Ss2.jpg" alt="HeliosEngine Demo" width="800"/>
 
-<sub><i>Renderizado en tiempo real de modelo de alta fidelidad con iluminación y texturizado básico.</i></sub>
 
+
+
+
+<sub><i>Renderizado en tiempo real de modelo de alta fidelidad con iluminación y texturizado básico.</i></sub>
 </div>
 
 📖 Acerca del Proyecto
@@ -114,7 +117,6 @@ Clonar el repositorio:
 git clone [https://github.com/CsZBactery/HeliosEngine.git](https://github.com/CsZBactery/HeliosEngine.git)
 
 
-
 Abrir el proyecto:
 Ejecuta HeliosEngine.sln con Visual Studio 2022.
 
@@ -127,7 +129,7 @@ O configura en VS: Propiedades > Depuración > Directorio de trabajo = $(Project
 
 Compilar y Ejecutar:
 
-Configuración: Release (Recomendado para evitar conflictos de locale) o Debug.
+Configuración: Debug.
 
 Plataforma: x64.
 
@@ -143,11 +145,7 @@ Interfaz (Ventana)
 
 Usa el mouse para arrastrar los sliders de posición, rotación o escala.
 
-Botón 
-
-$$R$$
-
-
+Botón [R]
 
 Restablece el valor asociado (Posición a 0, Escala a 1, etc.).
 
@@ -156,9 +154,5 @@ Slider Zoom
 Acerca o aleja la cámara del objeto.
 
 <div align="center">
-<sub>Desarrollado por <b>
-
-$$CsZBactery$$
-
-</b> - Gráficas Computacionales 3D</sub>
+<sub>Desarrollado por <b>[CsZBactery]</b> - Gráficas Computacionales 3D</sub>
 </div>
