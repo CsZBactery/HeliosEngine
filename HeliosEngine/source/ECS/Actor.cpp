@@ -2,91 +2,89 @@
 #include "../include/MeshComponent.h"
 #include "../include/Device.h"
 #include "../include/DeviceContext.h"
-
 #include "../include/ECS/Transform.h" 
 
 Actor::Actor(Device& device) {
-    // Setup Default Components
+    // Agregamos los componentes base para que el actor sea funcional desde el inicio
     EU::TSharedPointer<Transform> transform = EU::MakeShared<Transform>();
     addComponent(transform);
+
     EU::TSharedPointer<MeshComponent> meshComponent = EU::MakeShared<MeshComponent>();
     addComponent(meshComponent);
 
     HRESULT hr;
     std::string classNameType = "Actor -> " + m_name;
 
+    // Inicializamos el Constant Buffer para enviar matrices al shader por frame
     hr = m_modelBuffer.init(device, sizeof(CBChangesEveryFrame));
     if (FAILED(hr)) {
-        ERROR("Actor", classNameType.c_str(), "Failed to create new CBChangesEveryFrame");
+        ERROR("Actor", classNameType.c_str(), "Error al crear CBChangesEveryFrame");
     }
 
+    // Preparamos el Sampler para poder mapear texturas mas adelante
     hr = m_sampler.init(device);
     if (FAILED(hr)) {
-        ERROR("Actor", classNameType.c_str(), "Failed to create new SamplerState");
+        ERROR("Actor", classNameType.c_str(), "Error al crear SamplerState");
     }
 
-
-    //hr = m_rasterizer.init(device);
-    // ... (resto del c�digo comentado del profesor)
-    //m_LightPos = XMFLOAT4(2.0f, 4.0f, -2.0f, 1.0f);
+    // Configuraciones opcionales (rasterizer, luces) quedaron pendientes
 }
 
 void
 Actor::update(float deltaTime, DeviceContext& deviceContext) {
-    // Update all components
+    // Ciclo principal: actualizamos la logica de todos los componentes hijos
     for (auto& component : m_components) {
         if (component) {
             component->update(deltaTime);
         }
     }
 
-    // Update the model buffer
-    // Requiere #include "Transform.h" arriba
+    // Obtenemos la matriz de mundo actualizada desde el Transform
+    // Transponemos la matriz porque HLSL espera orden por columnas
     m_model.mWorld = XMMatrixTranspose(getComponent<Transform>()->matrix);
 
+    // Color base por defecto (blanco)
     m_model.vMeshColor = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
 
-    // Update the constant buffer
+    // Enviamos los nuevos datos de la matriz a la GPU
     m_modelBuffer.update(deviceContext, nullptr, 0, nullptr, &m_model, 0, 0);
 }
 
 void
 Actor::render(DeviceContext& deviceContext) {
-    // 1) Proyectar sombra primero (sobre el suelo)
-    //if (canCastShadow()) {
-    //    renderShadow(deviceContext);
-    //}
-
-    // 2) Estados de raster, blend y sampler para el modelo
+    // Configuramos como se leen las texturas
     m_sampler.render(deviceContext, 0, 1);
 
+    // Indicamos que vamos a dibujar triangulos
     deviceContext.IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-    // Update buffer and render all components
+    // Iteramos sobre las mallas cargadas para dibujarlas
     for (unsigned int i = 0; i < m_meshes.size(); i++) {
+        // Vinculamos los buffers de vertices e indices al pipeline
         m_vertexBuffers[i].render(deviceContext, 0, 1);
         m_indexBuffers[i].render(deviceContext, 0, 1, false, DXGI_FORMAT_R32_UINT);
 
-        // Bind del CB �normal� (world + color)
+        // Pasamos la matriz de transformacion al Vertex Shader (slot 2)
         m_modelBuffer.render(deviceContext, 2, 1, true);
 
-        // Render mesh texture
-        // L�GICA DEL PROFESOR (PBR): Solo renderiza si tienes el set completo de 5 texturas
+        // Si el actor tiene texturas, vinculamos la primera al slot t0
+        // Nota: Esto asume un material simple con solo Albedo por ahora
         if (m_textures.size() > 0) {
             if (i < m_textures.size()) {
                 if (m_textures.size() >= 1) {
-                    m_textures[0].render(deviceContext, 0, 1); // Albedo -> t0
-                    //m_textures[1].render(deviceContext, 1, 1); // Normal -> t1
-                    // ... etc
+                    m_textures[0].render(deviceContext, 0, 1);
                 }
             }
         }
+
+        // Llamada final de dibujo
         deviceContext.DrawIndexed(m_meshes[i].m_numIndex, 0, 0);
     }
 }
 
 void
 Actor::destroy() {
+    // Liberar memoria de los buffers de geometria
     for (auto& vertexBuffer : m_vertexBuffers) {
         vertexBuffer.destroy();
     }
@@ -95,38 +93,38 @@ Actor::destroy() {
         indexBuffer.destroy();
     }
 
+    // Liberar texturas y buffers de constantes
     for (auto& tex : m_textures) {
         tex.destroy();
     }
     m_modelBuffer.destroy();
-
-    //m_rasterizer.destroy();
-    //m_blendstate.destroy();
     m_sampler.destroy();
 }
 
 void
 Actor::setMesh(Device& device, std::vector<MeshComponent> meshes) {
-    // NOTA IMPORTANTE: En el script de tu profesor esto sal�a vac�o.
-    // Pero necesitas este c�digo para crear los VertexBuffers, si no, no se ve nada.
-
+    // Guardamos los datos de la malla en CPU
     m_meshes = meshes;
     HRESULT hr;
+
+    // Generamos los buffers reales en GPU para cada sub-malla
     for (auto& mesh : m_meshes) {
 
+        // Crear Vertex Buffer
         Buffer vertexBuffer;
         hr = vertexBuffer.init(device, mesh, D3D11_BIND_VERTEX_BUFFER);
         if (FAILED(hr)) {
-            ERROR("Actor", "setMesh", "Failed to create new vertexBuffer");
+            ERROR("Actor", "setMesh", "Fallo al crear vertexBuffer");
         }
         else {
             m_vertexBuffers.push_back(vertexBuffer);
         }
 
+        // Crear Index Buffer
         Buffer indexBuffer;
         hr = indexBuffer.init(device, mesh, D3D11_BIND_INDEX_BUFFER);
         if (FAILED(hr)) {
-            ERROR("Actor", "setMesh", "Failed to create new indexBuffer");
+            ERROR("Actor", "setMesh", "Fallo al crear indexBuffer");
         }
         else {
             m_indexBuffers.push_back(indexBuffer);

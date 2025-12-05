@@ -7,7 +7,7 @@ Model3D::load(const std::string& path) {
 
 	init();
 
-	bool success = true; // Cambia esto seg�n el resultado real.
+	bool success = true;
 
 	SetState(success ? ResourceState::Loaded : ResourceState::Failed);
 	return success;

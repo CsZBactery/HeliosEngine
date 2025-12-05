@@ -4,22 +4,32 @@
 
 HRESULT
 SamplerState::init(Device& device) {
+    // Sin dispositivo no podemos reservar memoria en la GPU
     if (!device.m_device) {
         ERROR("SamplerState", "init", "Device is nullptr");
         return E_POINTER;
     }
 
-    // Create the sample state
+    // Configuramos la descripcion del muestreo.
+    // Esto define las "reglas de juego" para leer pixeles de las texturas.
     D3D11_SAMPLER_DESC sampDesc;
     ZeroMemory(&sampDesc, sizeof(sampDesc));
+
+    // FILTER: Usamos LINEAR para suavizar la imagen (Antialiasing basico de textura).
+    // Si quisieras un look "Retro" o "Minecraft", aqui usarias D3D11_FILTER_MIN_MAG_MIP_POINT.
     sampDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+
+    // ADDRESS: WRAP significa que si las coordenadas UV son mayores a 1.0, 
+    // la textura se repite en mosaico (Tileable).
     sampDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
     sampDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
     sampDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+
     sampDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
     sampDesc.MinLOD = 0;
     sampDesc.MaxLOD = D3D11_FLOAT32_MAX;
 
+    // Creamos el objeto de estado
     HRESULT hr = device.CreateSamplerState(&sampDesc, &m_sampler);
     if (FAILED(hr)) {
         ERROR("SamplerState", "init", "Failed to create SamplerState");
@@ -27,12 +37,11 @@ SamplerState::init(Device& device) {
     }
 
     return S_OK;
-
 }
 
 void
 SamplerState::update() {
-    //No hay logica de actualizacion 
+    // Los Samplers suelen ser estaticos, no cambian cada frame.
 }
 
 void
@@ -45,12 +54,11 @@ SamplerState::render(DeviceContext& deviceContext,
         return;
     }
 
+    // Le decimos al Pixel Shader: "Usa estas reglas para leer la textura en el slot X"
     deviceContext.PSSetSamplers(StartSlot, NumSampler, &m_sampler);
 }
 
 void
 SamplerState::destroy() {
-    if (m_sampler) {
-        SAFE_RELEASE(m_sampler);
-    }
+    SAFE_RELEASE(m_sampler);
 }

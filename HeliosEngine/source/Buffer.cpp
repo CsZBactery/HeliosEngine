@@ -2,17 +2,20 @@
 #include "../include/Device.h"
 #include "../include/DeviceContext.h"
 
-
 HRESULT
 Buffer::init(Device& device, const MeshComponent& mesh, unsigned int bindFlag) {
+	// Validaciones basicas de seguridad
 	if (!device.m_device) {
 		ERROR("ShaderProgram", "init", "Device is null.");
 		return E_POINTER;
 	}
+
+	// Si pedimos Vertex Buffer, asegurarnos que la malla tenga vertices
 	if ((bindFlag & D3D11_BIND_VERTEX_BUFFER) && mesh.m_vertex.empty()) {
 		ERROR("Buffer", "init", "Vertex buffer is empty");
 		return E_INVALIDARG;
 	}
+	// Si pedimos Index Buffer, asegurarnos que la malla tenga indices
 	if ((bindFlag & D3D11_BIND_INDEX_BUFFER) && mesh.m_index.empty()) {
 		ERROR("Buffer", "init", "Index buffer is empty");
 		return E_INVALIDARG;
@@ -21,15 +24,17 @@ Buffer::init(Device& device, const MeshComponent& mesh, unsigned int bindFlag) {
 	D3D11_BUFFER_DESC desc = {};
 	D3D11_SUBRESOURCE_DATA data = {};
 
+	// Configuracion por defecto: Memoria GPU (Default), sin acceso directo CPU
 	desc.Usage = D3D11_USAGE_DEFAULT;
 	desc.CPUAccessFlags = 0;
 	m_bindFlag = bindFlag;
 
+	// Calculamos el tamao total del buffer basandonos en el tipo solicitado
 	if (bindFlag & D3D11_BIND_VERTEX_BUFFER) {
-		m_stride = sizeof(SimpleVertex);
+		m_stride = sizeof(SimpleVertex); // Importante para que la GPU sepa cuanto "camina" por vertice
 		desc.ByteWidth = m_stride * static_cast<unsigned int>(mesh.m_vertex.size());
 		desc.BindFlags = (D3D11_BIND_FLAG)bindFlag;
-		data.pSysMem = mesh.m_vertex.data();
+		data.pSysMem = mesh.m_vertex.data(); // Puntero a los datos crudos
 	}
 	else if (bindFlag & D3D11_BIND_INDEX_BUFFER) {
 		m_stride = sizeof(unsigned int);
@@ -38,11 +43,15 @@ Buffer::init(Device& device, const MeshComponent& mesh, unsigned int bindFlag) {
 		data.pSysMem = mesh.m_index.data();
 	}
 
+	// Llamamos a la API interna para crear el recurso
 	return createBuffer(device, desc, &data);
 }
 
 HRESULT
 Buffer::init(Device& device, unsigned int ByteWidth) {
+	// Sobrecarga especifica para CONSTANT BUFFERS
+	// Estos buffers (matrices, luces) suelen ser dinamicos y pequeos
+
 	if (!device.m_device) {
 		ERROR("ShaderProgram", "init", "Device is null.");
 		return E_POINTER;
@@ -55,10 +64,11 @@ Buffer::init(Device& device, unsigned int ByteWidth) {
 
 	D3D11_BUFFER_DESC desc = {};
 	desc.Usage = D3D11_USAGE_DEFAULT;
-	desc.ByteWidth = ByteWidth;
+	desc.ByteWidth = ByteWidth; // Ojo: Debe ser multiplo de 16 bytes
 	desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 	m_bindFlag = desc.BindFlags;
 
+	// Pasamos nullptr en data porque se actualizara mas tarde con update()
 	return createBuffer(device, desc, nullptr);
 }
 
@@ -70,6 +80,8 @@ Buffer::update(DeviceContext& deviceContext,
 	const void* pSrcData,
 	unsigned int SrcRowPitch,
 	unsigned int SrcDepthPitch) {
+
+	// Validaciones
 	if (!m_buffer) {
 		ERROR("ShaderProgram", "update", "m_buffer is null.");
 		return;
@@ -78,14 +90,15 @@ Buffer::update(DeviceContext& deviceContext,
 		ERROR("ShaderProgram", "update", "pSrcData is null.");
 		return;
 	}
+
+	// Funcion clave para enviar datos de CPU (RAM) a GPU (VRAM)
+	// Se usa mucho para actualizar matrices de mundo/vista/proyeccion
 	deviceContext.m_deviceContext->UpdateSubresource(m_buffer,
 		DstSubresource,
 		pDstBox,
 		pSrcData,
 		SrcRowPitch,
 		SrcDepthPitch);
-
-
 }
 
 void
@@ -94,6 +107,7 @@ Buffer::render(DeviceContext& deviceContext,
 	unsigned int NumBuffers,
 	bool setPixelShader,
 	DXGI_FORMAT format) {
+
 	if (!deviceContext.m_deviceContext) {
 		ERROR("RenderTargetView", "render", "DeviceContext is nullptr.");
 		return;
@@ -103,19 +117,28 @@ Buffer::render(DeviceContext& deviceContext,
 		return;
 	}
 
+	// Dependiendo del tipo de buffer, lo "enchufamos" en una parte distinta del pipeline
 	switch (m_bindFlag) {
 	case D3D11_BIND_VERTEX_BUFFER:
+		// Input Assembler: Aqui le decimos a la GPU "estos son los vertices a dibujar"
 		deviceContext.m_deviceContext->IASetVertexBuffers(StartSlot, NumBuffers, &m_buffer, &m_stride, &m_offset);
 		break;
+
 	case D3D11_BIND_CONSTANT_BUFFER:
+		// Vertex Shader: Matrices y datos globales
 		deviceContext.m_deviceContext->VSSetConstantBuffers(StartSlot, NumBuffers, &m_buffer);
+
+		// Opcionalmente, tambien lo enviamos al Pixel Shader (ej: datos de luces, colores de material)
 		if (setPixelShader) {
 			deviceContext.m_deviceContext->PSSetConstantBuffers(StartSlot, NumBuffers, &m_buffer);
 		}
 		break;
+
 	case D3D11_BIND_INDEX_BUFFER:
+		// Input Assembler: Definimos el orden de dibujo (indices)
 		deviceContext.m_deviceContext->IASetIndexBuffer(m_buffer, format, m_offset);
 		break;
+
 	default:
 		ERROR("Buffer", "render", "Unsupported BindFlag");
 		break;
@@ -124,6 +147,7 @@ Buffer::render(DeviceContext& deviceContext,
 
 void
 Buffer::destroy() {
+	// Macro segura para liberar interfaz COM
 	SAFE_RELEASE(m_buffer);
 }
 
@@ -131,11 +155,13 @@ HRESULT
 Buffer::createBuffer(Device& device,
 	D3D11_BUFFER_DESC& desc,
 	D3D11_SUBRESOURCE_DATA* initData) {
+
 	if (!device.m_device) {
 		ERROR("Buffer", "createBuffer", "Device is nullptr");
 		return E_POINTER;
 	}
 
+	// Llamada nativa de DirectX 11 para reservar la memoria
 	HRESULT hr = device.CreateBuffer(&desc, initData, &m_buffer);
 	if (FAILED(hr)) {
 		ERROR("Buffer", "createBuffer", "Failed to create buffer");

@@ -1,16 +1,17 @@
 ﻿#include "../include/Prerequisites.h"
 #include "../include/BaseApp.h"
 
-// Punto de entrada de la app en Windows (subsystem: Windows, sin consola).
-// hInstance: handle de la instancia actual.
-// hPrevInstance: siempre null en Win32 modernas (no se usa).
-// lpCmdLine: argumentos de línea de comandos (Unicode).
-// nCmdShow: cómo mostrar la ventana al iniciar.
+// Entry Point oficial de Windows.
+// Usamos wWinMain en lugar de main() standard para que NO se abra una consola de comandos negra de fondo.
 int WINAPI
 wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLine, int nCmdShow) {
-    // Crea la aplicación base (inicializa ventana, DX, etc. en el constructor/Init).
+
+    // Creamos la instancia de nuestra aplicacion.
+    // Aqui se pasan los handles de Windows, pero la inicializacion pesada (DirectX) ocurre dentro del .init()
     BaseApp app(hInstance, nCmdShow);
 
-    // Ejecuta el loop principal (procesa mensajes y renderiza frames).O
+    // Lanzamos el bucle principal (Game Loop).
+    // El programa se quedara "atrapado" aqui dentro procesando frames infinitamente
+    // hasta que el usuario cierre la ventana o mandemos un PostQuitMessage.
     return app.run(hInstance, nCmdShow);
 }
