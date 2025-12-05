@@ -1,30 +1,21 @@
 ﻿#pragma once
 #include "Prerequisites.h"
 
-//Forward Declarations
-class
-    Device;
-
-class
-    DeviceContext;
-
-class
-    Texture;
-
-class
-    DepthStencilView;
-
+// Forward Declarations
+class Device;
+class DeviceContext;
+class Texture;
+class DepthStencilView;
 
 /**
  * @class RenderTargetView
- * @brief Encapsula un Render Target View (RTV) de DirectX 11.
+ * @brief Encapsula una Vista de Destino de Renderizado (RTV) de DirectX 11.
  *
- * Esta clase administra la creaci�n, uso y destrucci�n de un
- * ID3D11RenderTargetView, el cual se utiliza para renderizar
- * gr�ficos en una textura o en el back buffer.
+ * Esta clase administra la creación, uso y destrucción de un ID3D11RenderTargetView.
+ * Un RTV es la interfaz que permite al Pipeline Gráfico escribir el resultado
+ * de los píxeles (colores) en una textura o en el Back Buffer de la pantalla.
  */
-class
-    RenderTargetView {
+class RenderTargetView {
 public:
 
     /**
@@ -38,24 +29,30 @@ public:
     ~RenderTargetView() = default;
 
     /**
-     * @brief Inicializa el Render Target View usando el back buffer.
+     * @brief Inicializa el RTV apuntando al Back Buffer (Pantalla principal).
      *
-     * @param device Referencia al dispositivo de DirectX.
-     * @param backBuffer Textura del back buffer.
-     * @param format Formato de la textura (DXGI_FORMAT).
-     * @return HRESULT C�digo de resultado (S_OK si se inicializ� correctamente).
+     * Se utiliza normalmente durante la inicialización de la SwapChain para
+     * indicar que queremos dibujar directamente en la ventana.
+     *
+     * @param device Referencia al dispositivo para crear el recurso.
+     * @param backBuffer La textura del Back Buffer obtenida de la SwapChain.
+     * @param format Formato de color (ej: DXGI_FORMAT_R8G8B8A8_UNORM).
+     * @return HRESULT S_OK si se inicializó correctamente.
      */
     HRESULT
         init(Device& device, Texture& backBuffer, DXGI_FORMAT format);
 
     /**
-     * @brief Inicializa el Render Target View con una textura personalizada.
+     * @brief Inicializa el RTV para una Textura personalizada (Render to Texture).
      *
-     * @param device Referencia al dispositivo de DirectX.
-     * @param inTex Textura de entrada.
-     * @param viewDimension Dimensi�n del RTV (por ejemplo, TEXTURE2D, TEXTURE2DARRAY, etc.).
-     * @param format Formato de la textura (DXGI_FORMAT).
-     * @return HRESULT C�digo de resultado (S_OK si se inicializ� correctamente).
+     * Útil para efectos de post-procesado, mapas de sombras, o espejos, donde
+     * renderizamos la escena en una textura aparte en lugar de la pantalla.
+     *
+     * @param device Referencia al dispositivo.
+     * @param inTex La textura donde guardaremos el renderizado.
+     * @param viewDimension Tipo de vista (D3D11_RTV_DIMENSION_TEXTURE2D, etc.).
+     * @param format Formato de los datos.
+     * @return HRESULT S_OK si se inicializó correctamente.
      */
     HRESULT
         init(Device& device,
@@ -64,21 +61,21 @@ public:
             DXGI_FORMAT format);
 
     /**
-     * @brief Actualiza el estado del Render Target View.
-     *
-     * Funci�n placeholder que puede usarse para l�gica de actualizaci�n
-     * relacionada al render target.
+     * @brief Actualiza lógica interna (Placeholder).
      */
     void
         update();
 
     /**
-     * @brief Renderiza utilizando este Render Target View y un DepthStencilView.
+     * @brief Limpia el objetivo y lo asigna al Pipeline (Fase Output Merger).
      *
-     * @param deviceContext Contexto del dispositivo para emitir comandos de render.
-     * @param depthStencilView Referencia al DepthStencilView asociado.
-     * @param numViews N�mero de vistas a aplicar.
-     * @param clearColor Color con el que se limpia el render target (RGBA, 4 componentes).
+     * Prepara este RTV y el DepthStencilView para recibir el dibujo del frame actual.
+     * También limpia la pantalla con el color de fondo especificado.
+     *
+     * @param deviceContext Contexto para ejecutar comandos.
+     * @param depthStencilView Vista de profundidad para el test Z-Buffer.
+     * @param numViews Número de render targets simultáneos (usualmente 1).
+     * @param clearColor Array [R,G,B,A] con el color de limpieza (fondo).
      */
     void
         render(DeviceContext& deviceContext,
@@ -87,24 +84,27 @@ public:
             const float clearColor[4]);
 
     /**
-     * @brief Renderiza utilizando este Render Target View sin un DepthStencilView.
+     * @brief Asigna el RTV al Pipeline SIN limpiar y SIN DepthStencil.
      *
-     * @param deviceContext Contexto del dispositivo.
-     * @param numViews N�mero de vistas a aplicar.
+     * Útil para dibujo 2D (UI) o pases de composición donde no se necesita
+     * borrar lo anterior ni verificar profundidad.
+     *
+     * @param deviceContext Contexto para ejecutar comandos.
+     * @param numViews Número de vistas.
      */
     void
         render(DeviceContext& deviceContext,
             unsigned int numViews);
 
     /**
-     * @brief Libera los recursos asociados al Render Target View.
+     * @brief Libera el recurso COM de DirectX.
      */
     void
         destroy();
 
 private:
     /**
-     * @brief Puntero al objeto ID3D11RenderTargetView de DirectX 11.
+     * @brief Puntero nativo al recurso RTV de DirectX 11.
      */
     ID3D11RenderTargetView* m_renderTargetView = nullptr;
 };

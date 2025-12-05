@@ -1,22 +1,21 @@
 ﻿#pragma once
 #include "Prerequisites.h"
 
-class
-    Device;
-
-class
-    DeviceContext;
+class Device;
+class DeviceContext;
 
 /**
  * @class Texture
- * @brief Representa una textura en DirectX 11.
+ * @brief Gestiona recursos de Textura 2D y sus Vistas (SRV) en DirectX 11.
  *
- * Esta clase encapsula la creaci�n, gesti�n y destrucci�n de texturas 2D
- * en DirectX, as� como su vinculaci�n al pipeline gr�fico. Puede inicializarse
- * desde archivo, como un recurso en memoria, o copiando otra textura.
+ * Esta clase encapsula dos objetos fundamentales de DX11:
+ * 1. **ID3D11Texture2D:** El recurso de memoria cruda que contiene los datos de la imagen.
+ * 2. **ID3D11ShaderResourceView (SRV):** La "lente" a través de la cual el Shader puede leer esa textura.
+ *
+ * Puede inicializarse de tres formas: cargando un archivo (PNG/JPG), creando una textura vacía
+ * (para Render Targets), o copiando otra textura.
  */
-class
-    Texture {
+class Texture {
 public:
     /**
      * @brief Constructor por defecto.
@@ -29,12 +28,15 @@ public:
     ~Texture() = default;
 
     /**
-     * @brief Inicializa la textura desde un archivo de imagen.
+     * @brief Carga una textura desde un archivo de imagen en disco.
      *
-     * @param device Referencia al dispositivo de DirectX.
-     * @param textureName Nombre o ruta del archivo de la textura.
-     * @param extensionType Tipo de extensi�n de la textura (ej. PNG, JPG).
-     * @return HRESULT C�digo de resultado (S_OK si se carg� correctamente).
+     * Utiliza librerías de carga (como STB Image o DirectXTK) para leer archivos
+     * PNG, JPG, DDS, etc., y subirlos a la memoria de la GPU.
+     *
+     * @param device Referencia al dispositivo (Factory) para crear el recurso.
+     * @param textureName Ruta relativa o absoluta del archivo (ej: "Assets/Textures/Muro.png").
+     * @param extensionType Tipo de archivo para ayudar al cargador (ej: PNG, DDS).
+     * @return HRESULT S_OK si el archivo se encontró y cargó correctamente.
      */
     HRESULT
         init(Device& device,
@@ -42,16 +44,21 @@ public:
             ExtensionType extensionType);
 
     /**
-     * @brief Inicializa la textura como un recurso vac�o en memoria.
+     * @brief Crea una textura vacía con parámetros específicos (Manual).
      *
-     * @param device Referencia al dispositivo de DirectX.
-     * @param widht Ancho de la textura.
-     * @param height Alto de la textura.
-     * @param Format Formato de la textura (DXGI_FORMAT).
-     * @param BindFlags Banderas de enlace (ej. render target, shader resource).
-     * @param sampleCount N�mero de muestras para multisampling (default = 1).
-     * @param qualityLevels Niveles de calidad para multisampling (default = 0).
-     * @return HRESULT C�digo de resultado (S_OK si se cre� correctamente).
+     * Este método es fundamental para crear:
+     * - El Back Buffer (cuando resize).
+     * - Texturas para Render Target (Renderizar a textura).
+     * - Mapas de sombras (Depth Buffers).
+     *
+     * @param device Referencia al dispositivo.
+     * @param width Ancho en píxeles.
+     * @param height Alto en píxeles.
+     * @param Format Formato de los píxeles (ej: DXGI_FORMAT_R8G8B8A8_UNORM).
+     * @param BindFlags Banderas que indican cómo se usará (D3D11_BIND_SHADER_RESOURCE, BIND_RENDER_TARGET, etc.).
+     * @param sampleCount Muestras MSAA (1 = desactivado).
+     * @param qualityLevels Calidad MSAA.
+     * @return HRESULT S_OK si la reserva de memoria fue exitosa.
      */
     HRESULT
         init(Device& device,
@@ -63,36 +70,42 @@ public:
             unsigned int qualityLevels = 0);
 
     /**
-     * @brief Inicializa la textura copiando desde otra textura existente.
+     * @brief Inicializa esta textura tomando posesión de un recurso existente.
      *
-     * @param device Referencia al dispositivo de DirectX.
-     * @param textureRef Textura de referencia para crear la nueva.
-     * @param format Formato de la textura (DXGI_FORMAT).
-     * @return HRESULT C�digo de resultado.
+     * Útil para inicializar la clase Texture a partir del puntero nativo del BackBuffer
+     * que nos entrega la SwapChain.
+     *
+     * @param device Referencia al dispositivo.
+     * @param textureRef Objeto textura del cual copiaremos o referenciaremos datos.
+     * @param format Formato para crear la vista (SRV).
+     * @return HRESULT S_OK si la operación fue exitosa.
      */
     HRESULT
         init(Device& device, Texture& textureRef, DXGI_FORMAT format);
 
     /**
-     * @brief Actualiza el estado de la textura.
+     * @brief Actualiza la lógica de la textura (si aplica).
      *
-     * Placeholder para l�gica de actualizaci�n de texturas.
+     * @note Generalmente las texturas estáticas no requieren update por frame.
      */
     void
         update();
 
     /**
-     * @brief Renderiza la textura en el pipeline gr�fico.
+     * @brief Enlaza la textura al Pipeline Gráfico para que el Shader la lea.
      *
-     * @param deviceContext Contexto del dispositivo de DirectX.
-     * @param StartSlot Slot de inicio donde se asignar� la textura.
-     * @param NumView N�mero de vistas de recurso de shader a asignar.
+     * Llama internamente a `PSSetShaderResources`. Esto hace que la textura esté
+     * disponible en los registros t0, t1, etc. del Pixel Shader.
+     *
+     * @param deviceContext Contexto de renderizado.
+     * @param StartSlot Ranura (Slot) donde se enlazará (0 para t0, 1 para t1...).
+     * @param NumViews Número de vistas a enlazar (generalmente 1).
      */
     void
         render(DeviceContext& deviceContext, unsigned int StartSlot, unsigned int NumViews);
 
     /**
-     * @brief Libera los recursos asociados a la textura.
+     * @brief Libera la memoria de la textura y su vista (SRV).
      */
     void
         destroy();
@@ -100,17 +113,22 @@ public:
 
 public:
     /**
-     * @brief Puntero al recurso de textura 2D en DirectX 11.
+     * @brief Puntero al recurso de textura 2D nativo de DirectX 11.
+     *
+     * Contiene los datos brutos de la imagen en VRAM.
      */
     ID3D11Texture2D* m_texture = nullptr;
 
     /**
-     * @brief Vista de recurso de shader creada a partir de la textura.
+     * @brief Vista de Recurso de Shader (SRV).
+     *
+     * Es la interfaz que permite a los Shaders leer la textura. Sin esto,
+     * la textura existe en memoria pero es invisible para el Pixel Shader.
      */
     ID3D11ShaderResourceView* m_textureFromImg = nullptr;
 
     /**
-     * @brief Nombre o ruta de la textura cargada.
+     * @brief Nombre del archivo o identificador de depuración.
      */
     std::string m_textureName;
 };

@@ -2,14 +2,17 @@
 #include "Prerequisites.h"
 
 /**
- * @brief Encapsula el dispositivo de DirectX 11.
+ * @class Device
+ * @brief Encapsula la interfaz ID3D11Device de DirectX 11.
  *
- * La clase Device se encarga de inicializar, actualizar, renderizar
- * y destruir el dispositivo, as� como de crear recursos gr�ficos
- * fundamentales como shaders, buffers, texturas y estados.
+ * La clase Device actúa como una "Fábrica" de recursos. Es la responsable de
+ * reservar memoria en la tarjeta gráfica para crear texturas, shaders, buffers
+ * y vistas.
+ *
+ * A diferencia del DeviceContext (que se usa para renderizar), el Device
+ * se usa principalmente durante la inicialización (Init).
  */
-class
-    Device {
+class Device {
 public:
     /**
      * @brief Constructor por defecto.
@@ -22,36 +25,42 @@ public:
     ~Device() = default;
 
     /**
-     * @brief Inicializa el dispositivo de DirectX.
+     * @brief Inicializa el dispositivo y la cadena de intercambio (si corresponde).
+     *
+     * Crea el objeto ID3D11Device y ID3D11DeviceContext nativos.
      */
     void
         init();
 
     /**
-     * @brief Actualiza el estado interno del dispositivo.
+     * @brief Actualiza el estado del dispositivo.
+     *
+     * Generalmente no requiere lógica por frame, pero se mantiene por estructura del motor.
      */
     void
         update();
 
     /**
-     * @brief Realiza las operaciones de renderizado con el dispositivo.
+     * @brief Renderiza o presenta información del dispositivo.
      */
     void
         render();
 
     /**
-     * @brief Libera los recursos asociados al dispositivo.
+     * @brief Libera la memoria del dispositivo y destruye los punteros COM.
      */
     void
         destroy();
 
     /**
-     * @brief Crea una vista de render target.
+     * @brief Crea una Vista de Render Target (RTV).
      *
-     * @param pResource Recurso de DirectX (ejemplo: textura).
-     * @param pDesc Descriptor de la vista del render target.
-     * @param ppRTView Puntero doble que recibe la vista creada.
-     * @return HRESULT C�digo de estado de la operaci�n.
+     * Permite usar una textura (como el BackBuffer) como destino de dibujo.
+     *
+     * @param pResource Puntero al recurso (Textura) sobre el que se creará la vista.
+     * @param pDesc Descripción de la configuración de la vista (nullptr para defaults).
+     * @param ppRTView Puntero de salida donde se guardará la dirección de la nueva vista.
+     * @return HRESULT S_OK si la creación fue exitosa.
      */
     HRESULT
         CreateRenderTargetView(ID3D11Resource* pResource,
@@ -59,12 +68,12 @@ public:
             ID3D11RenderTargetView** ppRTView);
 
     /**
-     * @brief Crea una textura 2D.
+     * @brief Crea una Textura 2D en la GPU.
      *
-     * @param pDesc Descriptor de la textura.
-     * @param pInitialData Datos iniciales para poblar la textura.
-     * @param ppTexture2D Puntero doble que recibe la textura creada.
-     * @return HRESULT C�digo de estado de la operaci�n.
+     * @param pDesc Configuración de la textura (ancho, alto, formato, uso).
+     * @param pInitialData Datos iniciales (píxeles) para llenar la textura (opcional).
+     * @param ppTexture2D Puntero de salida donde se guardará la nueva textura.
+     * @return HRESULT S_OK si la creación fue exitosa.
      */
     HRESULT
         CreateTexture2D(const D3D11_TEXTURE2D_DESC* pDesc,
@@ -72,12 +81,14 @@ public:
             ID3D11Texture2D** ppTexture2D);
 
     /**
-     * @brief Crea una vista de profundidad y stencil.
+     * @brief Crea una Vista de Profundidad/Stencil (DSV).
      *
-     * @param pResource Recurso de DirectX (ejemplo: textura de profundidad).
-     * @param pDesc Descriptor de la vista de profundidad/stencil.
-     * @param ppDepthStencilView Puntero doble que recibe la vista creada.
-     * @return HRESULT C�digo de estado de la operaci�n.
+     * Necesaria para activar el Z-Buffer (profundidad).
+     *
+     * @param pResource Recurso de textura que servirá como buffer de profundidad.
+     * @param pDesc Descripción de la vista.
+     * @param ppDepthStencilView Puntero de salida para la vista creada.
+     * @return HRESULT S_OK si la creación fue exitosa.
      */
     HRESULT
         CreateDepthStencilView(ID3D11Resource* pResource,
@@ -85,59 +96,62 @@ public:
             ID3D11DepthStencilView** ppDepthStencilView);
 
     /**
-     * @brief Crea un shader de v�rtices.
+     * @brief Compila y crea un Vertex Shader en la GPU.
      *
-     * @param pShaderBytecode C�digo compilado del shader.
-     * @param BytecodeLength Tama�o en bytes del c�digo compilado.
-     * @param pClassLinkage Objeto de enlace de clases (opcional).
-     * @param ppVertexShader Puntero doble que recibe el shader creado.
-     * @return HRESULT C�digo de estado de la operaci�n.
+     * @param pShaderBytecode Puntero al código binario compilado del shader (.cso o blob).
+     * @param BytecodeLength Tamaño en bytes del código compilado.
+     * @param pClassLinkage Enlace de clases dinámico (usualmente nullptr).
+     * @param ppVertexShader Puntero de salida para el Shader creado.
+     * @return HRESULT S_OK si la creación fue exitosa.
      */
     HRESULT
         CreateVertexShader(const void* pShaderBytecode,
-            unsigned int BytecodeLength, //unsigned
+            unsigned int BytecodeLength,
             ID3D11ClassLinkage* pClassLinkage,
             ID3D11VertexShader** ppVertexShader);
 
     /**
-     * @brief Crea un dise�o de entrada (Input Layout).
+     * @brief Crea el Input Layout (Formato de entrada de vértices).
      *
-     * @param pInputElementDescs Array de descriptores de elementos de entrada.
-     * @param NumElements N�mero de elementos en el array.
-     * @param pShaderBytecodeWithInputSignature Firma de entrada del shader.
-     * @param BytecodeLength Tama�o en bytes del c�digo compilado.
-     * @param ppInputLayout Puntero doble que recibe el layout creado.
-     * @return HRESULT C�digo de estado de la operaci�n.
+     * Define cómo se interpretan los datos de los vértices (Posición, Normal, UV)
+     * para que coincidan con el Vertex Shader.
+     *
+     * @param pInputElementDescs Array que describe cada elemento del vértice.
+     * @param NumElements Cantidad de elementos en el array.
+     * @param pShaderBytecodeWithInputSignature Código del VS para validar la firma.
+     * @param BytecodeLength Tamaño del código del shader.
+     * @param ppInputLayout Puntero de salida para el Layout creado.
+     * @return HRESULT S_OK si la creación fue exitosa.
      */
     HRESULT
         CreateInputLayout(const D3D11_INPUT_ELEMENT_DESC* pInputElementDescs,
             UINT NumElements,
             const void* pShaderBytecodeWithInputSignature,
-            unsigned int BytecodeLength, //unsigned
+            unsigned int BytecodeLength,
             ID3D11InputLayout** ppInputLayout);
 
     /**
-     * @brief Crea un shader de p�xeles.
+     * @brief Compila y crea un Pixel Shader en la GPU.
      *
-     * @param pShaderBytecode C�digo compilado del shader.
-     * @param BytecodeLength Tama�o en bytes del c�digo compilado.
-     * @param pClassLinkage Objeto de enlace de clases (opcional).
-     * @param ppPixelShader Puntero doble que recibe el shader creado.
-     * @return HRESULT C�digo de estado de la operaci�n.
+     * @param pShaderBytecode Puntero al código binario compilado.
+     * @param BytecodeLength Tamaño en bytes.
+     * @param pClassLinkage Enlace de clases (usualmente nullptr).
+     * @param ppPixelShader Puntero de salida para el Shader creado.
+     * @return HRESULT S_OK si la creación fue exitosa.
      */
     HRESULT
         CreatePixelShader(const void* pShaderBytecode,
-            unsigned int BytecodeLength, //unsigned
+            unsigned int BytecodeLength,
             ID3D11ClassLinkage* pClassLinkage,
             ID3D11PixelShader** ppPixelShader);
 
     /**
-     * @brief Crea un buffer gen�rico.
+     * @brief Crea un Buffer genérico (Vertex, Index o Constant).
      *
-     * @param pDesc Descriptor del buffer.
-     * @param pInitialData Datos iniciales para poblar el buffer.
-     * @param ppBuffer Puntero doble que recibe el buffer creado.
-     * @return HRESULT C�digo de estado de la operaci�n.
+     * @param pDesc Descripción del tamaño y tipo de buffer.
+     * @param pInitialData Datos iniciales para rellenar el buffer.
+     * @param ppBuffer Puntero de salida para el buffer creado.
+     * @return HRESULT S_OK si la creación fue exitosa.
      */
     HRESULT
         CreateBuffer(const D3D11_BUFFER_DESC* pDesc,
@@ -147,14 +161,17 @@ public:
     /**
      * @brief Crea un estado de muestreo (Sampler State).
      *
-     * @param pSamplerDesc Descriptor del sampler.
-     * @param ppSamplerState Puntero doble que recibe el estado de muestreo creado.
-     * @return HRESULT C�digo de estado de la operaci�n.
+     * Define cómo se leen las texturas (filtros bilineales, repetición, clamp, etc.).
+     *
+     * @param pSamplerDesc Descripción de la configuración del sampler.
+     * @param ppSamplerState Puntero de salida para el estado creado.
+     * @return HRESULT S_OK si la creación fue exitosa.
      */
     HRESULT
         CreateSamplerState(const D3D11_SAMPLER_DESC* pSamplerDesc,
             ID3D11SamplerState** ppSamplerState);
 
 public:
-    ID3D11Device* m_device = nullptr; /**< Puntero al dispositivo de DirectX. */
+    /// Puntero nativo a la interfaz del dispositivo de DirectX 11.
+    ID3D11Device* m_device = nullptr;
 };
