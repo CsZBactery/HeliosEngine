@@ -24,60 +24,50 @@ public:
     virtual ~Entity() = default;
 
     /**
-     * @brief Inicialización temprana de la entidad.
-     *
-     * Método virtual puro. Se ejecuta antes de init() para configurar referencias iniciales.
+     * @brief Inicialización temprana.
+     * Se ejecuta antes de init() para configurar referencias o estados iniciales.
      */
     virtual void awake() = 0;
 
     /**
      * @brief Inicializa la entidad.
-     *
      * Método virtual puro. Las clases hijas deben implementar cómo inicializan sus recursos.
      */
     virtual void init() = 0;
 
     /**
-     * @brief Método virtual puro para actualizar la entidad.
-     *
+     * @brief Actualiza la lógica de la entidad.
      * @param deltaTime Tiempo transcurrido desde la última actualización.
      * @param deviceContext Contexto del dispositivo (necesario si algún componente actualiza buffers).
      */
     virtual void update(float deltaTime, DeviceContext& deviceContext) = 0;
 
     /**
-     * @brief Método virtual puro para renderizar la entidad.
-     *
+     * @brief Renderiza la entidad.
      * @param deviceContext Contexto del dispositivo para operaciones gráficas.
      */
     virtual void render(DeviceContext& deviceContext) = 0;
 
     /**
-     * @brief Método virtual puro para destruir la entidad.
-     * Libera los recursos asociados.
+     * @brief Libera los recursos de la entidad.
      */
     virtual void destroy() = 0;
 
     /**
-     * @brief Agrega un nuevo componente a la lista de la entidad.
-     *
-     * Utiliza plantillas (templates) para asegurar que solo se agreguen clases derivadas de Component.
-     *
+     * @brief Agrega un componente a la entidad.
      * @tparam T Tipo del componente (debe heredar de Component).
-     * @param component Puntero inteligente (SharedPointer) al componente a agregar.
+     * @param component Puntero compartido al componente a agregar.
      */
     template <typename T>
     void addComponent(EU::TSharedPointer<T> component) {
-        // Verifica en tiempo de compilación que T hereda de Component.
         static_assert(std::is_base_of<Component, T>::value, "T must be derived from Component");
         m_components.push_back(component.template dynamic_pointer_cast<Component>());
     }
 
     /**
-     * @brief Busca y recupera un componente específico de la entidad.
-     *
-     * @tparam T Tipo de componente que buscamos.
-     * @return Puntero al componente si existe, o nullptr si no lo tiene.
+     * @brief Obtiene un componente específico de la entidad.
+     * @tparam T Tipo de componente a obtener.
+     * @return Puntero compartido al componente si existe, nullptr si no.
      */
     template<typename T>
     EU::TSharedPointer<T> getComponent() {
@@ -91,18 +81,7 @@ public:
     }
 
 protected:
-    /**
-     * @brief Indica si la entidad está activa en la escena.
-     */
     bool m_isActive;
-
-    /**
-     * @brief Identificador único de la entidad.
-     */
     int m_id;
-
-    /**
-     * @brief Lista de punteros compartidos a los componentes que posee esta entidad.
-     */
     std::vector<EU::TSharedPointer<Component>> m_components;
 };

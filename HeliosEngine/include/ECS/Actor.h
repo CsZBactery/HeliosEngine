@@ -43,6 +43,7 @@ public:
 
     /**
      * @brief Inicialización temprana (Heredada de Entity).
+     * Se ejecuta antes de init.
      */
     void awake() override {}
 
@@ -130,9 +131,6 @@ public:
     void renderShadow(DeviceContext& deviceContext);
 
 private:
-    // ------------------------------------------------------------------------
-    // RECURSOS GRÁFICOS
-    // ------------------------------------------------------------------------
     std::vector<MeshComponent> m_meshes;        ///< Conjunto de componentes de malla del actor.
     std::vector<Texture>       m_textures;      ///< Texturas aplicadas al actor.
     std::vector<Buffer>        m_vertexBuffers; ///< Buffers de vértices asociados a las mallas.
@@ -145,9 +143,7 @@ private:
     CBChangesEveryFrame m_model;                ///< Constante de buffer para transformaciones por frame.
     Buffer              m_modelBuffer;          ///< Constant buffer que contiene @c m_model.
 
-    // ------------------------------------------------------------------------
-    // SISTEMA DE SOMBRAS (SHADOW MAPPING)
-    // ------------------------------------------------------------------------
+    // Recursos para sombras
     ShaderProgram       m_shaderShadow;            ///< Shader program usado para renderizar sombras.
     Buffer              m_shaderBuffer;            ///< Buffer auxiliar para datos de sombras.
     //BlendState          m_shadowBlendState;        ///< Estado de blending específico para sombras.
@@ -155,10 +151,6 @@ private:
     CBChangesEveryFrame m_cbShadow;                ///< Constant buffer específico de sombras.
 
     XMFLOAT4            m_LightPos;                ///< Posición de la luz usada para proyectar sombras.
-
-    // ------------------------------------------------------------------------
-    // PROPIEDADES GENERALES
-    // ------------------------------------------------------------------------
     std::string         m_name = "Actor";          ///< Nombre identificador del actor.
     bool                castShadow = true;         ///< Indica si el actor proyecta sombras.
 };

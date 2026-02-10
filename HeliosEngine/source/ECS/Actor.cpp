@@ -1,63 +1,50 @@
-﻿#include "../include/ECS/Actor.h"
-#include "../include/MeshComponent.h"
-#include "../include/Device.h"
-#include "../include/DeviceContext.h"
-#include "../include/ECS/Transform.h" 
+﻿#include "ECS/Actor.h"
+#include "MeshComponent.h"
+#include "Device.h"
+#include "DeviceContext.h"
 
 Actor::Actor(Device& device) {
-    // ----------------------------------------------------
-    // 1. Configuración de Componentes por defecto
-    // ----------------------------------------------------
+    // Setup Default Components
     EU::TSharedPointer<Transform> transform = EU::MakeShared<Transform>();
     addComponent(transform);
-
     EU::TSharedPointer<MeshComponent> meshComponent = EU::MakeShared<MeshComponent>();
     addComponent(meshComponent);
 
-    // ----------------------------------------------------
-    // 2. Inicialización de Recursos Gráficos
-    // ----------------------------------------------------
     HRESULT hr;
     std::string classNameType = "Actor -> " + m_name;
 
-    // Inicializar Constant Buffer (Matrices por frame)
+    // Inicializar Constant Buffer
     hr = m_modelBuffer.init(device, sizeof(CBChangesEveryFrame));
     if (FAILED(hr)) {
         ERROR("Actor", classNameType.c_str(), "Failed to create new CBChangesEveryFrame");
     }
 
-    // Llamada a awake() antes de terminar la inicialización gráfica
+    // Awake
     awake();
 
-    // Inicializar Sampler State
+    // Inicializar Sampler
     hr = m_sampler.init(device);
     if (FAILED(hr)) {
         ERROR("Actor", classNameType.c_str(), "Failed to create new SamplerState");
     }
 
     // ----------------------------------------------------
-    // 3. Recursos Futuros (Comentados)
+    // RECURSOS COMENTADOS (RASTER, BLEND, SHADOWS)
     // ----------------------------------------------------
 
-    // Rasterizer (Wireframe, Cull mode)
     /*
     hr = m_rasterizer.init(device);
     if (FAILED(hr)) {
         ERROR("Actor", classNameType.c_str(), "Failed to create new Rasterizer");
     }
-    */
 
-    // Blend State (Transparencias)
-    /*
     hr = m_blendstate.init(device);
     if (FAILED(hr)) {
         ERROR("Actor", classNameType.c_str(), "Failed to create new BlendState");
     }
-    */
 
-    // Shadow Mapping Setup
-    /*
-    hr = m_shaderShadow.CreateShader(device, PIXEL_SHADER, "HybridEngine.fx");
+    // Shadow Mapping Setup (HeliosEngine.fx)
+    hr = m_shaderShadow.CreateShader(device, PIXEL_SHADER, "HeliosEngine.fx");
     if (FAILED(hr)) {
         ERROR("Main", "InitDevice", ("Failed to initialize Shadow Shader. HRESULT: " + std::to_string(hr)).c_str());
     }
@@ -81,63 +68,53 @@ Actor::Actor(Device& device) {
     */
 }
 
-void Actor::update(float deltaTime, DeviceContext& deviceContext) {
-    // Actualizar todos los componentes
+void
+Actor::update(float deltaTime, DeviceContext& deviceContext) {
+    // Update all components
     for (auto& component : m_components) {
         if (component) {
             component->update(deltaTime);
         }
     }
 
-    // Actualizar la estructura del buffer del modelo
-    // Transponemos la matriz porque HLSL usa orden por columnas
+    // Update the model buffer
     m_model.mWorld = XMMatrixTranspose(getComponent<Transform>()->matrix);
     m_model.vMeshColor = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
 
-    // Actualizar el Constant Buffer en GPU
+    // Update the constant buffer
     m_modelBuffer.update(deviceContext, nullptr, 0, nullptr, &m_model, 0, 0);
 }
 
-void Actor::render(DeviceContext& deviceContext) {
-    // ----------------------------------------------------
-    // 1. Pase de Sombras (Comentado)
-    // ----------------------------------------------------
+void
+Actor::render(DeviceContext& deviceContext) {
+    // 1) Proyectar sombra primero (sobre el suelo) - Comentado
     /*
     if (canCastShadow()) {
         renderShadow(deviceContext);
     }
     */
 
-    // ----------------------------------------------------
-    // 2. Pase Principal
-    // ----------------------------------------------------
-
-    // Configurar estados (Blend y Rasterizer comentados)
+    // 2) Estados de raster, blend y sampler para el modelo
     // m_blendstate.render(deviceContext);
     // m_rasterizer.render(deviceContext);
-
-    // Configurar Sampler
     m_sampler.render(deviceContext, 0, 1);
 
-    // Topología
     deviceContext.IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-    // Renderizar todas las sub-mallas
+    // Update buffer and render all components
     for (unsigned int i = 0; i < m_meshes.size(); i++) {
-        // Vincular Vertex e Index Buffers
         m_vertexBuffers[i].render(deviceContext, 0, 1);
         m_indexBuffers[i].render(deviceContext, 0, 1, false, DXGI_FORMAT_R32_UINT);
 
-        // Vincular el Constant Buffer estándar (World + Color) al slot 2
+        // Bind del Constant Buffer normal (world + color)
         m_modelBuffer.render(deviceContext, 2, 1, true);
 
-        // Vincular Texturas
-        if (m_meshes.size() > 0 && m_textures.size() > 0) {
+        // Render mesh texture
+        if (m_textures.size() > 0) {
             // Aseguramos no salirnos del rango si hay menos texturas que mallas
             if (i < m_textures.size()) {
-                // Renderizar textura Albedo en slot t0
                 if (m_textures.size() >= 1) {
-                    m_textures[0].render(deviceContext, 0, 1);
+                    m_textures[0].render(deviceContext, 0, 1); // Albedo -> t0
 
                     // Slots reservados para PBR (Comentados)
                     // m_textures[1].render(deviceContext, 1, 1); // Normal -> t1
@@ -147,14 +124,12 @@ void Actor::render(DeviceContext& deviceContext) {
                 }
             }
         }
-
-        // Dibujar geometría
         deviceContext.DrawIndexed(m_meshes[i].m_numIndex, 0, 0);
     }
 }
 
-void Actor::destroy() {
-    // Liberar Buffers de geometría
+void
+Actor::destroy() {
     for (auto& vertexBuffer : m_vertexBuffers) {
         vertexBuffer.destroy();
     }
@@ -163,26 +138,22 @@ void Actor::destroy() {
         indexBuffer.destroy();
     }
 
-    // Liberar Texturas
     for (auto& tex : m_textures) {
         tex.destroy();
     }
-
-    // Liberar Buffers y Estados
     m_modelBuffer.destroy();
-    m_sampler.destroy();
 
-    // Liberar recursos futuros (Comentados)
     // m_rasterizer.destroy();
     // m_blendstate.destroy();
+    m_sampler.destroy();
 }
 
-void Actor::setMesh(Device& device, std::vector<MeshComponent> meshes) {
+void
+Actor::setMesh(Device& device, std::vector<MeshComponent> meshes) {
     m_meshes = meshes;
     HRESULT hr;
-
     for (auto& mesh : m_meshes) {
-        // Crear Vertex Buffer
+        // Crear vertex buffer
         Buffer vertexBuffer;
         hr = vertexBuffer.init(device, mesh, D3D11_BIND_VERTEX_BUFFER);
         if (FAILED(hr)) {
@@ -192,7 +163,7 @@ void Actor::setMesh(Device& device, std::vector<MeshComponent> meshes) {
             m_vertexBuffers.push_back(vertexBuffer);
         }
 
-        // Crear Index Buffer
+        // Crear index buffer
         Buffer indexBuffer;
         hr = indexBuffer.init(device, mesh, D3D11_BIND_INDEX_BUFFER);
         if (FAILED(hr)) {

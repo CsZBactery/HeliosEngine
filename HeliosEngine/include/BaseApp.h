@@ -15,76 +15,70 @@
 #include "Model3D.h"
 #include "ECS/Actor.h"
 
-class BaseApp {
-public:
-    /**
-     * @brief Constructor por defecto (Sin argumentos, estilo referencia).
-     */
-    BaseApp() = default;
 
-    /**
-     * @brief Destructor.
-     */
+class
+    BaseApp {
+public:
+    BaseApp() = default;
     ~BaseApp() { destroy(); }
 
-    HRESULT awake();
+    HRESULT
+        awake();
 
-    int run(HINSTANCE hInst, int nCmdShow);
+    int
+        run(HINSTANCE hInst, int nCmdShow);
 
-    HRESULT init();
+    HRESULT
+        init();
 
-    void update(float deltaTime);
+    void
+        update(float deltaTime);
 
-    void render();
+    void
+        render();
 
-    void destroy();
+    void
+        destroy();
 
 private:
-    static LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
+    static LRESULT CALLBACK
+        WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 
 private:
-    // ------------------------------------------------------------------------
-    // CORE DX11
-    // ------------------------------------------------------------------------
-    Window              m_window;
-    Device              m_device;
-    DeviceContext       m_deviceContext;
-    SwapChain           m_swapChain;
-    Texture             m_backBuffer;
-    RenderTargetView    m_renderTargetView;
-    Texture             m_depthStencil;
-    DepthStencilView    m_depthStencilView;
-    Viewport            m_viewport;
-    ShaderProgram       m_shaderProgram;
+    Window                              m_window;
+    Device                              m_device;
+    DeviceContext                       m_deviceContext;
+    SwapChain                           m_swapChain;
+    Texture                             m_backBuffer;
+    RenderTargetView                    m_renderTargetView;
+    Texture                             m_depthStencil;
+    DepthStencilView                    m_depthStencilView;
+    Viewport                            m_viewport;
+    ShaderProgram                       m_shaderProgram;
+    //MeshComponent                     m_mesh;
+    //Buffer                            m_vertexBuffer;
+    //Buffer                            m_indexBuffer;
+    Buffer                              m_cbNeverChanges;
+    Buffer                              m_cbChangeOnResize;
+    //Buffer                            m_cbChangesEveryFrame;
 
-    // ------------------------------------------------------------------------
-    // BUFFERS
-    // ------------------------------------------------------------------------
-    Buffer              m_cbNeverChanges;
-    Buffer              m_cbChangeOnResize;
+    // ASSETS PROPIOS (HeliosEngine)
+    Texture                             m_repsolTexture; // Reemplaza a m_cyberGunAlbedo
+    //SamplerState                      m_samplerState;
 
-    // ------------------------------------------------------------------------
-    // ASSETS (Aquí corregimos los nombres para que coincidan con tu .cpp)
-    // ------------------------------------------------------------------------
-    Texture             m_repsolTexture; // Antes m_cyberGunAlbedo
+    //XMMATRIX                          m_World;
+    XMMATRIX                            m_View;
+    XMMATRIX                            m_Projection;
+    //XMFLOAT4                          m_vMeshColor;// (0.7f, 0.7f, 0.7f, 1.0f);
 
-    // ------------------------------------------------------------------------
-    // MATRICES
-    // ------------------------------------------------------------------------
-    XMMATRIX            m_View;
-    XMMATRIX            m_Projection;
-
-    // ------------------------------------------------------------------------
-    // ACTORES
-    // ------------------------------------------------------------------------
     std::vector<EU::TSharedPointer<Actor>> m_actors;
-    EU::TSharedPointer<Actor>              m_repsolActor; // Antes m_cyberGun
+    EU::TSharedPointer<Actor>              m_repsolActor; // Reemplaza a m_cyberGun
+
 
     Model3D* m_model;
 
-    // ------------------------------------------------------------------------
-    // STRUCTS CPU
-    // ------------------------------------------------------------------------
-    CBChangeOnResize    cbChangesOnResize;
-    CBNeverChanges      cbNeverChanges;
+
+    CBChangeOnResize                    cbChangesOnResize;
+    CBNeverChanges                      cbNeverChanges;
+    //CBChangesEveryFrame               cb;
 };
