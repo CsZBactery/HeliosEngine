@@ -125,6 +125,9 @@
     <ClCompile Include="source\RenderTargetView.cpp">
       <Filter>source</Filter>
     </ClCompile>
+    <ClCompile Include="source\ImGuizmo.cpp">
+      <Filter>Imgui\src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="HeliosEngine.fx">
@@ -283,6 +286,9 @@
     </ClInclude>
     <ClInclude Include="include\RenderTargetView.h">
       <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ImGuizmo.h">
+      <Filter>Imgui\Includes</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
