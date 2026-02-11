@@ -5,10 +5,9 @@
 int WINAPI
 wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLine, int nCmdShow) {
 
-    // CORRECCIÓN AQUÍ:
-    // Usamos el constructor por defecto (sin paréntesis o vacíos)
+    // Instanciamos la aplicación usando el constructor por defecto
     BaseApp app;
 
-    // Lanzamos el bucle principal pasando los handles aquí.
+    // Lanzamos el bucle principal pasando los handles de Windows
     return app.run(hInstance, nCmdShow);
 }

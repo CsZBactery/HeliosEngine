@@ -51,6 +51,18 @@
     <Filter Include="include\Utilities\Structures">
       <UniqueIdentifier>{49c70bd0-3972-46a2-8a89-dafee9e3755e}</UniqueIdentifier>
     </Filter>
+    <Filter Include="include\Utilities\GUI">
+      <UniqueIdentifier>{34deae5a-b441-4658-b4a8-dbd3d47be97e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\SceneGraph">
+      <UniqueIdentifier>{fb708829-183e-4db6-9a50-3480cca7c144}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="source\GUI">
+      <UniqueIdentifier>{87340197-cb50-4672-bfc5-d323e7f68d57}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="source\SceneGraph">
+      <UniqueIdentifier>{b1436ddd-ab6b-43ff-a02c-04fa32ca9e3f}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="HeliosEngine.cpp">
@@ -127,6 +139,15 @@
     </ClCompile>
     <ClCompile Include="source\ImGuizmo.cpp">
       <Filter>Imgui\src</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Camera.cpp">
+      <Filter>source</Filter>
+    </ClCompile>
+    <ClCompile Include="source\GUI\GUI.cpp">
+      <Filter>source\GUI</Filter>
+    </ClCompile>
+    <ClCompile Include="source\SceneGraph\SceneGraph.cpp">
+      <Filter>source\SceneGraph</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -289,6 +310,18 @@
     </ClInclude>
     <ClInclude Include="include\ImGuizmo.h">
       <Filter>Imgui\Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="include\EngineUtilities\Utilities\Camera.h">
+      <Filter>include\Utilities</Filter>
+    </ClInclude>
+    <ClInclude Include="include\EngineUtilities\GUI\GUI.h">
+      <Filter>include\Utilities\GUI</Filter>
+    </ClInclude>
+    <ClInclude Include="include\SceneGraph\HierarchyComponent.h">
+      <Filter>include\SceneGraph</Filter>
+    </ClInclude>
+    <ClInclude Include="include\SceneGraph\SceneGraph.h">
+      <Filter>include\SceneGraph</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
