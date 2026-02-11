@@ -132,16 +132,19 @@ void Model3D::ProcessFBXMesh(FbxNode* node) {
     FbxMesh* mesh = node->GetMesh();
     if (!mesh) return;
 
+    // --- CORRECCIÓN 1: Asegurar que existan normales ---
+    mesh->GenerateNormals(true, true);
+
     MeshComponent mc;
     mc.m_name = node->GetName();
 
     // Obtener UV sets si existen
-    const FbxGeometryElementUV* uvElement = nullptr;
-    if (mesh->GetElementUVCount() > 0) {
-        uvElement = mesh->GetElementUV(0);
-    }
+    const FbxGeometryElementUV* uvElement = (mesh->GetElementUVCount() > 0) ? mesh->GetElementUV(0) : nullptr;
 
-    // Iterar sobre polígonos (triángulos, ya que triangulamos antes)
+    // --- CORRECCIÓN 2: Obtener elemento de Normales ---
+    const FbxGeometryElementNormal* normalElement = (mesh->GetElementNormalCount() > 0) ? mesh->GetElementNormal(0) : nullptr;
+
+    // Iterar sobre polígonos
     int polygonCount = mesh->GetPolygonCount();
     int vertexCounter = 0;
 
@@ -162,40 +165,58 @@ void Model3D::ProcessFBXMesh(FbxNode* node) {
             // 2. UVs (COORDENADAS DE TEXTURA)
             if (uvElement) {
                 FbxVector2 uv;
-                // Mapeo: ByControlPoint o ByPolygonVertex
-                switch (uvElement->GetMappingMode()) {
-                case FbxGeometryElement::eByControlPoint:
-                    switch (uvElement->GetReferenceMode()) {
-                    case FbxGeometryElement::eDirect:
-                        uv = uvElement->GetDirectArray().GetAt(controlPointIndex);
-                        break;
-                    case FbxGeometryElement::eIndexToDirect:
-                    {
-                        int id = uvElement->GetIndexArray().GetAt(controlPointIndex);
-                        uv = uvElement->GetDirectArray().GetAt(id);
-                    }
-                    break;
-                    }
-                    break;
+                int uvIndex = -1;
 
-                case FbxGeometryElement::eByPolygonVertex:
-                {
-                    int textureUVIndex = mesh->GetTextureUVIndex(i, j);
-                    switch (uvElement->GetReferenceMode()) {
-                    case FbxGeometryElement::eDirect:
-                    case FbxGeometryElement::eIndexToDirect:
-                        uv = uvElement->GetDirectArray().GetAt(textureUVIndex);
-                        break;
-                    }
+                // Lógica unificada para mapear índices
+                if (uvElement->GetMappingMode() == FbxGeometryElement::eByControlPoint) {
+                    uvIndex = (uvElement->GetReferenceMode() == FbxGeometryElement::eDirect)
+                        ? controlPointIndex
+                        : uvElement->GetIndexArray().GetAt(controlPointIndex);
                 }
-                break;
+                else if (uvElement->GetMappingMode() == FbxGeometryElement::eByPolygonVertex) {
+                    uvIndex = (uvElement->GetReferenceMode() == FbxGeometryElement::eDirect)
+                        ? mesh->GetTextureUVIndex(i, j)
+                        : mesh->GetTextureUVIndex(i, j); // FBX SDK maneja esto un poco raro, textureUVIndex es lo mas seguro para PolygonVertex
                 }
 
-                vertex.Tex.x = (float)uv.mData[0];
-                vertex.Tex.y = 1.0f - (float)uv.mData[1]; // Invertir V para DirectX
+                // Extraer valor si el índice es válido
+                if (uvIndex != -1) {
+                    uv = uvElement->GetDirectArray().GetAt(uvIndex);
+                    vertex.Tex.x = (float)uv.mData[0];
+                    vertex.Tex.y = 1.0f - (float)uv.mData[1]; // Invertir V para DirectX
+                }
             }
             else {
                 vertex.Tex = { 0.0f, 0.0f };
+            }
+
+            // 3. NORMALES (CRÍTICO: ESTO FALTABA)
+            if (normalElement) {
+                FbxVector4 normal;
+                int normalIndex = -1;
+
+                if (normalElement->GetMappingMode() == FbxGeometryElement::eByControlPoint) {
+                    normalIndex = (normalElement->GetReferenceMode() == FbxGeometryElement::eDirect)
+                        ? controlPointIndex
+                        : normalElement->GetIndexArray().GetAt(controlPointIndex);
+                }
+                else if (normalElement->GetMappingMode() == FbxGeometryElement::eByPolygonVertex) {
+                    normalIndex = (normalElement->GetReferenceMode() == FbxGeometryElement::eDirect)
+                        ? vertexCounter
+                        : normalElement->GetIndexArray().GetAt(vertexCounter);
+                }
+
+                if (normalIndex != -1) {
+                    normal = normalElement->GetDirectArray().GetAt(normalIndex);
+                    // Asignar a tu estructura (Asegurate que SimpleVertex tiene .Normal)
+                    vertex.Normal.x = (float)normal.mData[0];
+                    vertex.Normal.y = (float)normal.mData[1];
+                    vertex.Normal.z = (float)normal.mData[2];
+                }
+            }
+            else {
+                // Si falla todo, normal hacia arriba
+                vertex.Normal = { 0.0f, 1.0f, 0.0f };
             }
 
             // Agregar vértice e índice
@@ -213,7 +234,6 @@ void Model3D::ProcessFBXMesh(FbxNode* node) {
 }
 
 void Model3D::ProcessFBXMaterials(FbxSurfaceMaterial* material) {
-    // Implementación básica para extraer nombres de texturas si fuera necesario
     if (!material) return;
 
     FbxProperty prop = material->FindProperty(FbxSurfaceMaterial::sDiffuse);

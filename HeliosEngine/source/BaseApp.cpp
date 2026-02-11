@@ -1,42 +1,37 @@
 ﻿#include "BaseApp.h"
 #include "ResourceManager.h"
-#include <array> 
+#include <array>
 #include <string>
 #include "imgui.h"
+
+// Variable global interna para el Rasterizer State (para no tocar el .h si no quieres)
+// Idealmente esto iría en el .h como m_rasterizerState, pero aquí funciona para salir del paso.
+ID3D11RasterizerState* g_pRasterizerStateNoCull = nullptr;
 
 HRESULT
 BaseApp::awake() {
     HRESULT hr = S_OK;
-
-    // Inicializacion de dlls y elementos externos al motor.
     m_sceneGraph.init();
-
-    // Log Success Message
     MESSAGE("Main", "Awake", "Application awake successfully.");
     return hr;
 }
 
 int
 BaseApp::run(HINSTANCE hInst, int nCmdShow) {
-    // 1) Initialize Window
     if (FAILED(m_window.init(hInst, nCmdShow, WndProc))) {
         ERROR("Main", "Run", "Failed to initialize window.");
         return 0;
     }
-    // 2) Awake Application
     if (FAILED(awake())) {
         ERROR("Main", "Run", "Failed to awake application.");
         return 0;
     }
-    // 3) Initialize Device and Device Context
     if (FAILED(init())) {
         ERROR("Main", "Run", "Failed to initialize device and device context.");
         return 0;
     }
-    // 4) Initialize GUI (Nuevo)
     m_gui.init(m_window, m_device, m_deviceContext);
 
-    // Main message loop
     MSG msg = {};
     LARGE_INTEGER freq, prev;
     QueryPerformanceFrequency(&freq);
@@ -65,263 +60,149 @@ HRESULT
 BaseApp::init() {
     HRESULT hr = S_OK;
 
-    // Inicializar Device primero
     m_device.init();
     m_device.m_device->GetImmediateContext(&m_deviceContext.m_deviceContext);
 
-    // Crear swapchain
     hr = m_swapChain.init(m_device, m_deviceContext, m_backBuffer, m_window);
-    if (FAILED(hr)) {
-        ERROR("Main", "InitDevice",
-            ("Failed to initialize SwpaChian. HRESULT: " + std::to_string(hr)).c_str());
-        return hr;
-    }
+    if (FAILED(hr)) return hr;
 
-    // Crear render target view
     hr = m_renderTargetView.init(m_device, m_backBuffer, DXGI_FORMAT_R8G8B8A8_UNORM);
-    if (FAILED(hr)) {
-        ERROR("Main", "InitDevice",
-            ("Failed to initialize RenderTargetView. HRESULT: " + std::to_string(hr)).c_str());
-        return hr;
-    }
+    if (FAILED(hr)) return hr;
 
-    // Crear textura de depth stencil
-    hr = m_depthStencil.init(m_device,
-        m_window.m_width,
-        m_window.m_height,
-        DXGI_FORMAT_D24_UNORM_S8_UINT,
-        D3D11_BIND_DEPTH_STENCIL,
-        4,
-        0);
-    if (FAILED(hr)) {
-        ERROR("Main", "InitDevice",
-            ("Failed to initialize DepthStencil. HRESULT: " + std::to_string(hr)).c_str());
-        return hr;
-    }
+    // Depth Stencil con Calidad 16 para coincidir con SwapChain
+    hr = m_depthStencil.init(m_device, m_window.m_width, m_window.m_height,
+        DXGI_FORMAT_D24_UNORM_S8_UINT, D3D11_BIND_DEPTH_STENCIL, 4, 16);
+    if (FAILED(hr)) return hr;
 
-    // Crear el depth stencil view
-    hr = m_depthStencilView.init(m_device,
-        m_depthStencil,
-        DXGI_FORMAT_D24_UNORM_S8_UINT);
-    if (FAILED(hr)) {
-        ERROR("Main", "InitDevice",
-            ("Failed to initialize DepthStencilView. HRESULT: " + std::to_string(hr)).c_str());
-        return hr;
-    }
+    hr = m_depthStencilView.init(m_device, m_depthStencil, DXGI_FORMAT_D24_UNORM_S8_UINT);
+    if (FAILED(hr)) return hr;
 
-    // Crear el viewport
     hr = m_viewport.init(m_window);
-    if (FAILED(hr)) {
-        ERROR("Main", "InitDevice",
-            ("Failed to initialize Viewport. HRESULT: " + std::to_string(hr)).c_str());
-        return hr;
-    }
+    if (FAILED(hr)) return hr;
 
-    // --------------------------------------------------------
-    // CARGA DE RECURSOS (SKYBOX & MOTO REPSOL)
-    // --------------------------------------------------------
+    // --- CONFIGURAR RASTERIZER (Ver ambas caras) ---
+    D3D11_RASTERIZER_DESC rasterDesc;
+    ZeroMemory(&rasterDesc, sizeof(rasterDesc));
+    rasterDesc.FillMode = D3D11_FILL_SOLID;
+    rasterDesc.CullMode = D3D11_CULL_NONE; // Dibuja todo
+    rasterDesc.FrontCounterClockwise = false;
+    rasterDesc.DepthClipEnable = true;
+    rasterDesc.MultisampleEnable = true;
 
-    // Load Skybox Faces
+    m_device.m_device->CreateRasterizerState(&rasterDesc, &g_pRasterizerStateNoCull);
+    m_deviceContext.m_deviceContext->RSSetState(g_pRasterizerStateNoCull);
+
+    // --- CARGA DE RECURSOS ---
     std::array<std::string, 6> faces = {
-        "Skybox/cubemap_0.png",
-        "Skybox/cubemap_1.png",
-        "Skybox/cubemap_2.png",
-        "Skybox/cubemap_3.png",
-        "Skybox/cubemap_4.png",
-        "Skybox/cubemap_5.png"
+        "Skybox/cubemap_0.png", "Skybox/cubemap_1.png", "Skybox/cubemap_2.png",
+        "Skybox/cubemap_3.png", "Skybox/cubemap_4.png", "Skybox/cubemap_5.png"
     };
     m_skyboxTex.CreateCubemap(m_device, m_deviceContext, faces, true);
 
-
-    // Set Repsol Actor (Tu modelo)
     m_repsolActor = EU::MakeShared<Actor>(m_device);
-
     if (!m_repsolActor.isNull()) {
-        std::vector<MeshComponent> repsolMeshes;
-
-        // Cargar Modelo
         m_model = new Model3D("Assets/Moto/repsol3.obj", ModelType::OBJ);
-        repsolMeshes = m_model->GetMeshes();
 
-        // Cargar Textura
         std::vector<Texture> repsolTextures;
         hr = m_repsolTexture.init(m_device, "Assets/Textures/BaseColor", ExtensionType::PNG);
-
         if (FAILED(hr)) {
-            // Log de error
-            char fullPath[1024];
-            _fullpath(fullPath, "Assets/Textures/BaseColor.png", 1024);
-            std::string err = "Failed to initialize Repsol Texture. Path: " + std::string(fullPath) + " HRESULT: " + std::to_string(hr);
-            ERROR("Main", "InitDevice", err.c_str());
-            return hr;
+            ERROR("Main", "Init", "Failed to load texture BaseColor.png");
+            // No retornamos error fatal para que al menos se vea la forma
         }
-        repsolTextures.push_back(m_repsolTexture);
+        else {
+            repsolTextures.push_back(m_repsolTexture);
+        }
 
-        // Configurar Actor
-        m_repsolActor->setMesh(m_device, repsolMeshes);
+        m_repsolActor->setMesh(m_device, m_model->GetMeshes());
         m_repsolActor->setTextures(repsolTextures);
         m_repsolActor->setName("RepsolBike");
-        m_actors.push_back(m_repsolActor);
 
-        // Transformación inicial
+        // Escala normal (1,1,1)
         m_repsolActor->getComponent<Transform>()->setTransform(
-            EU::Vector3(0.0f, 0.0f, 0.0f),
-            EU::Vector3(0.0f, 0.0f, 0.0f),
-            EU::Vector3(0.1f, 0.1f, 0.1f));
-    }
-    else {
-        ERROR("Main", "InitDevice", "Failed to create Repsol Actor.");
-        return E_FAIL;
+            EU::Vector3(0, 0, 0), EU::Vector3(0, 0, 0), EU::Vector3(1.0f, 1.0f, 1.0f));
+
+        m_actors.push_back(m_repsolActor);
     }
 
-    // Store the Actors in the Scene Graph (Nuevo)
     for (auto& actor : m_actors) {
         m_sceneGraph.addEntity(actor.get());
     }
 
-    // --------------------------------------------------------
-    // INPUT LAYOUT & SHADERS
-    // --------------------------------------------------------
-
-    // Define the input layout
+    // --- SHADERS ---
     std::vector<D3D11_INPUT_ELEMENT_DESC> Layout;
-
-    // Position
-    D3D11_INPUT_ELEMENT_DESC position;
-    position.SemanticName = "POSITION";
-    position.SemanticIndex = 0;
-    position.Format = DXGI_FORMAT_R32G32B32_FLOAT;
-    position.InputSlot = 0;
-    position.AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT;
-    position.InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
-    position.InstanceDataStepRate = 0;
+    D3D11_INPUT_ELEMENT_DESC position = { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 };
     Layout.push_back(position);
-
-    // TexCoord
-    D3D11_INPUT_ELEMENT_DESC texcoord;
-    texcoord.SemanticName = "TEXCOORD";
-    texcoord.SemanticIndex = 0;
-    texcoord.Format = DXGI_FORMAT_R32G32_FLOAT;
-    texcoord.InputSlot = 0;
-    texcoord.AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT;
-    texcoord.InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
-    texcoord.InstanceDataStepRate = 0;
+    D3D11_INPUT_ELEMENT_DESC texcoord = { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 };
     Layout.push_back(texcoord);
-
-    // Normal (Necesario para HeliosEngine)
-    D3D11_INPUT_ELEMENT_DESC normal;
-    normal.SemanticName = "NORMAL";
-    normal.SemanticIndex = 0;
-    normal.Format = DXGI_FORMAT_R32G32B32_FLOAT;
-    normal.InputSlot = 0;
-    normal.AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT;
-    normal.InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
-    normal.InstanceDataStepRate = 0;
+    D3D11_INPUT_ELEMENT_DESC normal = { "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 };
     Layout.push_back(normal);
 
-    // Create the Shader Program (HeliosEngine.fx)
     hr = m_shaderProgram.init(m_device, "Assets/Shaders/HeliosEngine.fx", Layout);
-    if (FAILED(hr)) {
-        hr = m_shaderProgram.init(m_device, "HeliosEngine.fx", Layout);
-    }
+    if (FAILED(hr)) hr = m_shaderProgram.init(m_device, "HeliosEngine.fx", Layout);
+    if (FAILED(hr)) return hr;
 
-    if (FAILED(hr)) {
-        ERROR("Main", "InitDevice",
-            ("Failed to initialize ShaderProgram (HeliosEngine.fx). HRESULT: " + std::to_string(hr)).c_str());
-        return hr;
-    }
+    m_cbNeverChanges.init(m_device, sizeof(CBNeverChanges));
+    m_cbChangeOnResize.init(m_device, sizeof(CBChangeOnResize));
 
-    // Create the constant buffers
-    hr = m_cbNeverChanges.init(m_device, sizeof(CBNeverChanges));
-    if (FAILED(hr)) {
-        ERROR("Main", "InitDevice",
-            ("Failed to initialize NeverChanges Buffer. HRESULT: " + std::to_string(hr)).c_str());
-        return hr;
-    }
+    // --- CAMARA ---
+    m_camera.setLens(XM_PIDIV4, m_window.m_width / (float)m_window.m_height, 0.1f, 1000.0f);
+    m_camera.setPosition(0.0f, 5.0f, -20.0f);
 
-    hr = m_cbChangeOnResize.init(m_device, sizeof(CBChangeOnResize));
-    if (FAILED(hr)) {
-        ERROR("Main", "InitDevice",
-            ("Failed to initialize ChangeOnResize Buffer. HRESULT: " + std::to_string(hr)).c_str());
-        return hr;
-    }
-
-    // Initialize the Camera (Nuevo)
-    m_camera.setLens(XM_PIDIV4, m_window.m_width / (float)m_window.m_height, 0.01f, 100.0f);
-    m_camera.setPosition(0.0f, 10.0f, -30.0f); // Posición ajustada para ver la moto
-
+    // --- CORRECCIÓN FINAL: LUCES ---
+    // ¡¡¡ESTO ES LO QUE TE FALTABA!!!
     cbNeverChanges.mView = XMMatrixTranspose(m_camera.getView());
+    cbNeverChanges.mLightDir = XMVectorSet(-0.577f, -0.577f, 0.577f, 1.0f); // Luz diagonal
+    cbNeverChanges.mLightColor = XMVectorSet(1.0f, 1.0f, 1.0f, 1.0f);       // Luz Blanca
+
+    // Enviamos los datos a la GPU ahora mismo
+    m_cbNeverChanges.update(m_deviceContext, nullptr, 0, nullptr, &cbNeverChanges, 0, 0);
+
     cbChangesOnResize.mProjection = XMMatrixTranspose(m_camera.getProj());
+    m_cbChangeOnResize.update(m_deviceContext, nullptr, 0, nullptr, &cbChangesOnResize, 0, 0);
 
     return S_OK;
 }
 
 void BaseApp::update(float deltaTime)
 {
-    // Update our time
     static float t = 0.0f;
-    if (m_swapChain.m_driverType == D3D_DRIVER_TYPE_REFERENCE) {
-        t += (float)XM_PI * 0.0125f;
-    }
-    else {
-        static DWORD dwTimeStart = 0;
-        DWORD dwTimeCur = GetTickCount();
-        if (dwTimeStart == 0)
-            dwTimeStart = dwTimeCur;
-        t = (dwTimeCur - dwTimeStart) / 1000.0f;
-    }
+    static DWORD dwTimeStart = 0;
+    DWORD dwTimeCur = GetTickCount();
+    if (dwTimeStart == 0) dwTimeStart = dwTimeCur;
+    t = (dwTimeCur - dwTimeStart) / 1000.0f;
 
-    // Update User Interface (GUI)
     m_gui.update(m_viewport, m_window);
 
-    // Si hay actores seleccionados, mostrar el inspector
     if (!m_actors.empty() && m_gui.selectedActorIndex < m_actors.size()) {
         m_gui.inspectorGeneral(m_actors[m_gui.selectedActorIndex]);
     }
     m_gui.outliner(m_actors);
 
-    // Shot cubemap on imgui image (Visualización del Skybox)
+    // Skybox Debug
     static ID3D11ShaderResourceView* faceSRV[6] = { nullptr };
-
     if (!faceSRV[0]) {
         for (UINT i = 0; i < 6; ++i) {
-            faceSRV[i] = m_skyboxTex.CreateCubemapFaceSRV(m_device.m_device, m_skyboxTex.m_texture,
-                DXGI_FORMAT_R8G8B8A8_UNORM, i, 1);
+            faceSRV[i] = m_skyboxTex.CreateCubemapFaceSRV(m_device.m_device, m_skyboxTex.m_texture, DXGI_FORMAT_R8G8B8A8_UNORM, i, 1);
         }
     }
-
-    ImGui::Text("Cubemap Faces:");
-    const float thumb = 64.0f;
-
+    ImGui::Begin("Debug Skybox Faces");
     for (int i = 0; i < 6; ++i) {
-        ImGui::Image((ImTextureID)faceSRV[i], ImVec2(thumb, thumb));
+        ImGui::Image((ImTextureID)faceSRV[i], ImVec2(64, 64));
         if ((i % 3) != 2) ImGui::SameLine();
     }
-
-    /*
-    // Visualización opcional de la textura combinada
-    ImGui::Begin("Cubemap");
-    ImGui::Text("Skybox Cubemap");
-    ImGui::Image((void*)m_skyboxTex.m_textureFromImg,
-        ImVec2(256, 256),
-        ImVec2(0, 0),
-        ImVec2(1, 1));
     ImGui::End();
-    */
 
-
-    // Actualizar la matriz de proyección y vista (Camera Update)
     m_camera.updateViewMatrix();
     cbNeverChanges.mView = XMMatrixTranspose(m_camera.getView());
-    m_cbNeverChanges.update(m_deviceContext, nullptr, 0, nullptr, &cbNeverChanges, 0, 0);
+    // Mantenemos la luz actualizada
+    cbNeverChanges.mLightDir = XMVectorSet(-0.577f, -0.577f, 0.577f, 1.0f);
+    cbNeverChanges.mLightColor = XMVectorSet(1.0f, 1.0f, 1.0f, 1.0f);
 
-    // cbChangesOnResize.mProjection = XMMatrixTranspose(m_camera.getProj()); // Normalmente solo cambia en resize
+    m_cbNeverChanges.update(m_deviceContext, nullptr, 0, nullptr, &cbNeverChanges, 0, 0);
     m_cbChangeOnResize.update(m_deviceContext, nullptr, 0, nullptr, &cbChangesOnResize, 0, 0);
 
-    // Update Actors (SceneGraph)
     m_sceneGraph.update(deltaTime, m_deviceContext);
 
-    // Permitir editar el transform con Gizmos si hay un actor seleccionado
     if (!m_actors.empty() && m_gui.selectedActorIndex < m_actors.size()) {
         m_gui.editTransform(m_camera.getView(), m_camera.getProj(), m_actors[m_gui.selectedActorIndex]);
     }
@@ -329,30 +210,22 @@ void BaseApp::update(float deltaTime)
 
 void
 BaseApp::render() {
-    // Set Render Target View
     float ClearColor[4] = { 0.1f, 0.1f, 0.1f, 1.0f };
     m_renderTargetView.render(m_deviceContext, m_depthStencilView, 1, ClearColor);
-
-    // Set Viewport
     m_viewport.render(m_deviceContext);
-
-    // Set depth stencil view
     m_depthStencilView.render(m_deviceContext);
 
-    // Set shader program
-    m_shaderProgram.render(m_deviceContext);
+    // Activar Rasterizer (NO CULLING) para ver todo
+    if (g_pRasterizerStateNoCull) {
+        m_deviceContext.m_deviceContext->RSSetState(g_pRasterizerStateNoCull);
+    }
 
-    // Asignar buffers constantes
+    m_shaderProgram.render(m_deviceContext);
     m_cbNeverChanges.render(m_deviceContext, 0, 1);
     m_cbChangeOnResize.render(m_deviceContext, 1, 1);
 
-    // Render all actors (SceneGraph)
     m_sceneGraph.render(m_deviceContext);
-
-    // Render UI (GUI)
     m_gui.render();
-
-    // Present our back buffer to our front buffer
     m_swapChain.present();
 }
 
@@ -360,8 +233,9 @@ void
 BaseApp::destroy() {
     if (m_deviceContext.m_deviceContext) m_deviceContext.m_deviceContext->ClearState();
 
-    m_sceneGraph.destroy();
+    if (g_pRasterizerStateNoCull) { g_pRasterizerStateNoCull->Release(); g_pRasterizerStateNoCull = nullptr; }
 
+    m_sceneGraph.destroy();
     m_cbNeverChanges.destroy();
     m_cbChangeOnResize.destroy();
     m_shaderProgram.destroy();
@@ -370,26 +244,16 @@ BaseApp::destroy() {
     m_renderTargetView.destroy();
     m_swapChain.destroy();
     m_backBuffer.destroy();
-    m_gui.destroy(); // Destroy GUI
+    m_gui.destroy();
     m_deviceContext.destroy();
     m_device.destroy();
 
-    // Cleanup de Model
-    if (m_model) {
-        delete m_model;
-        m_model = nullptr;
-    }
+    if (m_model) { delete m_model; m_model = nullptr; }
 }
 
 LRESULT BaseApp::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
-
-    // CORRECCIÓN CRÍTICA:
-    // Solo permitir que ImGui procese mensajes SI ya fue inicializado.
-    // Esto evita el crash al arrancar la ventana.
     if (ImGui::GetCurrentContext() != nullptr) {
-        if (ImGui_ImplWin32_WndProcHandler(hWnd, message, wParam, lParam)) {
-            return true;
-        }
+        if (ImGui_ImplWin32_WndProcHandler(hWnd, message, wParam, lParam)) return true;
     }
 
     switch (message)

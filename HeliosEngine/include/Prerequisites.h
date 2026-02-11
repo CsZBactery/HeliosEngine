@@ -4,7 +4,11 @@
 #include <sstream>
 #include <vector>
 #include <windows.h>
-#include <xnamath.h>
+
+// NOTA: Si xnamath te da problemas con ImGui o versiones nuevas de VS,
+// considera cambiar <xnamath.h> por <DirectXMath.h> y agregar "using namespace DirectX;"
+#include <xnamath.h> 
+
 #include <thread>
 #include <memory>
 #include <unordered_map>
@@ -15,12 +19,12 @@
 #include <d3dx11.h>
 #include <d3dcompiler.h>
 #include "Resource.h"
-#include "resource.h"
+// #include "resource.h" // A veces este genera conflictos si no tienes archivo .rc, lo comento por seguridad
 
 // Third Party Libraries
 #include "EngineUtilities/Vectors/Vector2.h"
 #include "EngineUtilities/Vectors/Vector3.h"
-#include "EngineUtilities/Memory/TSharedPointer.h" // Corregí las barras diagonales
+#include "EngineUtilities/Memory/TSharedPointer.h"
 #include "EngineUtilities/Memory/TWeakPointer.h"
 #include "EngineUtilities/Memory/TStaticPtr.h"
 #include "EngineUtilities/Memory/TUniquePtr.h"
@@ -50,15 +54,22 @@
 //--------------------------------------------------------------------------------------
 // Structures
 //--------------------------------------------------------------------------------------
+
+// 1. Estructura de Vértice (Correcta: tiene Normal)
 struct SimpleVertex
 {
     XMFLOAT3 Pos;
     XMFLOAT2 Tex;
+    XMFLOAT3 Normal; // Necesario para iluminación
 };
 
+// 2. Buffer Constante (CORREGIDO)
+// Agregamos LightDir y LightColor para que coincida con BaseApp.cpp
 struct CBNeverChanges
 {
     XMMATRIX mView;
+    XMVECTOR mLightDir;   // <--- NUEVO
+    XMVECTOR mLightColor; // <--- NUEVO
 };
 
 struct CBChangeOnResize
@@ -92,9 +103,9 @@ enum ComponentType {
     TRANSFORM = 1,
     MESH = 2,
     MATERIAL = 3,
-    CAMERA = 4,      // <--- AGREGADO
-    SCRIPT = 5,      // <--- AGREGADO
-    AUDIO = 6,       // <--- AGREGADO
-    HIERARCHY = 7,   // <--- AGREGADO (Soluciona el error de GUI)
-    UNKNOWN = 8      // <--- AGREGADO
+    CAMERA = 4,
+    SCRIPT = 5,
+    AUDIO = 6,
+    HIERARCHY = 7,
+    UNKNOWN = 8
 };
