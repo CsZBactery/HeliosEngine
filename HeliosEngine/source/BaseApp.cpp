@@ -1,11 +1,14 @@
 ﻿#include "BaseApp.h"
 #include "ResourceManager.h"
+#include <array> 
+#include <string>
 
 HRESULT
 BaseApp::awake() {
     HRESULT hr = S_OK;
 
     // Inicializacion de dlls y elementos externos al motor.
+    m_sceneGraph.init();
 
     // Log Success Message
     MESSAGE("Main", "Awake", "Application awake successfully.");
@@ -19,36 +22,37 @@ BaseApp::run(HINSTANCE hInst, int nCmdShow) {
         ERROR("Main", "Run", "Failed to initialize window.");
         return 0;
     }
-
     // 2) Awake Application
     if (FAILED(awake())) {
         ERROR("Main", "Run", "Failed to awake application.");
         return 0;
     }
-
     // 3) Initialize Device and Device Context
     if (FAILED(init())) {
         ERROR("Main", "Run", "Failed to initialize device and device context.");
         return 0;
     }
+    // 4) Initialize GUI (Nuevo)
+    m_gui.init(m_window, m_device, m_deviceContext);
 
     // Main message loop
     MSG msg = {};
     LARGE_INTEGER freq, prev;
     QueryPerformanceFrequency(&freq);
     QueryPerformanceCounter(&prev);
-
-    while (WM_QUIT != msg.message) {
-        if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
+    while (WM_QUIT != msg.message)
+    {
+        if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
+        {
             TranslateMessage(&msg);
             DispatchMessage(&msg);
         }
-        else {
+        else
+        {
             LARGE_INTEGER curr;
             QueryPerformanceCounter(&curr);
             float deltaTime = static_cast<float>(curr.QuadPart - prev.QuadPart) / freq.QuadPart;
             prev = curr;
-
             update(deltaTime);
             render();
         }
@@ -60,9 +64,7 @@ HRESULT
 BaseApp::init() {
     HRESULT hr = S_OK;
 
-    // --------------------------------------------------------
-    // INICIALIZACION DE DEVICE (Necesario antes de SwapChain)
-    // --------------------------------------------------------
+    // Inicializar Device primero
     m_device.init();
     m_device.m_device->GetImmediateContext(&m_deviceContext.m_deviceContext);
 
@@ -90,7 +92,6 @@ BaseApp::init() {
         D3D11_BIND_DEPTH_STENCIL,
         4,
         0);
-
     if (FAILED(hr)) {
         ERROR("Main", "InitDevice",
             ("Failed to initialize DepthStencil. HRESULT: " + std::to_string(hr)).c_str());
@@ -101,14 +102,13 @@ BaseApp::init() {
     hr = m_depthStencilView.init(m_device,
         m_depthStencil,
         DXGI_FORMAT_D24_UNORM_S8_UINT);
-
     if (FAILED(hr)) {
         ERROR("Main", "InitDevice",
             ("Failed to initialize DepthStencilView. HRESULT: " + std::to_string(hr)).c_str());
         return hr;
     }
 
-    // Crear el m_viewport
+    // Crear el viewport
     hr = m_viewport.init(m_window);
     if (FAILED(hr)) {
         ERROR("Main", "InitDevice",
@@ -117,10 +117,22 @@ BaseApp::init() {
     }
 
     // --------------------------------------------------------
-    // CARGA DE RECURSOS (MOTO REPSOL)
+    // CARGA DE RECURSOS (SKYBOX & MOTO REPSOL)
     // --------------------------------------------------------
 
-    // Set Repsol Actor
+    // Load Skybox Faces
+    std::array<std::string, 6> faces = {
+        "Skybox/cubemap_0.png",
+        "Skybox/cubemap_1.png",
+        "Skybox/cubemap_2.png",
+        "Skybox/cubemap_3.png",
+        "Skybox/cubemap_4.png",
+        "Skybox/cubemap_5.png"
+    };
+    m_skyboxTex.CreateCubemap(m_device, m_deviceContext, faces, true);
+
+
+    // Set Repsol Actor (Tu modelo)
     m_repsolActor = EU::MakeShared<Actor>(m_device);
 
     if (!m_repsolActor.isNull()) {
@@ -135,7 +147,7 @@ BaseApp::init() {
         hr = m_repsolTexture.init(m_device, "Assets/Textures/BaseColor", ExtensionType::PNG);
 
         if (FAILED(hr)) {
-            // Intento de fallback o log detallado
+            // Log de error
             char fullPath[1024];
             _fullpath(fullPath, "Assets/Textures/BaseColor.png", 1024);
             std::string err = "Failed to initialize Repsol Texture. Path: " + std::string(fullPath) + " HRESULT: " + std::to_string(hr);
@@ -150,7 +162,7 @@ BaseApp::init() {
         m_repsolActor->setName("RepsolBike");
         m_actors.push_back(m_repsolActor);
 
-        // Transform
+        // Transformación inicial
         m_repsolActor->getComponent<Transform>()->setTransform(
             EU::Vector3(0.0f, 0.0f, 0.0f),
             EU::Vector3(0.0f, 0.0f, 0.0f),
@@ -161,12 +173,19 @@ BaseApp::init() {
         return E_FAIL;
     }
 
+    // Store the Actors in the Scene Graph (Nuevo)
+    for (auto& actor : m_actors) {
+        m_sceneGraph.addEntity(actor.get());
+    }
+
     // --------------------------------------------------------
-    // INPUT LAYOUT (Estilo Verboso)
+    // INPUT LAYOUT & SHADERS
     // --------------------------------------------------------
+
+    // Define the input layout
     std::vector<D3D11_INPUT_ELEMENT_DESC> Layout;
 
-    // 1. Position
+    // Position
     D3D11_INPUT_ELEMENT_DESC position;
     position.SemanticName = "POSITION";
     position.SemanticIndex = 0;
@@ -177,7 +196,7 @@ BaseApp::init() {
     position.InstanceDataStepRate = 0;
     Layout.push_back(position);
 
-    // 2. TexCoord
+    // TexCoord
     D3D11_INPUT_ELEMENT_DESC texcoord;
     texcoord.SemanticName = "TEXCOORD";
     texcoord.SemanticIndex = 0;
@@ -188,7 +207,7 @@ BaseApp::init() {
     texcoord.InstanceDataStepRate = 0;
     Layout.push_back(texcoord);
 
-    // 3. Normal (Necesario para tu modelo y shader Helios)
+    // Normal (Necesario para HeliosEngine)
     D3D11_INPUT_ELEMENT_DESC normal;
     normal.SemanticName = "NORMAL";
     normal.SemanticIndex = 0;
@@ -199,8 +218,7 @@ BaseApp::init() {
     normal.InstanceDataStepRate = 0;
     Layout.push_back(normal);
 
-    // Create the Shader Program
-    // Intentamos ruta relativa assets, si falla, ruta local
+    // Create the Shader Program (HeliosEngine.fx)
     hr = m_shaderProgram.init(m_device, "Assets/Shaders/HeliosEngine.fx", Layout);
     if (FAILED(hr)) {
         hr = m_shaderProgram.init(m_device, "HeliosEngine.fx", Layout);
@@ -227,22 +245,18 @@ BaseApp::init() {
         return hr;
     }
 
-    // Initialize the view matrix
-    XMVECTOR Eye = XMVectorSet(0.0f, 10.0f, -30.0f, 0.0f);
-    XMVECTOR At = XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
-    XMVECTOR Up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-    m_View = XMMatrixLookAtLH(Eye, At, Up);
+    // Initialize the Camera (Nuevo)
+    m_camera.setLens(XM_PIDIV4, m_window.m_width / (float)m_window.m_height, 0.01f, 100.0f);
+    m_camera.setPosition(0.0f, 10.0f, -30.0f); // Posición ajustada para ver la moto
 
-    // Initialize the projection matrix
-    cbNeverChanges.mView = XMMatrixTranspose(m_View);
-    m_Projection = XMMatrixPerspectiveFovLH(XM_PIDIV4, m_window.m_width / (FLOAT)m_window.m_height, 0.01f, 100.0f);
-    cbChangesOnResize.mProjection = XMMatrixTranspose(m_Projection);
+    cbNeverChanges.mView = XMMatrixTranspose(m_camera.getView());
+    cbChangesOnResize.mProjection = XMMatrixTranspose(m_camera.getProj());
 
     return S_OK;
 }
 
-void
-BaseApp::update(float deltaTime) {
+void BaseApp::update(float deltaTime)
+{
     // Update our time
     static float t = 0.0f;
     if (m_swapChain.m_driverType == D3D_DRIVER_TYPE_REFERENCE) {
@@ -256,17 +270,59 @@ BaseApp::update(float deltaTime) {
         t = (dwTimeCur - dwTimeStart) / 1000.0f;
     }
 
-    // Actualizar la matriz de proyección y vista (Lógica del profe)
-    cbNeverChanges.mView = XMMatrixTranspose(m_View);
+    // Update User Interface (GUI)
+    m_gui.update(m_viewport, m_window);
+
+    // Si hay actores seleccionados, mostrar el inspector
+    if (!m_actors.empty() && m_gui.selectedActorIndex < m_actors.size()) {
+        m_gui.inspectorGeneral(m_actors[m_gui.selectedActorIndex]);
+    }
+    m_gui.outliner(m_actors);
+
+    // Shot cubemap on imgui image (Visualización del Skybox)
+    static ID3D11ShaderResourceView* faceSRV[6] = { nullptr };
+
+    if (!faceSRV[0]) {
+        for (UINT i = 0; i < 6; ++i) {
+            faceSRV[i] = m_skyboxTex.CreateCubemapFaceSRV(m_device.m_device, m_skyboxTex.m_texture,
+                DXGI_FORMAT_R8G8B8A8_UNORM, i, 1);
+        }
+    }
+
+    ImGui::Text("Cubemap Faces:");
+    const float thumb = 64.0f;
+
+    for (int i = 0; i < 6; ++i) {
+        ImGui::Image((ImTextureID)faceSRV[i], ImVec2(thumb, thumb));
+        if ((i % 3) != 2) ImGui::SameLine();
+    }
+
+    /*
+    // Visualización opcional de la textura combinada
+    ImGui::Begin("Cubemap");
+    ImGui::Text("Skybox Cubemap");
+    ImGui::Image((void*)m_skyboxTex.m_textureFromImg,
+        ImVec2(256, 256),
+        ImVec2(0, 0),
+        ImVec2(1, 1));
+    ImGui::End();
+    */
+
+
+    // Actualizar la matriz de proyección y vista (Camera Update)
+    m_camera.updateViewMatrix();
+    cbNeverChanges.mView = XMMatrixTranspose(m_camera.getView());
     m_cbNeverChanges.update(m_deviceContext, nullptr, 0, nullptr, &cbNeverChanges, 0, 0);
 
-    m_Projection = XMMatrixPerspectiveFovLH(XM_PIDIV4, m_window.m_width / (FLOAT)m_window.m_height, 0.01f, 100.0f);
-    cbChangesOnResize.mProjection = XMMatrixTranspose(m_Projection);
+    // cbChangesOnResize.mProjection = XMMatrixTranspose(m_camera.getProj()); // Normalmente solo cambia en resize
     m_cbChangeOnResize.update(m_deviceContext, nullptr, 0, nullptr, &cbChangesOnResize, 0, 0);
 
-    // Update Actors
-    for (auto& actor : m_actors) {
-        actor->update(deltaTime, m_deviceContext);
+    // Update Actors (SceneGraph)
+    m_sceneGraph.update(deltaTime, m_deviceContext);
+
+    // Permitir editar el transform con Gizmos si hay un actor seleccionado
+    if (!m_actors.empty() && m_gui.selectedActorIndex < m_actors.size()) {
+        m_gui.editTransform(m_camera.getView(), m_camera.getProj(), m_actors[m_gui.selectedActorIndex]);
     }
 }
 
@@ -289,10 +345,11 @@ BaseApp::render() {
     m_cbNeverChanges.render(m_deviceContext, 0, 1);
     m_cbChangeOnResize.render(m_deviceContext, 1, 1);
 
-    // Render all actors
-    for (auto& actor : m_actors) {
-        actor->render(m_deviceContext);
-    }
+    // Render all actors (SceneGraph)
+    m_sceneGraph.render(m_deviceContext);
+
+    // Render UI (GUI)
+    m_gui.render();
 
     // Present our back buffer to our front buffer
     m_swapChain.present();
@@ -302,6 +359,8 @@ void
 BaseApp::destroy() {
     if (m_deviceContext.m_deviceContext) m_deviceContext.m_deviceContext->ClearState();
 
+    m_sceneGraph.destroy();
+
     m_cbNeverChanges.destroy();
     m_cbChangeOnResize.destroy();
     m_shaderProgram.destroy();
@@ -310,10 +369,11 @@ BaseApp::destroy() {
     m_renderTargetView.destroy();
     m_swapChain.destroy();
     m_backBuffer.destroy();
+    m_gui.destroy(); // Destroy GUI
     m_deviceContext.destroy();
     m_device.destroy();
 
-    // Cleanup de Model (Puntero raw)
+    // Cleanup de Model
     if (m_model) {
         delete m_model;
         m_model = nullptr;
@@ -322,11 +382,13 @@ BaseApp::destroy() {
 
 LRESULT
 BaseApp::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
-    // Handler de ImGui comentado
-    // if (ImGui_ImplWin32_WndProcHandler(hWnd, message, wParam, lParam))
-    //   return true;
+    // Habilitar Handler de ImGui
+    if (ImGui_ImplWin32_WndProcHandler(hWnd, message, wParam, lParam)) {
+        return true;
+    }
 
-    switch (message) {
+    switch (message)
+    {
     case WM_CREATE:
     {
         CREATESTRUCT* pCreate = reinterpret_cast<CREATESTRUCT*>(lParam);

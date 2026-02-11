@@ -467,6 +467,7 @@
     <ClCompile Include="imgui-docking\imgui_widgets.cpp" />
     <ClCompile Include="source\BaseApp.cpp" />
     <ClCompile Include="source\Buffer.cpp" />
+    <ClCompile Include="source\Camera.cpp" />
     <ClCompile Include="source\DepthStencilView.cpp" />
     <ClCompile Include="source\Device.cpp" />
     <ClCompile Include="source\DeviceContext.cpp" />
@@ -504,6 +505,7 @@
     <ClInclude Include="include\ECS\Component.h" />
     <ClInclude Include="include\ECS\Entity.h" />
     <ClInclude Include="include\ECS\Transform.h" />
+    <ClInclude Include="include\EngineUtilities\GUI\GUI.h" />
     <ClInclude Include="include\EngineUtilities\Matrix\Matrix2x2.h" />
     <ClInclude Include="include\EngineUtilities\Matrix\Matrix3x3.h" />
     <ClInclude Include="include\EngineUtilities\Matrix\Matrix4x4.h" />
@@ -515,6 +517,7 @@
     <ClInclude Include="include\EngineUtilities\Structures\TMap.h" />
     <ClInclude Include="include\EngineUtilities\Structures\TPair.h" />
     <ClInclude Include="include\EngineUtilities\Structures\TSet.h" />
+    <ClInclude Include="include\EngineUtilities\Utilities\Camera.h" />
     <ClInclude Include="include\EngineUtilities\Utilities\EngineMath.h" />
     <ClInclude Include="include\EngineUtilities\Vectors\Quaternion.h" />
     <ClInclude Include="include\EngineUtilities\Vectors\Vector2.h" />
@@ -530,6 +533,8 @@
     <ClInclude Include="include\Resource.h" />
     <ClInclude Include="include\ResourceManager.h" />
     <ClInclude Include="include\SamplerState.h" />
+    <ClInclude Include="include\SceneGraph\HierarchyComponent.h" />
+    <ClInclude Include="include\SceneGraph\SceneGraph.h" />
     <ClInclude Include="include\ShaderProgram.h" />
     <ClInclude Include="include\stb_image.h" />
     <ClInclude Include="include\SwapChain.h" />

@@ -23,7 +23,8 @@ class MeshComponent;
  * Administra buffers de vértices e índices, estados de rasterización, blending y shaders,
  * además de soportar renderizado de sombras.
  */
-class Actor : public Entity {
+class
+    Actor : public Entity {
 public:
     /**
      * @brief Constructor por defecto.
@@ -39,13 +40,14 @@ public:
     /**
      * @brief Destructor virtual por defecto.
      */
-    virtual ~Actor() = default;
+    virtual
+        ~Actor() = default;
 
     /**
      * @brief Inicialización temprana (Heredada de Entity).
-     * Se ejecuta antes de init.
      */
-    void awake() override {}
+    void
+        awake() override {}
 
     /**
      * @brief Inicializa el actor.
@@ -53,7 +55,8 @@ public:
      * Método heredado de @c Entity.
      * Puede usarse para inicializar recursos adicionales en clases derivadas.
      */
-    void init() override {}
+    void
+        init() override {}
 
     /**
      * @brief Actualiza el actor en cada frame.
@@ -63,7 +66,8 @@ public:
      *
      * @note Este método puede actualizar animaciones, transformaciones u otros recursos dependientes del tiempo.
      */
-    void update(float deltaTime, DeviceContext& deviceContext) override;
+    void
+        update(float deltaTime, DeviceContext& deviceContext) override;
 
     /**
      * @brief Renderiza el actor en la escena.
@@ -72,14 +76,16 @@ public:
      *
      * @param deviceContext Contexto del dispositivo para operaciones gráficas.
      */
-    void render(DeviceContext& deviceContext) override;
+    void
+        render(DeviceContext& deviceContext) override;
 
     /**
      * @brief Libera todos los recursos asociados al actor.
      *
      * Incluye buffers, estados, shaders y texturas.
      */
-    void destroy();
+    void
+        destroy();
 
     /**
      * @brief Establece las mallas del actor.
@@ -89,37 +95,43 @@ public:
      * @param device Dispositivo con el cual se inicializan las mallas.
      * @param meshes Vector de componentes de malla que se asignarán al actor.
      */
-    void setMesh(Device& device, std::vector<MeshComponent> meshes);
+    void
+        setMesh(Device& device, std::vector<MeshComponent> meshes);
 
     /**
      * @brief Obtiene el nombre del actor.
      * @return Nombre actual del actor.
      */
-    std::string getName() { return m_name; }
+    std::string
+        getName() { return m_name; }
 
     /**
      * @brief Establece el nombre del actor.
      * @param name Nuevo nombre para el actor.
      */
-    void setName(const std::string& name) { m_name = name; }
+    void
+        setName(const std::string& name) { m_name = name; }
 
     /**
      * @brief Establece las texturas del actor.
      * @param textures Vector de texturas a asignar al actor.
      */
-    void setTextures(std::vector<Texture> textures) { m_textures = textures; }
+    void
+        setTextures(std::vector<Texture> textures) { m_textures = textures; }
 
     /**
      * @brief Define si el actor proyecta sombras.
      * @param v Valor booleano que habilita o deshabilita las sombras.
      */
-    void setCastShadow(bool v) { castShadow = v; }
+    void
+        setCastShadow(bool v) { castShadow = v; }
 
     /**
      * @brief Indica si el actor puede proyectar sombras.
      * @return @c true si el actor proyecta sombras; @c false en caso contrario.
      */
-    bool canCastShadow() const { return castShadow; }
+    bool
+        canCastShadow() const { return castShadow; }
 
     /**
      * @brief Renderiza la sombra del actor.
@@ -128,7 +140,8 @@ public:
      *
      * @param deviceContext Contexto del dispositivo para operaciones gráficas.
      */
-    void renderShadow(DeviceContext& deviceContext);
+    void
+        renderShadow(DeviceContext& deviceContext);
 
 private:
     std::vector<MeshComponent> m_meshes;        ///< Conjunto de componentes de malla del actor.

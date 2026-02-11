@@ -20,10 +20,10 @@
 // Third Party Libraries
 #include "EngineUtilities/Vectors/Vector2.h"
 #include "EngineUtilities/Vectors/Vector3.h"
-#include "EngineUtilities\Memory\TSharedPointer.h"
-#include "EngineUtilities\Memory\TWeakPointer.h"
-#include "EngineUtilities\Memory\TStaticPtr.h"
-#include "EngineUtilities\Memory\TUniquePtr.h"
+#include "EngineUtilities/Memory/TSharedPointer.h" // Corregí las barras diagonales
+#include "EngineUtilities/Memory/TWeakPointer.h"
+#include "EngineUtilities/Memory/TStaticPtr.h"
+#include "EngineUtilities/Memory/TUniquePtr.h"
 
 // MACROS
 #define SAFE_RELEASE(x) if(x != nullptr) x->Release(); x = nullptr;
@@ -87,10 +87,14 @@ enum ShaderType {
  * @enum ComponentType
  * @brief Tipos de componentes disponibles en el juego.
  */
-enum
-    ComponentType {
-    NONE = 0,     ///< Tipo de componente no especificado.
-    TRANSFORM = 1,///< Componente de transformaci�n.
-    MESH = 2,     ///< Componente de malla.
-    MATERIAL = 3  ///< Componente de material.
+enum ComponentType {
+    NONE = 0,
+    TRANSFORM = 1,
+    MESH = 2,
+    MATERIAL = 3,
+    CAMERA = 4,      // <--- AGREGADO
+    SCRIPT = 5,      // <--- AGREGADO
+    AUDIO = 6,       // <--- AGREGADO
+    HIERARCHY = 7,   // <--- AGREGADO (Soluciona el error de GUI)
+    UNKNOWN = 8      // <--- AGREGADO
 };

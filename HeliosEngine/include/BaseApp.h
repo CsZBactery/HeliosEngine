@@ -15,6 +15,14 @@
 #include "Model3D.h"
 #include "ECS/Actor.h"
 
+// Includes del Profe
+#include "EngineUtilities/GUI/GUI.h"
+#include "SceneGraph/SceneGraph.h"
+#include "EngineUtilities/Utilities/Camera.h"
+
+// Declaración externa para que Windows pueda manejar los inputs de ImGui
+extern IMGUI_IMPL_API
+LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 class
     BaseApp {
@@ -55,30 +63,31 @@ private:
     DepthStencilView                    m_depthStencilView;
     Viewport                            m_viewport;
     ShaderProgram                       m_shaderProgram;
-    //MeshComponent                     m_mesh;
-    //Buffer                            m_vertexBuffer;
-    //Buffer                            m_indexBuffer;
+
     Buffer                              m_cbNeverChanges;
     Buffer                              m_cbChangeOnResize;
-    //Buffer                            m_cbChangesEveryFrame;
 
-    // ASSETS PROPIOS (HeliosEngine)
-    Texture                             m_repsolTexture; // Reemplaza a m_cyberGunAlbedo
-    //SamplerState                      m_samplerState;
+    // Assets
+    Texture                             m_repsolTexture; // Tu textura (Moto)
+    Texture                             m_skyboxTex;     // Nueva textura (Skybox)
 
-    //XMMATRIX                          m_World;
-    XMMATRIX                            m_View;
-    XMMATRIX                            m_Projection;
-    //XMFLOAT4                          m_vMeshColor;// (0.7f, 0.7f, 0.7f, 1.0f);
+    // Cámara y Matrices
+    Camera                              m_camera;        // Nueva clase Cámara
+    //XMMATRIX                          m_View;          // (Comentado: gestionado por Camera)
+    //XMMATRIX                          m_Projection;    // (Comentado: gestionado por Camera)
 
+    // Escena y Actores
+    SceneGraph                          m_sceneGraph;
     std::vector<EU::TSharedPointer<Actor>> m_actors;
-    EU::TSharedPointer<Actor>              m_repsolActor; // Reemplaza a m_cyberGun
+    EU::TSharedPointer<Actor>              m_repsolActor; // Tu actor (Moto)
 
 
     Model3D* m_model;
 
-
+    // Constant Buffers CPU
     CBChangeOnResize                    cbChangesOnResize;
     CBNeverChanges                      cbNeverChanges;
-    //CBChangesEveryFrame               cb;
+
+    // GUI
+    GUI                                 m_gui;
 };
