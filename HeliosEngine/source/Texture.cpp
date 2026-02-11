@@ -5,32 +5,30 @@
 #endif
 #include "stb_image.h"
 
+// ----------------------------------------------------------------------------------
+// CORRECCIÓN 1: EL DESTRUCTOR DEBE ESTAR VACÍO O COMENTADO
+// Si llamas a destroy() aquí, los std::vector borrarán la textura antes de tiempo.
+// ----------------------------------------------------------------------------------
 Texture::~Texture() {
-    destroy();
+    // destroy(); <--- ¡ESTO ESTABA CAUSANDO EL CRASH! LO DEJAMOS COMENTADO.
 }
 
 // ----------------------------------------------------------------------------------
-// 1. INIT DESDE ARCHIVO (Original Helios + Lógica Profe)
+// 1. INIT DESDE ARCHIVO
 // ----------------------------------------------------------------------------------
 HRESULT Texture::init(Device& device, const std::string& textureName, ExtensionType extensionType) {
     if (!device.m_device) return E_POINTER;
 
     HRESULT hr = S_OK;
-
-    // Lógica básica para cargar con STB Image (Soporta PNG, JPG, TGA, etc.)
-    // HeliosEngine maneja extensiones via enum, aquí simplificamos para STB
     std::string finalName = textureName;
 
-    // Intenta anexar extensión si falta (según el tipo)
     if (extensionType == PNG && textureName.find(".png") == std::string::npos) finalName += ".png";
     else if (extensionType == JPG && textureName.find(".jpg") == std::string::npos) finalName += ".jpg";
 
     int width, height, channels;
-    // Forzamos 4 canales (RGBA)
     unsigned char* data = stbi_load(finalName.c_str(), &width, &height, &channels, 4);
 
     if (!data) {
-        // Reintentar con el nombre original por si acaso
         data = stbi_load(textureName.c_str(), &width, &height, &channels, 4);
     }
 
@@ -41,7 +39,6 @@ HRESULT Texture::init(Device& device, const std::string& textureName, ExtensionT
 
     m_textureName = finalName;
 
-    // Crear descripción de textura
     D3D11_TEXTURE2D_DESC desc = {};
     desc.Width = width;
     desc.Height = height;
@@ -53,7 +50,6 @@ HRESULT Texture::init(Device& device, const std::string& textureName, ExtensionT
     desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
     desc.CPUAccessFlags = 0;
 
-    // Datos Iniciales
     D3D11_SUBRESOURCE_DATA subData = {};
     subData.pSysMem = data;
     subData.SysMemPitch = width * 4;
@@ -64,10 +60,8 @@ HRESULT Texture::init(Device& device, const std::string& textureName, ExtensionT
         return hr;
     }
 
-    // Crear Shader Resource View
     hr = device.m_device->CreateShaderResourceView(m_texture, nullptr, &m_textureFromImg);
 
-    // Crear Sampler State Básico (Default de Helios)
     D3D11_SAMPLER_DESC sampDesc = {};
     sampDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
     sampDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
@@ -84,7 +78,7 @@ HRESULT Texture::init(Device& device, const std::string& textureName, ExtensionT
 }
 
 // ----------------------------------------------------------------------------------
-// 2. INIT MANUAL (Para DepthStencil / RenderTargets)
+// 2. INIT MANUAL
 // ----------------------------------------------------------------------------------
 HRESULT Texture::init(Device& device,
     unsigned int width,
@@ -115,7 +109,6 @@ HRESULT Texture::init(Device& device,
         return hr;
     }
 
-    // Solo creamos SRV si el bind flag lo permite
     if (BindFlags & D3D11_BIND_SHADER_RESOURCE) {
         D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
         srvDesc.Format = Format;
@@ -134,7 +127,7 @@ HRESULT Texture::init(Device& device,
 }
 
 // ----------------------------------------------------------------------------------
-// 3. INIT DESDE REFERENCIA (Copias / Vistas)
+// 3. INIT DESDE REFERENCIA
 // ----------------------------------------------------------------------------------
 HRESULT Texture::init(Device& device, Texture& textureRef, DXGI_FORMAT format) {
     if (!device.m_device || !textureRef.m_texture) return E_POINTER;
@@ -154,30 +147,29 @@ HRESULT Texture::init(Device& device, Texture& textureRef, DXGI_FORMAT format) {
 }
 
 // ----------------------------------------------------------------------------------
-// 4. CREATE CUBEMAP (Lógica Skybox)
+// 4. CREATE CUBEMAP
 // ----------------------------------------------------------------------------------
 HRESULT Texture::CreateCubemap(Device& device,
     DeviceContext& deviceContext,
     const std::array<std::string, 6>& facePaths,
     bool generateMips) {
-    destroy(); // Limpiar recursos previos
+
+    // Llamamos a destroy manual para limpiar si había algo antes
+    destroy();
 
     stbi_set_flip_vertically_on_load(false);
 
     int width = 0, height = 0, channels = 0;
-
-    // Vector para guardar los punteros de los pixeles
     std::vector<unsigned char*> facePixels(6, nullptr);
 
-    // Cargar las 6 caras
     for (int i = 0; i < 6; ++i) {
-        std::string fullPath = "Assets/" + facePaths[i]; // Ajusta ruta si es necesario
+        std::string fullPath = "Assets/" + facePaths[i];
         int w, h, c;
         facePixels[i] = stbi_load(fullPath.c_str(), &w, &h, &c, 4);
 
         if (!facePixels[i]) {
-            // Limpiar en caso de fallo
             for (auto* p : facePixels) if (p) stbi_image_free(p);
+            // Logueamos la ruta completa para debug
             ERROR("Texture", "CreateCubemap", ("Failed to load face: " + fullPath).c_str());
             return E_FAIL;
         }
@@ -186,14 +178,12 @@ HRESULT Texture::CreateCubemap(Device& device,
             width = w; height = h;
         }
         else if (w != width || h != height) {
-            // Limpiar en caso de dimensiones incorrectas
             for (auto* p : facePixels) if (p) stbi_image_free(p);
             ERROR("Texture", "CreateCubemap", "All cubemap faces must have the same dimensions");
             return E_FAIL;
         }
     }
 
-    // Describir la Textura Cubo
     D3D11_TEXTURE2D_DESC texDesc = {};
     texDesc.Width = width;
     texDesc.Height = height;
@@ -208,7 +198,6 @@ HRESULT Texture::CreateCubemap(Device& device,
     HRESULT hr = S_OK;
 
     if (!generateMips) {
-        // Inicializar datos directamente
         D3D11_SUBRESOURCE_DATA pData[6];
         for (int i = 0; i < 6; i++) {
             pData[i].pSysMem = facePixels[i];
@@ -218,7 +207,6 @@ HRESULT Texture::CreateCubemap(Device& device,
         hr = device.m_device->CreateTexture2D(&texDesc, pData, &m_texture);
     }
     else {
-        // Crear vacío y actualizar subrecursos
         hr = device.m_device->CreateTexture2D(&texDesc, nullptr, &m_texture);
         if (SUCCEEDED(hr)) {
             for (int i = 0; i < 6; ++i) {
@@ -240,7 +228,6 @@ HRESULT Texture::CreateCubemap(Device& device,
         return hr;
     }
 
-    // Crear SRV
     D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
     srvDesc.Format = texDesc.Format;
     srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURECUBE;
@@ -253,16 +240,12 @@ HRESULT Texture::CreateCubemap(Device& device,
         deviceContext.m_deviceContext->GenerateMips(m_textureFromImg);
     }
 
-    // Liberar memoria
     for (auto* p : facePixels) stbi_image_free(p);
 
     m_textureName = "Cubemap";
     return hr;
 }
 
-// ----------------------------------------------------------------------------------
-// 5. HELPER: CREAR SRV PARA UNA CARA
-// ----------------------------------------------------------------------------------
 ID3D11ShaderResourceView* Texture::CreateCubemapFaceSRV(ID3D11Device* device, ID3D11Texture2D* texture, DXGI_FORMAT format, UINT faceIndex, UINT mipLevel) {
     if (!device || !texture) return nullptr;
 
@@ -288,10 +271,12 @@ void Texture::render(DeviceContext& deviceContext, unsigned int startSlot, unsig
     }
 }
 
-void Texture::update() {
-    // Placeholder
-}
+void Texture::update() {}
 
+// ----------------------------------------------------------------------------------
+// CORRECCIÓN 2: DESCOMENTAR LA IMPLEMENTACIÓN DE DESTROY
+// Esta función es necesaria para que BaseApp::destroy() limpie la memoria.
+// ----------------------------------------------------------------------------------
 void Texture::destroy() {
     SAFE_RELEASE(m_textureFromImg);
     SAFE_RELEASE(m_samplerState);

@@ -2,6 +2,7 @@
 #include "ResourceManager.h"
 #include <array> 
 #include <string>
+#include "imgui.h"
 
 HRESULT
 BaseApp::awake() {
@@ -380,11 +381,15 @@ BaseApp::destroy() {
     }
 }
 
-LRESULT
-BaseApp::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
-    // Habilitar Handler de ImGui
-    if (ImGui_ImplWin32_WndProcHandler(hWnd, message, wParam, lParam)) {
-        return true;
+LRESULT BaseApp::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
+
+    // CORRECCIÓN CRÍTICA:
+    // Solo permitir que ImGui procese mensajes SI ya fue inicializado.
+    // Esto evita el crash al arrancar la ventana.
+    if (ImGui::GetCurrentContext() != nullptr) {
+        if (ImGui_ImplWin32_WndProcHandler(hWnd, message, wParam, lParam)) {
+            return true;
+        }
     }
 
     switch (message)
