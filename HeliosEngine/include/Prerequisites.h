@@ -19,7 +19,6 @@
 #include <d3dx11.h>
 #include <d3dcompiler.h>
 #include "Resource.h"
-// #include "resource.h" // A veces este genera conflictos si no tienes archivo .rc, lo comento por seguridad
 
 // Third Party Libraries
 #include "EngineUtilities/Vectors/Vector2.h"
@@ -55,21 +54,18 @@
 // Structures
 //--------------------------------------------------------------------------------------
 
-// 1. Estructura de Vértice (Correcta: tiene Normal)
 struct SimpleVertex
 {
     XMFLOAT3 Pos;
     XMFLOAT2 Tex;
-    XMFLOAT3 Normal; // Necesario para iluminación
+    XMFLOAT3 Normal;
 };
 
-// 2. Buffer Constante (CORREGIDO)
-// Agregamos LightDir y LightColor para que coincida con BaseApp.cpp
 struct CBNeverChanges
 {
     XMMATRIX mView;
-    XMVECTOR mLightDir;   // <--- NUEVO
-    XMVECTOR mLightColor; // <--- NUEVO
+    XMVECTOR mLightDir;
+    XMVECTOR mLightColor;
 };
 
 struct CBChangeOnResize
@@ -83,10 +79,12 @@ struct CBChangesEveryFrame
     XMFLOAT4 vMeshColor;
 };
 
+// --- AQUÍ ESTABA EL FALTANTE DE TGA ---
 enum ExtensionType {
     DDS = 0,
     PNG = 1,
-    JPG = 2
+    JPG = 2,
+    TGA = 3  
 };
 
 enum ShaderType {
@@ -94,10 +92,6 @@ enum ShaderType {
     PIXEL_SHADER = 1
 };
 
-/**
- * @enum ComponentType
- * @brief Tipos de componentes disponibles en el juego.
- */
 enum ComponentType {
     NONE = 0,
     TRANSFORM = 1,

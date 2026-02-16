@@ -4,20 +4,17 @@
 #include <string>
 #include "imgui.h"
 
-// Variable global interna para el Rasterizer State (para no tocar el .h si no quieres)
-// Idealmente esto iría en el .h como m_rasterizerState, pero aquí funciona para salir del paso.
+// Variable global interna para el Rasterizer State
 ID3D11RasterizerState* g_pRasterizerStateNoCull = nullptr;
 
-HRESULT
-BaseApp::awake() {
+HRESULT BaseApp::awake() {
     HRESULT hr = S_OK;
     m_sceneGraph.init();
     MESSAGE("Main", "Awake", "Application awake successfully.");
     return hr;
 }
 
-int
-BaseApp::run(HINSTANCE hInst, int nCmdShow) {
+int BaseApp::run(HINSTANCE hInst, int nCmdShow) {
     if (FAILED(m_window.init(hInst, nCmdShow, WndProc))) {
         ERROR("Main", "Run", "Failed to initialize window.");
         return 0;
@@ -36,15 +33,13 @@ BaseApp::run(HINSTANCE hInst, int nCmdShow) {
     LARGE_INTEGER freq, prev;
     QueryPerformanceFrequency(&freq);
     QueryPerformanceCounter(&prev);
-    while (WM_QUIT != msg.message)
-    {
-        if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
-        {
+
+    while (WM_QUIT != msg.message) {
+        if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
             TranslateMessage(&msg);
             DispatchMessage(&msg);
         }
-        else
-        {
+        else {
             LARGE_INTEGER curr;
             QueryPerformanceCounter(&curr);
             float deltaTime = static_cast<float>(curr.QuadPart - prev.QuadPart) / freq.QuadPart;
@@ -56,8 +51,7 @@ BaseApp::run(HINSTANCE hInst, int nCmdShow) {
     return (int)msg.wParam;
 }
 
-HRESULT
-BaseApp::init() {
+HRESULT BaseApp::init() {
     HRESULT hr = S_OK;
 
     m_device.init();
@@ -69,7 +63,6 @@ BaseApp::init() {
     hr = m_renderTargetView.init(m_device, m_backBuffer, DXGI_FORMAT_R8G8B8A8_UNORM);
     if (FAILED(hr)) return hr;
 
-    // Depth Stencil con Calidad 16 para coincidir con SwapChain
     hr = m_depthStencil.init(m_device, m_window.m_width, m_window.m_height,
         DXGI_FORMAT_D24_UNORM_S8_UINT, D3D11_BIND_DEPTH_STENCIL, 4, 16);
     if (FAILED(hr)) return hr;
@@ -80,34 +73,35 @@ BaseApp::init() {
     hr = m_viewport.init(m_window);
     if (FAILED(hr)) return hr;
 
-    // --- CONFIGURAR RASTERIZER (Ver ambas caras) ---
+    // --- RASTERIZER (NO CULLING) ---
     D3D11_RASTERIZER_DESC rasterDesc;
     ZeroMemory(&rasterDesc, sizeof(rasterDesc));
     rasterDesc.FillMode = D3D11_FILL_SOLID;
-    rasterDesc.CullMode = D3D11_CULL_NONE; // Dibuja todo
+    rasterDesc.CullMode = D3D11_CULL_NONE;
     rasterDesc.FrontCounterClockwise = false;
     rasterDesc.DepthClipEnable = true;
     rasterDesc.MultisampleEnable = true;
-
     m_device.m_device->CreateRasterizerState(&rasterDesc, &g_pRasterizerStateNoCull);
     m_deviceContext.m_deviceContext->RSSetState(g_pRasterizerStateNoCull);
 
-    // --- CARGA DE RECURSOS ---
+    // --- SKYBOX ---
     std::array<std::string, 6> faces = {
         "Skybox/cubemap_0.png", "Skybox/cubemap_1.png", "Skybox/cubemap_2.png",
         "Skybox/cubemap_3.png", "Skybox/cubemap_4.png", "Skybox/cubemap_5.png"
     };
     m_skyboxTex.CreateCubemap(m_device, m_deviceContext, faces, true);
 
+    // --- XBOX ACTOR ---
     m_repsolActor = EU::MakeShared<Actor>(m_device);
     if (!m_repsolActor.isNull()) {
         m_model = new Model3D("Assets/Moto/repsol3.obj", ModelType::OBJ);
 
         std::vector<Texture> repsolTextures;
         hr = m_repsolTexture.init(m_device, "Assets/Textures/BaseColor", ExtensionType::PNG);
+
+        // CORRECCIÓN SINTAXIS: Llaves obligatorias para evitar "illegal else"
         if (FAILED(hr)) {
             ERROR("Main", "Init", "Failed to load texture BaseColor.png");
-            // No retornamos error fatal para que al menos se vea la forma
         }
         else {
             repsolTextures.push_back(m_repsolTexture);
@@ -115,27 +109,31 @@ BaseApp::init() {
 
         m_repsolActor->setMesh(m_device, m_model->GetMeshes());
         m_repsolActor->setTextures(repsolTextures);
-        m_repsolActor->setName("RepsolBike");
+        m_repsolActor->setName("Xbox Series X");
 
-        // Escala normal (1,1,1)
+        // POSICIÓN Y ROTACIÓN (Centrado y grande)
         m_repsolActor->getComponent<Transform>()->setTransform(
-            EU::Vector3(0, 0, 0), EU::Vector3(0, 0, 0), EU::Vector3(1.0f, 1.0f, 1.0f));
-
+            EU::Vector3(0.0f, -4.0f, 0.0f),       // Posición
+            EU::Vector3(0.0f, 0.0f, 0.0f),        // Rotación
+            EU::Vector3(5.0f, 5.0f, 5.0f)         // Escala
+        );
         m_actors.push_back(m_repsolActor);
     }
 
-    for (auto& actor : m_actors) {
-        m_sceneGraph.addEntity(actor.get());
-    }
+    for (auto& actor : m_actors) m_sceneGraph.addEntity(actor.get());
 
-    // --- SHADERS ---
+    // --- INPUT LAYOUT ---
+    // CORRECCIÓN SINTAXIS: Inicialización explícita para evitar "expected a statement"
     std::vector<D3D11_INPUT_ELEMENT_DESC> Layout;
-    D3D11_INPUT_ELEMENT_DESC position = { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 };
-    Layout.push_back(position);
-    D3D11_INPUT_ELEMENT_DESC texcoord = { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 };
-    Layout.push_back(texcoord);
-    D3D11_INPUT_ELEMENT_DESC normal = { "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 };
-    Layout.push_back(normal);
+
+    D3D11_INPUT_ELEMENT_DESC posDesc = { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 };
+    Layout.push_back(posDesc);
+
+    D3D11_INPUT_ELEMENT_DESC texDesc = { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 };
+    Layout.push_back(texDesc);
+
+    D3D11_INPUT_ELEMENT_DESC normDesc = { "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 };
+    Layout.push_back(normDesc);
 
     hr = m_shaderProgram.init(m_device, "Assets/Shaders/HeliosEngine.fx", Layout);
     if (FAILED(hr)) hr = m_shaderProgram.init(m_device, "HeliosEngine.fx", Layout);
@@ -144,17 +142,14 @@ BaseApp::init() {
     m_cbNeverChanges.init(m_device, sizeof(CBNeverChanges));
     m_cbChangeOnResize.init(m_device, sizeof(CBChangeOnResize));
 
-    // --- CAMARA ---
+    // CÁMARA (Lejos en Z para ver todo)
     m_camera.setLens(XM_PIDIV4, m_window.m_width / (float)m_window.m_height, 0.1f, 1000.0f);
-    m_camera.setPosition(0.0f, 5.0f, -20.0f);
+    m_camera.setPosition(0.0f, 0.0f, -35.0f);
 
-    // --- CORRECCIÓN FINAL: LUCES ---
-    // ¡¡¡ESTO ES LO QUE TE FALTABA!!!
+    // LUCES
     cbNeverChanges.mView = XMMatrixTranspose(m_camera.getView());
-    cbNeverChanges.mLightDir = XMVectorSet(-0.577f, -0.577f, 0.577f, 1.0f); // Luz diagonal
-    cbNeverChanges.mLightColor = XMVectorSet(1.0f, 1.0f, 1.0f, 1.0f);       // Luz Blanca
-
-    // Enviamos los datos a la GPU ahora mismo
+    cbNeverChanges.mLightDir = XMVectorSet(-0.577f, -0.577f, 0.577f, 1.0f);
+    cbNeverChanges.mLightColor = XMVectorSet(1.0f, 1.0f, 1.0f, 1.0f);
     m_cbNeverChanges.update(m_deviceContext, nullptr, 0, nullptr, &cbNeverChanges, 0, 0);
 
     cbChangesOnResize.mProjection = XMMatrixTranspose(m_camera.getProj());
@@ -163,38 +158,61 @@ BaseApp::init() {
     return S_OK;
 }
 
-void BaseApp::update(float deltaTime)
-{
+void BaseApp::update(float deltaTime) {
+    // 1. Tiempo
     static float t = 0.0f;
     static DWORD dwTimeStart = 0;
     DWORD dwTimeCur = GetTickCount();
     if (dwTimeStart == 0) dwTimeStart = dwTimeCur;
     t = (dwTimeCur - dwTimeStart) / 1000.0f;
 
+    // 2. Aspect Ratio y Tamaños
+    RECT rc;
+    GetClientRect(m_window.m_hWnd, &rc);
+    float width = static_cast<float>(rc.right - rc.left);
+    float height = static_cast<float>(rc.bottom - rc.top);
+
+    if (height > 0) {
+        m_camera.setLens(XM_PIDIV4, width / height, 0.1f, 1000.0f);
+        cbChangesOnResize.mProjection = XMMatrixTranspose(m_camera.getProj());
+    }
+
+    // 3. GUI
     m_gui.update(m_viewport, m_window);
 
-    if (!m_actors.empty() && m_gui.selectedActorIndex < m_actors.size()) {
-        m_gui.inspectorGeneral(m_actors[m_gui.selectedActorIndex]);
-    }
+    // --- POSICIONAMIENTO VENTANAS (Estilo Profe) ---
+    // A) OUTLINER (Arriba Derecha)
+    ImGui::SetNextWindowPos(ImVec2(width - 320.0f, 20.0f), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(300.0f, 300.0f), ImGuiCond_FirstUseEver);
     m_gui.outliner(m_actors);
 
-    // Skybox Debug
+    // B) INSPECTOR (Abajo Derecha)
+    if (!m_actors.empty() && m_gui.selectedActorIndex < m_actors.size()) {
+        ImGui::SetNextWindowPos(ImVec2(width - 320.0f, 340.0f), ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSize(ImVec2(300.0f, 300.0f), ImGuiCond_FirstUseEver);
+        m_gui.inspectorGeneral(m_actors[m_gui.selectedActorIndex]);
+    }
+
+    // C) CUBEMAP (Arriba Izquierda)
     static ID3D11ShaderResourceView* faceSRV[6] = { nullptr };
     if (!faceSRV[0]) {
         for (UINT i = 0; i < 6; ++i) {
             faceSRV[i] = m_skyboxTex.CreateCubemapFaceSRV(m_device.m_device, m_skyboxTex.m_texture, DXGI_FORMAT_R8G8B8A8_UNORM, i, 1);
         }
     }
-    ImGui::Begin("Debug Skybox Faces");
-    for (int i = 0; i < 6; ++i) {
-        ImGui::Image((ImTextureID)faceSRV[i], ImVec2(64, 64));
-        if ((i % 3) != 2) ImGui::SameLine();
-    }
+
+    ImGui::SetNextWindowPos(ImVec2(20.0f, 20.0f), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(220.0f, 260.0f), ImGuiCond_FirstUseEver);
+
+    ImGui::Begin("Cubemap");
+    ImGui::Text("Skybox Preview");
+    if (faceSRV[0]) ImGui::Image((ImTextureID)faceSRV[0], ImVec2(200, 200));
+    else ImGui::Text("Textura no disponible");
     ImGui::End();
 
+    // 4. Update Engine
     m_camera.updateViewMatrix();
     cbNeverChanges.mView = XMMatrixTranspose(m_camera.getView());
-    // Mantenemos la luz actualizada
     cbNeverChanges.mLightDir = XMVectorSet(-0.577f, -0.577f, 0.577f, 1.0f);
     cbNeverChanges.mLightColor = XMVectorSet(1.0f, 1.0f, 1.0f, 1.0f);
 
@@ -208,14 +226,14 @@ void BaseApp::update(float deltaTime)
     }
 }
 
-void
-BaseApp::render() {
+void BaseApp::render() {
+    // 1. Color de fondo (Negro elegante 0.1f)
     float ClearColor[4] = { 0.1f, 0.1f, 0.1f, 1.0f };
     m_renderTargetView.render(m_deviceContext, m_depthStencilView, 1, ClearColor);
+
     m_viewport.render(m_deviceContext);
     m_depthStencilView.render(m_deviceContext);
 
-    // Activar Rasterizer (NO CULLING) para ver todo
     if (g_pRasterizerStateNoCull) {
         m_deviceContext.m_deviceContext->RSSetState(g_pRasterizerStateNoCull);
     }
@@ -223,18 +241,14 @@ BaseApp::render() {
     m_shaderProgram.render(m_deviceContext);
     m_cbNeverChanges.render(m_deviceContext, 0, 1);
     m_cbChangeOnResize.render(m_deviceContext, 1, 1);
-
     m_sceneGraph.render(m_deviceContext);
     m_gui.render();
     m_swapChain.present();
 }
 
-void
-BaseApp::destroy() {
+void BaseApp::destroy() {
     if (m_deviceContext.m_deviceContext) m_deviceContext.m_deviceContext->ClearState();
-
     if (g_pRasterizerStateNoCull) { g_pRasterizerStateNoCull->Release(); g_pRasterizerStateNoCull = nullptr; }
-
     m_sceneGraph.destroy();
     m_cbNeverChanges.destroy();
     m_cbChangeOnResize.destroy();
@@ -247,7 +261,6 @@ BaseApp::destroy() {
     m_gui.destroy();
     m_deviceContext.destroy();
     m_device.destroy();
-
     if (m_model) { delete m_model; m_model = nullptr; }
 }
 
@@ -255,22 +268,18 @@ LRESULT BaseApp::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
     if (ImGui::GetCurrentContext() != nullptr) {
         if (ImGui_ImplWin32_WndProcHandler(hWnd, message, wParam, lParam)) return true;
     }
-
-    switch (message)
-    {
-    case WM_CREATE:
-    {
+    switch (message) {
+    case WM_CREATE: {
         CREATESTRUCT* pCreate = reinterpret_cast<CREATESTRUCT*>(lParam);
         SetWindowLongPtr(hWnd, GWLP_USERDATA, (LONG_PTR)pCreate->lpCreateParams);
+        return 0;
     }
-    return 0;
-    case WM_PAINT:
-    {
+    case WM_PAINT: {
         PAINTSTRUCT ps;
         BeginPaint(hWnd, &ps);
         EndPaint(hWnd, &ps);
+        return 0;
     }
-    return 0;
     case WM_DESTROY:
         PostQuitMessage(0);
         return 0;
