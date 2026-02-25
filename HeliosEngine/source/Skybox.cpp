@@ -132,3 +132,27 @@ Skybox::render(DeviceContext& deviceContext, Camera& camera) {
 
 	m_skyboxTexture.render(deviceContext, 0, 1);
 }
+
+// ======================================================================================
+// FASE DE LIMPIEZA
+// ======================================================================================
+// Libera la memoria de la tarjeta gráfica y la RAM ocupada por el entorno
+void
+Skybox::destroy() {
+	// Liberar el modelo 3D dinámico (el cubo que creamos con 'new')
+	if (m_cubeModel) {
+		delete m_cubeModel;
+		m_cubeModel = nullptr;
+	}
+
+	// Liberar buffers, shaders y texturas
+	m_constantBuffer.destroy();
+	m_shaderProgram.destroy();
+	m_samplerState.destroy();
+	m_skyboxTexture.destroy();
+
+	// NOTA: Si en algún momento descomentas el Rasterizer y DepthStencil en tu init(),
+	// también deberás descomentar estas dos líneas para evitar fugas de memoria:
+	// m_rasterizerState.destroy();
+	// m_depthStencilState.destroy();
+}
