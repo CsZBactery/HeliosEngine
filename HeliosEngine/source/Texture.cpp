@@ -1,4 +1,9 @@
-﻿#define STB_IMAGE_IMPLEMENTATION
+﻿// ======================================================================================
+// Archivo: Texture.cpp
+// Implementación de carga, creación y gestión de texturas (2D y Cubemaps).
+// ======================================================================================
+
+#define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h" // Librería para cargar formatos de imagen
 #include "Texture.h"
 #include "Device.h"
@@ -119,7 +124,11 @@ HRESULT Texture::init(Device& device, unsigned int width, unsigned int height, D
     desc.MipLevels = 1;
     desc.ArraySize = 1;
     desc.Format = Format;
-    desc.SampleDesc.Count = 1;
+
+    // 🔥 AQUÍ ESTABA EL BUG. AHORA RESPETA LOS VALORES DE MSAA ENVIADOS DESDE BaseApp.cpp 🔥
+    desc.SampleDesc.Count = sampleCount;
+    desc.SampleDesc.Quality = qualityLevels;
+
     desc.Usage = D3D11_USAGE_DEFAULT;
     desc.BindFlags = BindFlags;
 

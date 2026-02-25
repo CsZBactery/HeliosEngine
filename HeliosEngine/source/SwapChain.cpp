@@ -1,41 +1,33 @@
-﻿#include "../include/SwapChain.h"
+﻿// ======================================================================================
+// Archivo: SwapChain.cpp
+// Gestiona el intercambio de los buffers de la pantalla (Doble Buffering).
+// ======================================================================================
+
+#include "../include/SwapChain.h"
 #include "../include/Device.h"
 #include "../include/DeviceContext.h"
 #include "../include/Texture.h"
 #include "../include/Window.h"
 
-//
-// La funci�n `init` se encarga de inicializar el Swap Chain, que es un componente clave en la renderizaci�n de Direct3D.
-// Su prop�sito principal es gestionar el intercambio de los buffers de la pantalla,
-// permitiendo que la imagen renderizada en el "back buffer" se muestre en el "front buffer" (la pantalla).
-//
+// Inicializa el Swap Chain permitiendo que la imagen en el back buffer pase a la pantalla.
 HRESULT
-SwapChain::init(Device& device,
-    DeviceContext& deviceContext,
-    Texture& backBuffer,
-    Window window) {
-    // Se verifica que el handle de la ventana sea v�lido antes de continuar.
+SwapChain::init(Device& device, DeviceContext& deviceContext, Texture& backBuffer, Window window) {
+    // Se verifica que el handle de la ventana sea válido antes de continuar.
     if (!window.m_hWnd) {
         ERROR("SwapChain", "init", "Invalid window handle. (m_hWnd is nullptr)");
         return E_POINTER;
     }
 
-    HRESULT
-        hr = S_OK;
+    HRESULT hr = S_OK;
 
-    //
-    // Se configuran los flags para la creaci�n del dispositivo. En modo de depuraci�n,
-    // se agrega el flag para permitir mensajes de depuraci�n de Direct3D.
-    //
+    // Se configuran los flags para la creación del dispositivo. En modo de depuración,
+    // se agrega el flag para permitir mensajes de error detallados de Direct3D.
     unsigned int createDeviceFlags = 0;
 #ifdef _DEBUG
     createDeviceFlags |= D3D11_CREATE_DEVICE_DEBUG;
 #endif
 
-    //
-    // Se definen los tipos de controladores que se intentar�n. Se prefiere el hardware,
-    // seguido de WARP (renderizaci�n por software de alto rendimiento) y de referencia.
-    //
+    // Se definen los tipos de controladores que se intentarán: Hardware real, luego emulado.
     D3D_DRIVER_TYPE driverTypes[] = {
         D3D_DRIVER_TYPE_HARDWARE,
         D3D_DRIVER_TYPE_WARP,
@@ -43,10 +35,7 @@ SwapChain::init(Device& device,
     };
     unsigned int numDriverTypes = ARRAYSIZE(driverTypes);
 
-    //
-    // Se definen los niveles de caracter�sticas de Direct3D que se soportar�n.
-    // Se intenta con el m�s reciente (11.0) y se retrocede si es necesario.
-    //
+    // Se intenta con DirectX 11.0, y se retrocede a versiones de DX10 si la GPU es muy antigua.
     D3D_FEATURE_LEVEL featureLevels[] = {
         D3D_FEATURE_LEVEL_11_0,
         D3D_FEATURE_LEVEL_10_1,
@@ -54,10 +43,7 @@ SwapChain::init(Device& device,
     };
     unsigned int numFeatureLevels = ARRAYSIZE(featureLevels);
 
-    //
-    // Se intenta crear el dispositivo y el contexto de Direct3D. La funci�n `D3D11CreateDevice`
-    // intenta con los niveles de caracter�sticas y tipos de controladores definidos.
-    //
+    // Se intenta crear el dispositivo y el contexto de Direct3D.
     for (unsigned int driverTypeIndex = 0; driverTypeIndex < numDriverTypes; driverTypeIndex++) {
         D3D_DRIVER_TYPE driverType = driverTypes[driverTypeIndex];
         hr = D3D11CreateDevice(nullptr,
@@ -71,39 +57,27 @@ SwapChain::init(Device& device,
             &m_featureLevel,
             &deviceContext.m_deviceContext);
 
-        // Si la creaci�n del dispositivo es exitosa, se sale del bucle.
         if (SUCCEEDED(hr)) {
             MESSAGE("SwapChain", "init", "Device created successfully.");
             break;
         }
     }
 
-    // Si la creaci�n del dispositivo falla despu�s de todos los intentos, se devuelve un error.
     if (FAILED(hr)) {
-        ERROR("SwapChain", "init",
-            ("Failed to create D3D11 device. HRESULT: " + std::to_string(hr)).c_str());
+        ERROR("SwapChain", "init", ("Failed to create D3D11 device. HRESULT: " + std::to_string(hr)).c_str());
         return hr;
     }
 
-    //
-    // Se configuran los ajustes de MSAA (Multisample Anti-Aliasing) para suavizar bordes.
-    // Se verifica si la tarjeta gr�fica soporta el n�mero de muestras y los niveles de calidad deseados.
-    //
+    // Configuración de MSAA (Suavizado de bordes). Validamos qué tanta calidad soporta la tarjeta.
     m_sampleCount = 4;
-    hr = device.m_device->CheckMultisampleQualityLevels(DXGI_FORMAT_R8G8B8A8_UNORM,
-        m_sampleCount,
-        &m_qualityLevels);
+    hr = device.m_device->CheckMultisampleQualityLevels(DXGI_FORMAT_R8G8B8A8_UNORM, m_sampleCount, &m_qualityLevels);
+
     if (FAILED(hr) || m_qualityLevels == 0) {
-        ERROR("SwapChain", "init",
-            ("MSAA not supported or invalid quality level. HRESULT: " + std::to_string(hr)).c_str());
+        ERROR("SwapChain", "init", ("MSAA not supported or invalid quality level. HRESULT: " + std::to_string(hr)).c_str());
         return hr;
     }
 
-    //
-    // Se configura la descripci�n del Swap Chain (`DXGI_SWAP_CHAIN_DESC`).
-    // Se especifican propiedades como el tama�o de la ventana, el formato del buffer,
-    // la tasa de refresco, el modo de ventana, y la configuraci�n de MSAA.
-    //
+    // Configuración de la estructura de la Cadena de Intercambio
     DXGI_SWAP_CHAIN_DESC sd;
     memset(&sd, 0, sizeof(sd));
     sd.BufferCount = 1;
@@ -115,93 +89,54 @@ SwapChain::init(Device& device,
     sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
     sd.OutputWindow = window.m_hWnd;
     sd.Windowed = TRUE;
-    sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
+    sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD; // Destruye el frame viejo tras mostrarlo
+
+    // Asignación de MSAA al SwapChain principal
     sd.SampleDesc.Count = m_sampleCount;
     sd.SampleDesc.Quality = m_qualityLevels - 1;
 
-    //
-    // Se obtienen las interfaces de DXGI para crear el Swap Chain.
-    // Primero se consulta la interfaz `IDXGIDevice`, luego el adaptador y finalmente la f�brica.
-    //
+    // Obtención de las interfaces de fábrica de la placa de video
     hr = device.m_device->QueryInterface(__uuidof(IDXGIDevice), (void**)&m_dxgiDevice);
-    if (FAILED(hr)) {
-        ERROR("SwapChain", "init",
-            ("Failed to query IDXGIDevice. HRESULT: " + std::to_string(hr)).c_str());
-        return hr;
-    }
+    if (FAILED(hr)) return hr;
 
     hr = m_dxgiDevice->GetAdapter(&m_dxgiAdapter);
+    if (FAILED(hr)) return hr;
+
+    hr = m_dxgiAdapter->GetParent(__uuidof(IDXGIFactory), reinterpret_cast<void**>(&m_dxgiFactory));
+    if (FAILED(hr)) return hr;
+
+    // Creación oficial del Swap Chain usando la configuración previa
+    hr = m_dxgiFactory->CreateSwapChain(device.m_device, &sd, &m_swapChain);
     if (FAILED(hr)) {
-        ERROR("SwapChain", "init",
-            ("Failed to get IDXGIAdapter. HRESULT: " + std::to_string(hr)).c_str());
+        ERROR("SwapChain", "init", ("Failed to create swap chain. HRESULT: " + std::to_string(hr)).c_str());
         return hr;
     }
 
-    hr = m_dxgiAdapter->GetParent(__uuidof(IDXGIFactory),
-        reinterpret_cast<void**>(&m_dxgiFactory));
+    // Extracción de la textura 2D física (Lienzo) que la GPU acaba de crear
+    hr = m_swapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&backBuffer.m_texture));
     if (FAILED(hr)) {
-        ERROR("SwapChain", "init",
-            ("Failed to get IDXGIFactory. HRESULT: " + std::to_string(hr)).c_str());
+        ERROR("SwapChain", "init", ("Failed to get back buffer. HRESULT: " + std::to_string(hr)).c_str());
         return hr;
     }
 
-    //
-    // Con la f�brica de DXGI, se crea el Swap Chain final usando la descripci�n configurada.
-    //
-    hr = m_dxgiFactory->CreateSwapChain(device.m_device,
-        &sd, &m_swapChain);
-
-    if (FAILED(hr)) {
-        ERROR("SwapChain", "init",
-            ("Failed to create swap chain. HRESULT: " + std::to_string(hr)).c_str());
-        return hr;
-    }
-
-    //
-    // Finalmente, se obtiene el puntero al back buffer del Swap Chain. Este back buffer
-    // es una textura donde se renderizar� el contenido de la escena.
-    //
-    hr = m_swapChain->GetBuffer(0, __uuidof(ID3D11Texture2D),
-        reinterpret_cast<void**>(&backBuffer));
-    if (FAILED(hr)) {
-        ERROR("SwapChain", "init",
-            ("Failed to get back buffer. HRESULT: " + std::to_string(hr)).c_str());
-        return hr;
-    }
     return S_OK;
 }
 
-//
-// La funci�n `destroy` se encarga de liberar todos los recursos de Direct3D relacionados
-// con el Swap Chain, en el orden correcto para evitar problemas.
-//
-void
-SwapChain::destroy() {
-    if (m_swapChain) {
-        SAFE_RELEASE(m_swapChain);
-    }
-    if (m_dxgiDevice) {
-        SAFE_RELEASE(m_dxgiDevice);
-    }
-    if (m_dxgiAdapter) {
-        SAFE_RELEASE(m_dxgiAdapter);
-    }
-    if (m_dxgiFactory) {
-        SAFE_RELEASE(m_dxgiFactory);
-    }
+// Libera los recursos de Direct3D relacionados en el orden correcto
+void SwapChain::destroy() {
+    if (m_swapChain) SAFE_RELEASE(m_swapChain);
+    if (m_dxgiDevice) SAFE_RELEASE(m_dxgiDevice);
+    if (m_dxgiAdapter) SAFE_RELEASE(m_dxgiAdapter);
+    if (m_dxgiFactory) SAFE_RELEASE(m_dxgiFactory);
 }
 
-//
-// La funci�n `present` intercambia el back buffer con el front buffer.
-// Esto hace que la imagen renderizada en el back buffer sea visible en la pantalla.
-//
-void
-SwapChain::present() {
+// Intercambia el back buffer con la pantalla visible.
+void SwapChain::present() {
     if (m_swapChain) {
+        // Enviar imagen a pantalla
         HRESULT hr = m_swapChain->Present(0, 0);
         if (FAILED(hr)) {
-            ERROR("SwapChain", "present",
-                ("Failed to present swap chain. HRESULT: " + std::to_string(hr)).c_str());
+            ERROR("SwapChain", "present", ("Failed to present swap chain. HRESULT: " + std::to_string(hr)).c_str());
         }
     }
     else {
