@@ -149,6 +149,15 @@
     <ClCompile Include="source\SceneGraph\SceneGraph.cpp">
       <Filter>source\SceneGraph</Filter>
     </ClCompile>
+    <ClCompile Include="source\DepthStencilState.cpp">
+      <Filter>source</Filter>
+    </ClCompile>
+    <ClCompile Include="source\RasterizerState.cpp">
+      <Filter>source</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Skybox.cpp">
+      <Filter>source</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="HeliosEngine.fx">
@@ -322,6 +331,15 @@
     </ClInclude>
     <ClInclude Include="include\SceneGraph\SceneGraph.h">
       <Filter>include\SceneGraph</Filter>
+    </ClInclude>
+    <ClInclude Include="Skybox.h">
+      <Filter>include\Utilities</Filter>
+    </ClInclude>
+    <ClInclude Include="include\DepthStencilState.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\RasterizerState.h">
+      <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

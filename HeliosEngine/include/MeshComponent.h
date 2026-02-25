@@ -1,18 +1,25 @@
-﻿#pragma once
+﻿/**
+ * @file MeshComponent.h
+ * @brief Componente del sistema ECS encargado de almacenar la geometría de los modelos 3D.
+ */
+
+#pragma once
 #include "Prerequisites.h"
 #include "ECS\Component.h"
 class DeviceContext;
+
 /**
  * @class MeshComponent
- * @brief Componente ECS que almacena la informaci�n de geometr�a (malla) de un actor.
+ * @brief Componente ECS que almacena la información de geometría (malla) de un actor.
  *
- * Un @c MeshComponent contiene los v�rtices e �ndices que describen la geometr�a de un objeto.
+ * @details Un @c MeshComponent contiene los vértices e índices que describen la geometría de un objeto.
  * Forma parte del sistema ECS y se asocia a entidades como @c Actor.
  *
  * La malla incluye:
- * - Lista de v�rtices (posici�n, normal, UV, etc.).
- * - Lista de �ndices que definen las primitivas (tri�ngulos, l�neas).
- * - Contadores de v�rtices e �ndices.
+ * - Lista de vértices (posición, normal, UV, etc.).
+ * - Lista especial de vértices para el Skybox.
+ * - Lista de índices que definen las primitivas (triángulos, líneas).
+ * - Contadores de vértices e índices.
  */
 class
 	MeshComponent : public Component {
@@ -20,7 +27,7 @@ public:
 	/**
 	 * @brief Constructor por defecto.
 	 *
-	 * Inicializa el componente de malla con cero v�rtices e �ndices
+	 * @details Inicializa el componente de malla con cero vértices e índices
 	 * y lo registra como tipo @c MESH en el sistema ECS.
 	 */
 	MeshComponent() : m_numVertex(0), m_numIndex(0), Component(ComponentType::MESH) {}
@@ -34,7 +41,7 @@ public:
 	/**
 	 * @brief Inicializa el componente de malla.
 	 *
-	 * M�todo heredado de @c Component.
+	 * @details Método heredado de @c Component.
 	 * Puede usarse para reservar memoria o cargar datos en mallas derivadas.
 	 */
 	void
@@ -43,10 +50,11 @@ public:
 	/**
 	 * @brief Actualiza la malla.
 	 *
-	 * M�todo heredado de @c Component.
-	 * �til para actualizar animaciones de v�rtices, morphing u otros procesos relacionados.
+	 * @details Método heredado de @c Component.
+	 * Útil para actualizar animaciones de vértices, morphing u otros procesos relacionados
+	 * que cambien la topología del modelo en tiempo real.
 	 *
-	 * @param deltaTime Tiempo transcurrido desde la �ltima actualizaci�n.
+	 * @param deltaTime Tiempo transcurrido desde la última actualización.
 	 */
 	void
 		update(float deltaTime) override {};
@@ -54,11 +62,11 @@ public:
 	/**
 	 * @brief Renderiza la malla.
 	 *
-	 * M�todo heredado de @c Component.
-	 * Normalmente se usar�a junto con @c DeviceContext para dibujar buffers
+	 * @details Método heredado de @c Component.
+	 * Normalmente se usaría junto con @c DeviceContext para dibujar buffers
 	 * asociados a la malla.
 	 *
-	 * @param deviceContext Contexto del dispositivo para operaciones gr�ficas.
+	 * @param deviceContext Contexto del dispositivo para operaciones gráficas.
 	 */
 	void
 		render(DeviceContext& deviceContext) override {};
@@ -66,35 +74,40 @@ public:
 	/**
 	 * @brief Libera los recursos asociados al componente de malla.
 	 *
-	 * M�todo heredado de @c Component.
-	 * En implementaciones m�s complejas, puede liberar buffers de GPU.
+	 * @details Método heredado de @c Component.
+	 * En implementaciones más complejas, puede usarse para vaciar vectores o liberar buffers de GPU.
 	 */
 	void
 		destroy() override {};
 
 public:
 	/**
-	 * @brief Nombre de la malla.
+	 * @brief Nombre identificador de la malla.
 	 */
 	std::string m_name;
 
 	/**
-	 * @brief Lista de v�rtices de la malla.
+	 * @brief Lista de vértices estándar de la malla (usado para modelos 3D normales).
 	 */
 	std::vector<SimpleVertex> m_vertex;
 
 	/**
-	 * @brief Lista de �ndices que definen las primitivas de la malla.
+	 * @brief Lista de vértices especiales para el entorno (Skybox).
+	 */
+	std::vector<SkyboxVertex> m_skyVertex;
+
+	/**
+	 * @brief Lista de índices que definen las primitivas (orden para armar los triángulos).
 	 */
 	std::vector<unsigned int> m_index;
 
 	/**
-	 * @brief N�mero total de v�rtices en la malla.
+	 * @brief Número total de vértices almacenados en la malla.
 	 */
 	int m_numVertex;
 
 	/**
-	 * @brief N�mero total de �ndices en la malla.
+	 * @brief Número total de índices almacenados en la malla.
 	 */
 	int m_numIndex;
 };

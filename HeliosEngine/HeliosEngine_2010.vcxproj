@@ -468,6 +468,7 @@
     <ClCompile Include="source\BaseApp.cpp" />
     <ClCompile Include="source\Buffer.cpp" />
     <ClCompile Include="source\Camera.cpp" />
+    <ClCompile Include="source\DepthStencilState.cpp" />
     <ClCompile Include="source\DepthStencilView.cpp" />
     <ClCompile Include="source\Device.cpp" />
     <ClCompile Include="source\DeviceContext.cpp" />
@@ -476,10 +477,12 @@
     <ClCompile Include="source\ImGuizmo.cpp" />
     <ClCompile Include="source\InputLayout.cpp" />
     <ClCompile Include="source\Model3D.cpp" />
+    <ClCompile Include="source\RasterizerState.cpp" />
     <ClCompile Include="source\RenderTargetView.cpp" />
     <ClCompile Include="source\SamplerState.cpp" />
     <ClCompile Include="source\SceneGraph\SceneGraph.cpp" />
     <ClCompile Include="source\ShaderProgram.cpp" />
+    <ClCompile Include="source\Skybox.cpp" />
     <ClCompile Include="source\SwapChain.cpp" />
     <ClCompile Include="source\Texture.cpp" />
     <ClCompile Include="source\UserInterface.cpp" />
@@ -490,6 +493,9 @@
     <None Include="HeliosEngine.fx" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="include\DepthStencilState.h" />
+    <ClInclude Include="include\RasterizerState.h" />
+    <ClInclude Include="Skybox.h" />
     <ClInclude Include="imgui-docking\backends\imgui_impl_dx11.h" />
     <ClInclude Include="imgui-docking\backends\imgui_impl_win32.h" />
     <ClInclude Include="imgui-docking\imconfig.h" />

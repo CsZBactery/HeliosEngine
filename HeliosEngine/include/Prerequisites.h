@@ -9,20 +9,19 @@
 #include <sstream>
 #include <vector>
 #include <windows.h>
-
-
 #include <xnamath.h> 
-
 #include <thread>
 #include <memory>
 #include <unordered_map>
 #include <type_traits>
+#include <array>
 
 // Librerias DirectX
 #include <d3d11.h>
 #include <d3dx11.h>
 #include <d3dcompiler.h>
 #include "Resource.h"
+// #include "resource.h" // Descomentar solo si tienes un archivo de recursos de Windows (.rc) configurado.
 
 // Third Party Libraries
 #include "EngineUtilities/Vectors/Vector2.h"
@@ -32,7 +31,9 @@
 #include "EngineUtilities/Memory/TStaticPtr.h"
 #include "EngineUtilities/Memory/TUniquePtr.h"
 
+// ======================================================================================
 // MACROS
+// ======================================================================================
 
 /**
  * @def SAFE_RELEASE(x)
@@ -74,83 +75,108 @@
     }                                                         \
 }
 
-   //--------------------------------------------------------------------------------------
-   // Structures
-   //--------------------------------------------------------------------------------------
+   // ======================================================================================
+   // STRUCTURES
+   // ======================================================================================
 
    /**
-    * @struct SimpleVertex
-    * @brief Estructura de entrada para los vértices en el Vertex Shader.
-    */
-struct SimpleVertex
-{
-    XMFLOAT3 Pos;    /**< Posición del vértice en el espacio 3D. */
-    XMFLOAT2 Tex;    /**< Coordenadas de textura (UV). */
-    XMFLOAT3 Normal; /**< Vector normal para cálculos de iluminación. */
+	* @struct SimpleVertex
+	* @brief Estructura de entrada estándar para los vértices de modelos 3D en el Vertex Shader.
+	*/
+struct
+	SimpleVertex {
+	XMFLOAT3 Pos;    /**< Posición del vértice en el espacio 3D. */
+	XMFLOAT2 Tex;    /**< Coordenadas de textura (UV). */
+	XMFLOAT3 Normal; /**< Vector normal para cálculos de iluminación. */
+};
+
+/**
+ * @struct SkyboxVertex
+ * @brief Estructura de entrada mínima optimizada para la geometría del entorno (Cielo).
+ */
+struct
+	SkyboxVertex {
+	float x, y, z;   /**< Coordenadas espaciales locales del cubo. */
 };
 
 /**
  * @struct CBNeverChanges
- * @brief Buffer constante para datos que permanecen estáticos o cambian por frame pero no por objeto.
+ * @brief Buffer constante para datos estáticos de escena e iluminación.
  */
-struct CBNeverChanges
-{
-    XMMATRIX mView;       /**< Matriz de Vista (Cámara). */
-    XMVECTOR mLightDir;   /**< Dirección de la luz en el mundo. */
-    XMVECTOR mLightColor; /**< Color e intensidad de la luz. */
+struct
+	CBNeverChanges {
+	XMMATRIX mView;       /**< Matriz de Vista (Cámara). */
+	XMVECTOR mLightDir;   /**< Dirección de la luz direccional principal en el mundo. */
+	XMVECTOR mLightColor; /**< Color e intensidad de la luz principal. */
+};
+
+/**
+ * @struct CBSkybox
+ * @brief Buffer constante especializado para el renderizado del Skybox.
+ */
+struct
+	CBSkybox {
+	XMMATRIX mviewProj;   /**< Matriz combinada de Vista y Proyección sin traslación. */
 };
 
 /**
  * @struct CBChangeOnResize
- * @brief Buffer constante para datos que solo se actualizan cuando cambia el tamaño de la ventana.
+ * @brief Buffer constante para datos que dependen de la resolución de la ventana.
  */
-struct CBChangeOnResize
-{
-    XMMATRIX mProjection; /**< Matriz de Proyección. */
+struct
+	CBChangeOnResize {
+	XMMATRIX mProjection; /**< Matriz de Proyección (Perspectiva u Ortográfica). */
 };
 
 /**
  * @struct CBChangesEveryFrame
- * @brief Buffer constante para datos que cambian por cada objeto dibujado.
+ * @brief Buffer constante para datos únicos por cada objeto renderizado.
  */
-struct CBChangesEveryFrame
-{
-    XMMATRIX mWorld;      /**< Matriz de Mundo (Transformación del objeto). */
-    XMFLOAT4 vMeshColor;  /**< Color base o tinte de la malla. */
+struct
+	CBChangesEveryFrame {
+	XMMATRIX mWorld;      /**< Matriz de Mundo (Transformación local a global). */
+	XMFLOAT4 vMeshColor;  /**< Tinte de color general aplicable a la malla. */
 };
+
+// ======================================================================================
+// ENUMS
+// ======================================================================================
 
 /**
  * @enum ExtensionType
- * @brief Define los formatos de archivo de imagen soportados para texturas.
+ * @brief Define los formatos de archivo de imagen soportados por el gestor de texturas.
  */
-enum ExtensionType {
-    DDS = 0, /**< DirectDraw Surface (Formato nativo de DirectX). */
-    PNG = 1, /**< Portable Network Graphics. */
-    JPG = 2, /**< Joint Photographic Experts Group. */
-    TGA = 3  /**< Truevision TGA. */
+enum
+	ExtensionType {
+	DDS = 0, /**< DirectDraw Surface (Formato nativo y optimizado para DirectX). */
+	PNG = 1, /**< Portable Network Graphics (Con soporte para canal Alpha). */
+	JPG = 2, /**< Joint Photographic Experts Group. */
+	TGA = 3  /**< Truevision TGA (Común en exportaciones de modelado 3D). */
 };
 
 /**
  * @enum ShaderType
- * @brief Identificadores para los diferentes tipos de etapas de shader.
+ * @brief Identificadores de etapa en el pipeline programable.
  */
-enum ShaderType {
-    VERTEX_SHADER = 0, /**< Shader de procesamiento de vértices. */
-    PIXEL_SHADER = 1   /**< Shader de procesamiento de fragmentos/píxeles. */
+enum
+	ShaderType {
+	VERTEX_SHADER = 0, /**< Etapa de procesamiento de vértices (Transformaciones). */
+	PIXEL_SHADER = 1   /**< Etapa de procesamiento de fragmentos (Color y Texturizado). */
 };
 
 /**
  * @enum ComponentType
- * @brief Identificadores de tipos de componentes para el sistema Actor-Componente.
+ * @brief Identificadores de la arquitectura ECS para adjuntar comportamientos a los actores.
  */
-enum ComponentType {
-    NONE = 0,      /**< Sin tipo definido. */
-    TRANSFORM = 1, /**< Componente de posición, rotación y escala. */
-    MESH = 2,      /**< Componente de malla geométrica. */
-    MATERIAL = 3,  /**< Componente de propiedades visuales y texturas. */
-    CAMERA = 4,    /**< Componente de cámara. */
-    SCRIPT = 5,    /**< Componente de lógica de script. */
-    AUDIO = 6,     /**< Componente de fuente de sonido. */
-    HIERARCHY = 7, /**< Componente de gestión de jerarquía (padre/hijo). */
-    UNKNOWN = 8    /**< Tipo desconocido o personalizado. */
+enum
+	ComponentType {
+	NONE = 0,      /**< Sin tipo definido o nulo. */
+	TRANSFORM = 1, /**< Componente de posición, rotación y escala en el mundo. */
+	MESH = 2,      /**< Componente portador de geometría (vértices e índices). */
+	MATERIAL = 3,  /**< Componente definidor de propiedades visuales y texturas. */
+	CAMERA = 4,    /**< Componente para proyectar la escena en pantalla. */
+	SCRIPT = 5,    /**< Componente contenedor de lógica personalizada. */
+	AUDIO = 6,     /**< Componente emisor de sonido espacial. */
+	HIERARCHY = 7, /**< Componente de gestión de relaciones padre/hijo. */
+	UNKNOWN = 8    /**< Tipo de componente no registrado nativamente. */
 };
