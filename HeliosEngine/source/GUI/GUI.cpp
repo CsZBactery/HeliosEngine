@@ -1,3 +1,8 @@
+// ======================================================================================
+// Archivo: GUI.cpp
+// Implementación de la Interfaz de Usuario usando ImGui e ImGuizmo.
+// ======================================================================================
+
 #include "EngineUtilities/GUI/GUI.h"
 #include "Window.h"
 #include "Device.h"
@@ -6,8 +11,7 @@
 #include "ECS/Actor.h"
 #include "ECS/Transform.h"
 
-// ERROR 1 CORREGIDO: Eliminamos 'using namespace DirectX;'
-// xnamath.h define XMMATRIX en el namespace global, así que no necesitamos el using.
+// xnamath.h define XMMATRIX en el namespace global, así que no necesitamos usar 'using namespace'.
 
 void GUI::awake() {
     // Configuración previa si fuera necesaria
@@ -46,22 +50,20 @@ void GUI::update(Viewport& viewport, Window& window) {
     window_flags |= ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove;
     window_flags |= ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus;
 
+    // Quitar padding para que el dockspace ocupe el 100% de la ventana
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
 
-    // ERROR 3 POSIBLE: Pasamos NULL en lugar de nullptr para asegurar compatibilidad si hay sobrecargas raras
-    ImGui::Begin("DockSpace Demo", NULL, window_flags);
+    // Iniciamos la ventana principal que sirve de ancla para las demás
+    ImGui::Begin("DockSpace Demo", nullptr, window_flags);
     ImGui::PopStyleVar();
 
     ImGuiID dockspace_id = ImGui::GetID("MyDockSpace");
-    ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_None);
+    ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_PassthruCentralNode); // <-- IMPORTANTE: Permite ver a través del centro
 
     ImGui::End();
 
-    // Dibujar Toolbar
+    // Dibujar Toolbar en la parte superior
     ToolBar();
-
-    // Preparar zona para Guizmos
-    ImGuizmo::SetRect(0, 0, (float)window.m_width, (float)window.m_height);
 }
 
 void GUI::render() {
@@ -105,7 +107,7 @@ void GUI::closeApp() {
 }
 
 // -----------------------------------------------------------------------------
-// OUTLINER
+// OUTLINER (Lista de actores en la escena)
 // -----------------------------------------------------------------------------
 void GUI::outliner(const std::vector<EU::TSharedPointer<Actor>>& actors) {
     ImGui::Begin("Outliner");
@@ -124,6 +126,7 @@ void GUI::outliner(const std::vector<EU::TSharedPointer<Actor>>& actors) {
 
         ImGui::TreeNodeEx((void*)(intptr_t)i, flags, name.c_str());
 
+        // Si el usuario hace clic en el nombre, actualizamos el índice seleccionado
         if (ImGui::IsItemClicked()) {
             selectedActorIndex = (int)i;
         }
@@ -133,12 +136,12 @@ void GUI::outliner(const std::vector<EU::TSharedPointer<Actor>>& actors) {
 }
 
 // -----------------------------------------------------------------------------
-// INSPECTOR
+// INSPECTOR (Propiedades del actor seleccionado)
 // -----------------------------------------------------------------------------
 void GUI::inspectorGeneral(EU::TSharedPointer<Actor> actor) {
     ImGui::Begin("Inspector");
 
-    // Verificamos con .get() o cast a bool
+    // Verificamos con .get() que el puntero sea válido
     if (actor.get()) {
         char buffer[256];
         memset(buffer, 0, sizeof(buffer));
@@ -152,7 +155,7 @@ void GUI::inspectorGeneral(EU::TSharedPointer<Actor> actor) {
         ImGui::Separator();
 
         auto transform = actor->getComponent<Transform>();
-        if (transform.get()) { // Verificacion segura
+        if (transform.get()) {
             if (ImGui::CollapsingHeader("Transform", ImGuiTreeNodeFlags_DefaultOpen)) {
 
                 EU::Vector3 pos = transform->getPosition();
@@ -181,7 +184,7 @@ void GUI::inspectorGeneral(EU::TSharedPointer<Actor> actor) {
 }
 
 // -----------------------------------------------------------------------------
-// HELPER: Control de Vectores
+// HELPER: Controles visuales XYZ para el Inspector
 // -----------------------------------------------------------------------------
 void GUI::vec3Control(const std::string& label, float* values, float resetValues, float columnWidth) {
     ImGui::PushID(label.c_str());
@@ -194,11 +197,10 @@ void GUI::vec3Control(const std::string& label, float* values, float resetValues
     ImGui::PushMultiItemsWidths(3, ImGui::CalcItemWidth());
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{ 0, 0 });
 
-    // ERROR 2 CORREGIDO: Usamos ImGui::GetFontSize() en lugar de acceder a GImGui->Font->FontSize
     float lineHeight = ImGui::GetFontSize() + GImGui->Style.FramePadding.y * 2.0f;
     ImVec2 buttonSize = { lineHeight + 3.0f, lineHeight };
 
-    // X
+    // Botón X (Rojo)
     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4{ 0.8f, 0.1f, 0.15f, 1.0f });
     if (ImGui::Button("X", buttonSize)) values[0] = resetValues;
     ImGui::PopStyleColor();
@@ -207,7 +209,7 @@ void GUI::vec3Control(const std::string& label, float* values, float resetValues
     ImGui::PopItemWidth();
     ImGui::SameLine();
 
-    // Y
+    // Botón Y (Verde)
     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4{ 0.2f, 0.7f, 0.2f, 1.0f });
     if (ImGui::Button("Y", buttonSize)) values[1] = resetValues;
     ImGui::PopStyleColor();
@@ -216,7 +218,7 @@ void GUI::vec3Control(const std::string& label, float* values, float resetValues
     ImGui::PopItemWidth();
     ImGui::SameLine();
 
-    // Z
+    // Botón Z (Azul)
     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4{ 0.1f, 0.25f, 0.8f, 1.0f });
     if (ImGui::Button("Z", buttonSize)) values[2] = resetValues;
     ImGui::PopStyleColor();
@@ -230,7 +232,7 @@ void GUI::vec3Control(const std::string& label, float* values, float resetValues
 }
 
 // -----------------------------------------------------------------------------
-// GIZMOS (ImGuizmo)
+// GIZMOS (Flechas de manipulación en pantalla 3D)
 // -----------------------------------------------------------------------------
 void GUI::editTransform(const XMMATRIX& view, const XMMATRIX& projection, EU::TSharedPointer<Actor> actor) {
     if (!actor.get()) return;
@@ -239,12 +241,28 @@ void GUI::editTransform(const XMMATRIX& view, const XMMATRIX& projection, EU::TS
     if (!transform.get()) return;
 
     XMFLOAT4X4 view4x4, proj4x4, world4x4;
-
-    // XMStoreFloat4x4 funciona igual en xnamath y DirectXMath
     XMStoreFloat4x4(&view4x4, view);
     XMStoreFloat4x4(&proj4x4, projection);
     XMStoreFloat4x4(&world4x4, transform->matrix);
 
+    // 1. Configuramos ImGuizmo para que dibuje en una ventana INVISIBLE que ocupe todo el Viewport central
+    ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoTitleBar |
+        ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+        ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings |
+        ImGuiWindowFlags_NoInputs;
+
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(viewport->Pos);
+    ImGui::SetNextWindowSize(viewport->Size);
+
+    // Abrimos la ventana transparente
+    ImGui::Begin("GizmoLayer", nullptr, windowFlags);
+
+    // Le indicamos a ImGuizmo que use esta ventana para dibujar
+    ImGuizmo::SetDrawlist();
+    ImGuizmo::SetRect(viewport->Pos.x, viewport->Pos.y, viewport->Size.x, viewport->Size.y);
+
+    // 2. Llamada a ImGuizmo::Manipulate
     if (ImGuizmo::Manipulate(
         (float*)&view4x4,
         (float*)&proj4x4,
@@ -261,10 +279,13 @@ void GUI::editTransform(const XMMATRIX& view, const XMMATRIX& projection, EU::TS
             transform->setScale(EU::Vector3(matrixScale[0], matrixScale[1], matrixScale[2]));
         }
     }
+
+    // Cerramos la ventana transparente
+    ImGui::End();
 }
 
 // -----------------------------------------------------------------------------
-// ESTILO APPLE
+// ESTILO VISUAL (Apple Liquid)
 // -----------------------------------------------------------------------------
 void GUI::appleLiquidStyle(float opacity, ImVec4 accent) {
     ImGuiStyle& style = ImGui::GetStyle();

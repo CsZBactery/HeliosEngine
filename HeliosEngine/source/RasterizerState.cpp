@@ -50,27 +50,26 @@ RasterizerState::init(Device device) {
 	return hr;
 }
 
-// Inicializa el rasterizador pero permite personalizar el Modo de Relleno y el Descarte de Caras
+// Inicializa el rasterizador permitiendo configurar el descarte de caras y el recorte de profundidad
 HRESULT
-RasterizerState::init(Device device, unsigned int FillMode, unsigned int CullMode) {
-	D3D11_RASTERIZER_DESC rasterizerDesc = {};
+RasterizerState::init(Device& device,
+	D3D11_FILL_MODE fill,
+	D3D11_CULL_MODE cull,
+	bool frontCCW,
+	bool depthClip) {
+	// Inicializamos en ceros
+	D3D11_RASTERIZER_DESC desc{};
 
-	// Hacemos un casting (conversión) de los números enteros que pasamos por parámetro
-	// a los tipos enumerados que DirectX espera.
-	rasterizerDesc.FillMode = (D3D11_FILL_MODE)FillMode;
-	rasterizerDesc.CullMode = (D3D11_CULL_MODE)CullMode;
+	// Asignamos directamente las variables enviadas por parámetro
+	desc.FillMode = fill;
+	desc.CullMode = cull;
 
-	rasterizerDesc.FrontCounterClockwise = false;
-	rasterizerDesc.DepthBias = 0;
-	rasterizerDesc.SlopeScaledDepthBias = 0.0f;
-	rasterizerDesc.DepthBiasClamp = 0.0f;
-	rasterizerDesc.DepthClipEnable = true;
-	rasterizerDesc.ScissorEnable = false;
-	rasterizerDesc.MultisampleEnable = false;
-	rasterizerDesc.AntialiasedLineEnable = false;
+	// Convertimos el tipo bool nativo de C++ al tipo BOOL (entero) que usa DirectX
+	desc.FrontCounterClockwise = frontCCW ? TRUE : FALSE;
+	desc.DepthClipEnable = depthClip ? TRUE : FALSE;
 
 	HRESULT hr = S_OK;
-	hr = device.m_device->CreateRasterizerState(&rasterizerDesc, &m_rasterizerState);
+	hr = device.m_device->CreateRasterizerState(&desc, &m_rasterizerState);
 
 	if (FAILED(hr)) {
 		ERROR("Rasterizer", "init", "CHECK FOR CreateRasterizerState()");
@@ -86,6 +85,12 @@ RasterizerState::update() {
 // Vincula este estado de rasterización al pipeline para que la GPU comience a usar estas reglas
 void
 RasterizerState::render(DeviceContext& deviceContext) {
+	// Verificación de seguridad agregada por el profesor para evitar crashes en la GPU
+	if (!m_rasterizerState) {
+		ERROR("RasterizerState", "render", "RasterizerState is nullptr (init failed or not called)");
+		return;
+	}
+
 	// IMPORTANTE: Asegúrate de que tu clase DeviceContext tenga implementado el método RSSetState,
 	// de lo contrario, tendrías que usar: deviceContext.m_deviceContext->RSSetState(m_rasterizerState);
 	deviceContext.RSSetState(m_rasterizerState);

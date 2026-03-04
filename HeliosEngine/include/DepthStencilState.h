@@ -33,18 +33,23 @@ public:
 	~DepthStencilState() = default;
 
 	/**
-	 * @brief Crea y configura el estado lógico de profundidad y estarcido.
+	 * @brief Crea y configura el estado lógico de profundidad y estarcido de forma avanzada.
 	 *
 	 * @details Construye el ID3D11DepthStencilState definiendo si los objetos deben
-	 * ocultarse unos a otros (Depth) y si se deben usar máscaras especiales (Stencil).
+	 * ocultarse unos a otros (Depth) y permitiendo personalizar la máscara de escritura y
+	 * la función matemática de comparación.
 	 *
 	 * @param device Dispositivo de hardware encargado de crear el recurso.
-	 * @param enableDepth Si es true, activa el Z-Buffer (los objetos cercanos tapan a los lejanos).
-	 * @param enableStencil Si es true, activa pruebas avanzadas de enmascarado.
+	 * @param depthEnable Si es true, activa el Z-Buffer (los objetos cercanos tapan a los lejanos).
+	 * @param writeMask Define si se permite modificar el Z-Buffer (ej. D3D11_DEPTH_WRITE_MASK_ALL o ZERO).
+	 * @param depthFunc Define la regla matemática para aprobar el dibujo de un píxel (ej. D3D11_COMPARISON_LESS_EQUAL).
 	 * @return S_OK si el estado se configuró correctamente en la GPU.
 	 */
 	HRESULT
-		init(Device& device, bool enableDepth = true, bool enableStencil = false);
+		init(Device& device,
+			bool depthEnable,
+			D3D11_DEPTH_WRITE_MASK writeMask,
+			D3D11_COMPARISON_FUNC depthFunc);
 
 	/**
 	 * @brief Método para actualizar configuraciones del estado en tiempo real.

@@ -9,54 +9,39 @@
 
 // Inicializa las reglas lógicas en la memoria de la tarjeta gráfica
 HRESULT
-DepthStencilState::init(Device& device, bool enableDepth, bool enableStencil) {
+DepthStencilState::init(Device& device,
+	bool depthEnable,
+	D3D11_DEPTH_WRITE_MASK writeMask,
+	D3D11_COMPARISON_FUNC depthFunc) {
+
 	// Verificamos que la tarjeta de video esté conectada y lista
 	if (!device.m_device) {
 		ERROR("ShaderProgram", "init", "Device is null.");
 		return E_POINTER;
 	}
 
-	// Estructura que le dirá a DirectX cómo queremos que se comporten los píxeles
-	D3D11_DEPTH_STENCIL_DESC desc = {};
+	// Estructura que le dirá a DirectX cómo queremos que se comporten los píxeles.
+	// Al usar {} se inicializa toda la memoria en ceros automáticamente.
+	D3D11_DEPTH_STENCIL_DESC desc{};
 
 	// --- CONFIGURACIÓN DE PROFUNDIDAD (Z-BUFFER) ---
-	// Activa o desactiva la prueba de distancia (si un objeto debe tapar a otro)
-	desc.DepthEnable = enableDepth;
-
-	// Siempre permitimos que se escriba la nueva información de profundidad en el buffer
-	desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
-
-	// Regla matemática: Dibuja el píxel solo si su distancia es "MENOR" (está más cerca de la cámara)
-	desc.DepthFunc = D3D11_COMPARISON_LESS;
+	// Asignamos las variables que recibimos por parámetro (ej. para el Skybox)
+	desc.DepthEnable = depthEnable;
+	desc.DepthWriteMask = writeMask;
+	desc.DepthFunc = depthFunc;
 
 	// --- CONFIGURACIÓN DE ESTARCIDO (STENCIL) ---
-	// El Stencil se usa para crear máscaras de recorte, siluetas o sombras complejas
-	desc.StencilEnable = enableStencil;
-	desc.StencilReadMask = D3D11_DEFAULT_STENCIL_READ_MASK;
-	desc.StencilWriteMask = D3D11_DEFAULT_STENCIL_WRITE_MASK;
-
-	// Operaciones para los polígonos que miran hacia la cámara (Front Face)
-	desc.FrontFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
-	// Si falla la prueba de profundidad (hay un objeto delante), incrementamos el valor del stencil.
-	// (Esta es una técnica muy común para el algoritmo de Sombras Volumétricas).
-	desc.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_INCR;
-	desc.FrontFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
-	desc.FrontFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
-
-	// Operaciones para los polígonos que miran en dirección contraria (Back Face)
-	desc.BackFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
-	// Si falla la prueba de profundidad por detrás, decrementamos el valor.
-	desc.BackFace.StencilDepthFailOp = D3D11_STENCIL_OP_DECR;
-	desc.BackFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
-	desc.BackFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
+	// Desactivado por ahora según la arquitectura del motor base
+	desc.StencilEnable = false;
 
 	// Finalmente, enviamos esta estructura a la GPU para que cree el estado lógico
 	HRESULT hr = device.m_device->CreateDepthStencilState(&desc, &m_depthStencilState);
 	if (FAILED(hr)) {
 		ERROR("DepthStencilState", "init", "Failed to create DepthStencilState");
+		return hr;
 	}
 
-	return S_OK;
+	return hr;
 }
 
 // Espacio reservado para futuras actualizaciones dinámicas
@@ -70,6 +55,7 @@ void
 DepthStencilState::render(DeviceContext& deviceContext,
 	unsigned int stencilRef,
 	bool reset) {
+
 	// Validaciones de seguridad antes de hablar con la GPU
 	if (!deviceContext.m_deviceContext) {
 		ERROR("RenderTargetView", "render", "DeviceContext is nullptr.");

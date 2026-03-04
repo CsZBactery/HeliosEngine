@@ -4,7 +4,7 @@
 // Utiliza un cubo gigante proyectado alrededor de la cámara.
 // ======================================================================================
 
-#include "EngineUtilities/Utilities/Skybox.h"
+#include "EngineUtilities/Utilities/Skybox.h" // Ajusta esta ruta a "include/..." si tu VS lo requiere
 #include "Device.h"
 #include "DeviceContext.h"
 
@@ -18,8 +18,6 @@ Skybox::init(Device& device, DeviceContext* deviceContext, Texture& cubemap) {
 
 	// 1) GEOMETRÍA DEL CUBO
 	// Definimos los 8 vértices de un cubo unitario centrado en el origen (0,0,0).
-	// El tamaño real no importa, porque más adelante le quitaremos la traslación a la cámara,
-	// haciendo que este cubo siempre envuelva al jugador sin importar a dónde camine.
 	const SkyboxVertex vertices[] = {
 		{-1,-1,-1}, {-1,+1,-1}, {+1,+1,-1}, {+1,-1,-1}, // Cara trasera (-Z)
 		{-1,-1,+1}, {-1,+1,+1}, {+1,+1,+1}, {+1,-1,+1}, // Cara delantera (+Z)
@@ -35,22 +33,19 @@ Skybox::init(Device& device, DeviceContext* deviceContext, Texture& cubemap) {
 		4,0,3, 4,3,7  // Abajo (-Y)
 	};
 
-	// 2) CREACIÓN DEL ACTOR
+	// 2) CREACIÓN DEL ACTOR DEL ENTORNO
 	m_skybox = EU::MakeShared<Actor>(device);
 
 	if (!m_skybox.isNull()) {
 		std::vector<MeshComponent> skybox;
 
-		// Usamos el constructor paramétrico de Model3D que creamos antes para inyectar 
-		// la geometría estática directamente desde la RAM sin leer un archivo .obj
+		// Inyectamos la geometría estática directamente desde la RAM
 		m_cubeModel = new Model3D("Skybox", vertices, indices);
 		skybox = m_cubeModel->GetMeshes();
 
-		// Asignamos la malla al actor. (No se le pasa textura aquí, se renderiza aparte).
+		// Asignamos la malla al actor.
 		m_skybox->setMesh(device, skybox);
-
-		// NOTA: Tu profe dejó "CyberGun" por accidente (copiar y pegar). Lo ideal es:
-		m_skybox->setName("SkyboxActor");
+		m_skybox->setName("skybox");
 	}
 	else {
 		ERROR("Skybox", "Init", "Failed to create Skybox Actor.");
@@ -59,7 +54,6 @@ Skybox::init(Device& device, DeviceContext* deviceContext, Texture& cubemap) {
 
 	// 3) CONFIGURACIÓN DE SHADERS (Input Layout)
 	// Para el Skybox, el Shader solo necesita saber la Posición 3D (x, y, z).
-	// Las coordenadas UV se calculan matemáticamente en el shader usando esa misma posición.
 	std::vector<D3D11_INPUT_ELEMENT_DESC> Layout;
 	D3D11_INPUT_ELEMENT_DESC position;
 	position.SemanticName = "POSITION";
@@ -73,64 +67,79 @@ Skybox::init(Device& device, DeviceContext* deviceContext, Texture& cubemap) {
 
 	HRESULT hr = S_OK;
 
-	// Carga y compila el shader especial para el cielo
-	hr = m_shaderProgram.init(device, "Skybox.fx", Layout);
+	// Carga y compila el shader especial para el cielo (OJO: Ahora busca .hlsl)
+	hr = m_shaderProgram.init(device, "Skybox.hlsl", Layout);
+	if (FAILED(hr)) {
+		ERROR("Skybox", "init", ("Failed to initialize ShaderProgram. HRESULT: " + std::to_string(hr)).c_str());
+		return hr;
+	}
 
 	// Buffer Constante para enviarle la matriz de la cámara al Shader
 	hr = m_constantBuffer.init(device, sizeof(CBSkybox));
 	if (FAILED(hr)) {
-		ERROR("Skybox", "init",
-			("Failed to initialize NeverChanges Buffer. HRESULT: " + std::to_string(hr)).c_str());
+		ERROR("Skybox", "init", ("Failed to initialize NeverChanges Buffer. HRESULT: " + std::to_string(hr)).c_str());
 		return hr;
 	}
 
-	// Sampler: Define cómo se filtra la textura del cielo (ej. Linear o Anisotropic)
+	// Sampler: Define cómo se filtra la textura del cielo
 	hr = m_samplerState.init(device);
 	if (FAILED(hr)) {
 		ERROR("Skybox", "init", "Failed to create new SamplerState");
 	}
 
-	// NOTA DEL PROFE: Rasterizer y DepthStencil están comentados porque probablemente
-	// los está controlando globalmente desde el BaseApp.cpp (usando RasterizerStateNoCull).
-	//hr = m_rasterizerState.init(device, true, false);
-	//hr = m_depthStencilState.init(device, true, false);
+	// 4) CONFIGURACIÓN DE ESTADOS ESPECÍFICOS PARA EL CIELO
 
-	return E_NOTIMPL; // Retorno temporal del profe
+	// Rasterizer: CULL_FRONT -> Dibujamos las caras INTERNAS del cubo porque estamos adentro de él.
+	hr = m_rasterizerState.init(device, D3D11_FILL_SOLID, D3D11_CULL_FRONT, false, true);
+	if (FAILED(hr)) {
+		ERROR("Skybox", "init", "Failed to create new RasterizerState");
+	}
+
+	// DepthStencil: WRITE_MASK_ZERO -> No escribe profundidad (no tapa a la moto).
+	// COMPARISON_LESS_EQUAL -> Asegura que se dibuje en el límite más lejano (Z = 1.0).
+	hr = m_depthStencilState.init(device, true, D3D11_DEPTH_WRITE_MASK_ZERO, D3D11_COMPARISON_LESS_EQUAL);
+	if (FAILED(hr)) {
+		ERROR("Skybox", "init", "Failed to create new DepthStencilState");
+	}
+
+	return S_OK;
 }
 
 // Proceso de dibujo del cielo en cada frame
 void
 Skybox::render(DeviceContext& deviceContext, Camera& camera) {
+	// Guardia de seguridad: Evita crashes si la textura o modelo no cargaron
+	if (!m_cubeModel || !m_skyboxTexture.m_textureFromImg) return;
 
-	// 1) CÁLCULO DE LA MATRIZ DE VISTA (El truco del cielo infinito)
-	XMMATRIX view = camera.getView();
+	// 1) Aplicamos las reglas especiales de dibujo (estar adentro del cubo, pintar al fondo)
+	m_rasterizerState.render(deviceContext);
+	m_depthStencilState.render(deviceContext, 0, false);
 
-	// Obtenemos la matriz de vista PERO le borramos la posición (traslación).
-	// Esto hace que la cámara pueda rotar para ver a todos lados, pero si el jugador avanza,
-	// el cielo "avanza" con él. Nunca te acercarás a la pared del cubo.
-	view = XMMatrixTranspose(camera.GetViewNoTranslation());
+	// 2) CÁLCULO DE LA MATRIZ DE VISTA (El truco del cielo infinito)
+	// Le borramos la posición a la cámara. Solo nos importa a dónde mira.
+	XMMATRIX viewNoT = camera.GetViewNoTranslation();
+	XMMATRIX vp = viewNoT * camera.getProj();
 
-	// Multiplicamos: Vista (solo rotación) * Proyección
-	XMMATRIX vp = view * camera.getProj();
-
-	// 2) ACTUALIZACIÓN DE DATOS EN LA GPU
 	CBSkybox cb{};
-	cb.mviewProj = XMMatrixTranspose(vp); // Preparamos la matriz para enviarla a DirectX
+	cb.mviewProj = XMMatrixTranspose(vp); // Multiplicación final
 	m_constantBuffer.update(deviceContext, nullptr, 0, nullptr, &cb, 0, 0);
 	m_constantBuffer.render(deviceContext, 0, 1);
 
-	// 3) DIBUJO
+	// 3) Activamos Shaders
 	m_shaderProgram.render(deviceContext);
-	m_samplerState.render(deviceContext, 0, 1);
 
-	// NOTA: En el código del profe, el DrawIndexed está ANTES de poner la textura. 
-	// Aunque en algunas arquitecturas previas esto funciona por estados heredados, 
-	// la convención limpia es poner la textura ANTES de dar la orden de dibujar. 
-	// Lo dejo como el profe lo estructuró, pero la Textura debería activarse primero.
+	// 4) IMPORTANTÍSIMO: Usamos el Slot 10 para no interferir con las texturas de los modelos 3D
+	m_samplerState.render(deviceContext, 10, 1);
+	m_skyboxTexture.render(deviceContext, 10, 1);
 
-	deviceContext.DrawIndexed(m_cubeModel->m_meshes[0].m_index.size(), 0, 0);
+	// 5) Renderizamos usando la función especializada que agregamos a Actor
+	m_skybox->renderForSkybox(deviceContext);
 
-	m_skyboxTexture.render(deviceContext, 0, 1);
+	// 6) FASE DE LIMPIEZA
+	// Limpiamos el slot 10 y el 0 para evitar texturas fantasma en el siguiente modelo
+	ID3D11ShaderResourceView* nullSRV[1] = { nullptr };
+	deviceContext.m_deviceContext->PSSetShaderResources(10, 1, nullSRV);
+	deviceContext.m_deviceContext->PSSetShaderResources(0, 1, nullSRV);
 }
 
 // ======================================================================================
@@ -139,20 +148,19 @@ Skybox::render(DeviceContext& deviceContext, Camera& camera) {
 // Libera la memoria de la tarjeta gráfica y la RAM ocupada por el entorno
 void
 Skybox::destroy() {
-	// Liberar el modelo 3D dinámico (el cubo que creamos con 'new')
+	// Liberar el modelo 3D dinámico
 	if (m_cubeModel) {
 		delete m_cubeModel;
 		m_cubeModel = nullptr;
 	}
 
-	// Liberar buffers, shaders y texturas
+	// Liberar buffers, shaders, estados y texturas
 	m_constantBuffer.destroy();
 	m_shaderProgram.destroy();
 	m_samplerState.destroy();
 	m_skyboxTexture.destroy();
 
-	// NOTA: Si en algún momento descomentas el Rasterizer y DepthStencil en tu init(),
-	// también deberás descomentar estas dos líneas para evitar fugas de memoria:
-	// m_rasterizerState.destroy();
-	// m_depthStencilState.destroy();
+	// Limpiamos los estados de DirectX
+	m_rasterizerState.destroy();
+	m_depthStencilState.destroy();
 }

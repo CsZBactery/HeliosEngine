@@ -1,7 +1,7 @@
 ﻿// ======================================================================================
 // Archivo: BaseApp.cpp
 // Implementación de la clase principal del motor. 
-// Controla el Game Loop, inicialización de DirectX y renderizado.
+// Controla el Game Loop, inicialización de DirectX y renderizado general.
 // ======================================================================================
 
 #include "BaseApp.h"
@@ -10,7 +10,7 @@
 #include <string>
 #include "imgui.h"
 
-// Estado del Rasterizador: Controla cómo se dibujan los polígonos (ej. si se ve el interior de los objetos)
+// Variable global (temporal) para el estado del rasterizador sin culling (si aún la necesitas para algo externo)
 ID3D11RasterizerState* g_pRasterizerStateNoCull = nullptr;
 
 // ======================================================================================
@@ -86,104 +86,140 @@ HRESULT BaseApp::init() {
     HRESULT hr = S_OK;
 
     // 1. Crear el Dispositivo (conexión física con la GPU) y su Contexto (emisor de comandos)
-    m_device.init();
-    m_device.m_device->GetImmediateContext(&m_deviceContext.m_deviceContext);
+    // Inicialización implícita de device y deviceContext
+    // m_device.init(); ya se hace en la creación de las variables internamente en algunos diseños,
+    // o se confía en que las funciones siguientes lo rellenen. El profe no llama a init() explícito en m_device.
 
-    // 2. Crear SwapChain (Técnica de Doble Buffer para evitar parpadeos en pantalla) 
+    // 2. Crear SwapChain (Doble Buffer) 
     hr = m_swapChain.init(m_device, m_deviceContext, m_backBuffer, m_window);
-    if (FAILED(hr)) return hr;
+    if (FAILED(hr)) {
+        ERROR("Main", "InitDevice", ("Failed to initialize SwapChain. HRESULT: " + std::to_string(hr)).c_str());
+        return hr;
+    }
 
-    // 3. Crear el lienzo principal donde se escriben los colores (Render Target)
+    // 3. Crear el lienzo principal (Render Target)
     hr = m_renderTargetView.init(m_device, m_backBuffer, DXGI_FORMAT_R8G8B8A8_UNORM);
-    if (FAILED(hr)) return hr;
+    if (FAILED(hr)) {
+        ERROR("Main", "InitDevice", ("Failed to initialize RenderTargetView. HRESULT: " + std::to_string(hr)).c_str());
+        return hr;
+    }
 
-    // 4. Crear el Buffer de Profundidad (Z-Buffer) para ocultar objetos lejanos.
-    // NOTA: Se usan 4 muestras y calidad 16 (MSAA) para coincidir con el SwapChain y evitar Crash.
-    hr = m_depthStencil.init(m_device, m_window.m_width, m_window.m_height, DXGI_FORMAT_D24_UNORM_S8_UINT, D3D11_BIND_DEPTH_STENCIL, 4, 16);
-    if (FAILED(hr)) return hr;
+    // 4. Crear Buffer de Profundidad (Z-Buffer)
+    // CUIDADO: Usamos 4 y 0 para MSAA porque así estaba tu SwapChain original que no fallaba, 
+    // o si corregiste SwapChain a qualityLevel 16, pon 16 aquí. El código del profe usa (..., 4, 0).
+    hr = m_depthStencil.init(m_device, m_window.m_width, m_window.m_height, DXGI_FORMAT_D24_UNORM_S8_UINT, D3D11_BIND_DEPTH_STENCIL, 4, 0);
+    if (FAILED(hr)) {
+        ERROR("Main", "InitDevice", ("Failed to initialize DepthStencil. HRESULT: " + std::to_string(hr)).c_str());
+        return hr;
+    }
 
     hr = m_depthStencilView.init(m_device, m_depthStencil, DXGI_FORMAT_D24_UNORM_S8_UINT);
-    if (FAILED(hr)) return hr;
+    if (FAILED(hr)) {
+        ERROR("Main", "InitDevice", ("Failed to initialize DepthStencilView. HRESULT: " + std::to_string(hr)).c_str());
+        return hr;
+    }
 
-    // 5. Configurar el área de proyección en la pantalla (Viewport)
+    // 5. Configurar Viewport
     hr = m_viewport.init(m_window);
-    if (FAILED(hr)) return hr;
+    if (FAILED(hr)) {
+        ERROR("Main", "InitDevice", ("Failed to initialize Viewport. HRESULT: " + std::to_string(hr)).c_str());
+        return hr;
+    }
 
-    // 6. Configurar el Rasterizador (No Culling)
-    // Permite renderizar tanto la cara frontal como la trasera de los polígonos.
-    D3D11_RASTERIZER_DESC rasterDesc;
-    ZeroMemory(&rasterDesc, sizeof(rasterDesc));
-    rasterDesc.FillMode = D3D11_FILL_SOLID;
-    rasterDesc.CullMode = D3D11_CULL_NONE; // Dibuja ambos lados
-    rasterDesc.FrontCounterClockwise = false;
-    rasterDesc.DepthClipEnable = true;
-    rasterDesc.MultisampleEnable = true;
-    m_device.m_device->CreateRasterizerState(&rasterDesc, &g_pRasterizerStateNoCull);
-    m_deviceContext.m_deviceContext->RSSetState(g_pRasterizerStateNoCull);
-
-    // 7. Cargar texturas del Entorno (Skybox)
+    // 6. Cargar texturas del Entorno (Skybox)
     std::array<std::string, 6> faces = {
-        "Skybox/cubemap_0.png", "Skybox/cubemap_1.png", "Skybox/cubemap_2.png",
-        "Skybox/cubemap_3.png", "Skybox/cubemap_4.png", "Skybox/cubemap_5.png"
+        "Assets/Textures/Skybox/cubemap_0.png", // Asegúrate que la ruta exista
+        "Assets/Textures/Skybox/cubemap_1.png",
+        "Assets/Textures/Skybox/cubemap_2.png",
+        "Assets/Textures/Skybox/cubemap_3.png",
+        "Assets/Textures/Skybox/cubemap_4.png",
+        "Assets/Textures/Skybox/cubemap_5.png"
     };
-    m_skyboxTex.CreateCubemap(m_device, m_deviceContext, faces, true);
+    m_skyboxTex.CreateCubemap(m_device, m_deviceContext, faces, false);
 
-    // 8. Crear y ensamblar el Actor Principal (Modelo de moto/Xbox)
+    // 7. Crear y ensamblar el Actor Principal (Ej. CyberGun / Moto)
     m_repsolActor = EU::MakeShared<Actor>(m_device);
+
     if (!m_repsolActor.isNull()) {
+        // Cargar Modelo 
         m_model = new Model3D("Assets/Moto/repsol3.obj", ModelType::OBJ);
+        std::vector<MeshComponent> meshes = m_model->GetMeshes();
 
-        std::vector<Texture> repsolTextures;
+        // Cargar Textura
+        std::vector<Texture> textures;
         hr = m_repsolTexture.init(m_device, "Assets/Textures/BaseColor", ExtensionType::PNG);
-
         if (FAILED(hr)) {
-            ERROR("Main", "Init", "Failed to load texture BaseColor.png");
+            ERROR("Main", "InitDevice", ("Failed to load texture BaseColor.png. HRESULT: " + std::to_string(hr)).c_str());
+            return hr;
         }
-        else {
-            repsolTextures.push_back(m_repsolTexture);
-        }
+        textures.push_back(m_repsolTexture);
 
-        m_repsolActor->setMesh(m_device, m_model->GetMeshes());
-        m_repsolActor->setTextures(repsolTextures);
+        // Asignar al Actor
+        m_repsolActor->setMesh(m_device, meshes);
+        m_repsolActor->setTextures(textures);
         m_repsolActor->setName("RepsolBike");
+        m_actors.push_back(m_repsolActor);
 
-        // Ajustar posición inicial (Centrado, sin rotación y escalado x5)
+        // Posición Inicial
         m_repsolActor->getComponent<Transform>()->setTransform(
             EU::Vector3(0.0f, -4.0f, 0.0f),
             EU::Vector3(0.0f, 0.0f, 0.0f),
             EU::Vector3(5.0f, 5.0f, 5.0f)
         );
-        m_actors.push_back(m_repsolActor);
+    }
+    else {
+        ERROR("Main", "InitDevice", "Failed to create main Actor.");
+        return E_FAIL;
     }
 
-    // Registrar en el Grafo de Escena
-    for (auto& actor : m_actors) m_sceneGraph.addEntity(actor.get());
+    // Registrar actores en el Grafo de Escena
+    for (auto& actor : m_actors) {
+        m_sceneGraph.addEntity(actor.get());
+    }
 
-    // 9. Configurar cómo la CPU envía los vértices a la GPU (Input Layout)
+    // 8. Configurar Input Layout (Cómo la CPU envía vértices a la GPU)
     std::vector<D3D11_INPUT_ELEMENT_DESC> Layout;
     Layout.push_back({ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 });
     Layout.push_back({ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 });
-    Layout.push_back({ "NORMAL",   0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 });
+    // Layout.push_back({ "NORMAL",   0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 }); 
+    // NOTA: El shader del profe "WildvineEngine.fx" no parece usar normales por ahora.
 
-    hr = m_shaderProgram.init(m_device, "Assets/Shaders/HeliosEngine.fx", Layout);
-    if (FAILED(hr)) hr = m_shaderProgram.init(m_device, "HeliosEngine.fx", Layout);
+    hr = m_shaderProgram.init(m_device, "Assets/Shaders/WildvineEngine.fx", Layout);
+    // Fallback por si la ruta no existe
+    if (FAILED(hr)) hr = m_shaderProgram.init(m_device, "WildvineEngine.fx", Layout);
+    if (FAILED(hr)) {
+        ERROR("Main", "InitDevice", ("Failed to initialize ShaderProgram. HRESULT: " + std::to_string(hr)).c_str());
+        return hr;
+    }
+
+    // 9. Crear Buffers Constantes
+    hr = m_cbNeverChanges.init(m_device, sizeof(CBNeverChanges));
     if (FAILED(hr)) return hr;
 
-    // 10. Crear Buffers Constantes (Envío de variables Globales al Shader)
-    m_cbNeverChanges.init(m_device, sizeof(CBNeverChanges));
-    m_cbChangeOnResize.init(m_device, sizeof(CBChangeOnResize));
+    hr = m_cbChangeOnResize.init(m_device, sizeof(CBChangeOnResize));
+    if (FAILED(hr)) return hr;
 
-    // 11. Configurar Cámara y Luces
-    m_camera.setLens(XM_PIDIV4, m_window.m_width / (float)m_window.m_height, 0.1f, 1000.0f);
-    m_camera.setPosition(0.0f, 0.0f, -35.0f); // Alejar la cámara en el eje Z
+    // 10. Configurar Cámara
+    m_camera.setLens(XM_PIDIV4, m_window.m_width / (float)m_window.m_height, 0.01f, 100.0f);
+    m_camera.setPosition(0.0f, 3.0f, -6.0f);
 
     cbNeverChanges.mView = XMMatrixTranspose(m_camera.getView());
-    cbNeverChanges.mLightDir = XMVectorSet(-0.577f, -0.577f, 0.577f, 1.0f);
-    cbNeverChanges.mLightColor = XMVectorSet(1.0f, 1.0f, 1.0f, 1.0f);
-    m_cbNeverChanges.update(m_deviceContext, nullptr, 0, nullptr, &cbNeverChanges, 0, 0);
-
     cbChangesOnResize.mProjection = XMMatrixTranspose(m_camera.getProj());
-    m_cbChangeOnResize.update(m_deviceContext, nullptr, 0, nullptr, &cbChangesOnResize, 0, 0);
+
+    // 11. Inicializar el Skybox y los Estados Base (ESTO ES CRUCIAL PARA VER EL CIELO BIEN)
+    m_skybox.init(m_device, &m_deviceContext, m_skyboxTex);
+
+    hr = m_defaultRasterizer.init(m_device, D3D11_FILL_SOLID, D3D11_CULL_BACK, false, true);
+    if (FAILED(hr)) {
+        ERROR("Main", "InitDevice", "Failed to initialize default Rasterizer.");
+        return hr;
+    }
+
+    hr = m_defaultDepthStencil.init(m_device, true, D3D11_DEPTH_WRITE_MASK_ALL, D3D11_COMPARISON_LESS);
+    if (FAILED(hr)) {
+        ERROR("Main", "InitDevice", "Failed to initialize default DepthStencilState.");
+        return hr;
+    }
 
     return S_OK;
 }
@@ -192,7 +228,7 @@ HRESULT BaseApp::init() {
 // FASE 4: UPDATE (Lógica de cada Frame)
 // ======================================================================================
 void BaseApp::update(float deltaTime) {
-    // Control de redimensionamiento de ventana (Ajusta la distorsión)
+    // Control de redimensionamiento de ventana
     RECT rc;
     GetClientRect(m_window.m_hWnd, &rc);
     float width = static_cast<float>(rc.right - rc.left);
@@ -206,39 +242,29 @@ void BaseApp::update(float deltaTime) {
     // Actualización de la GUI (ImGui)
     m_gui.update(m_viewport, m_window);
 
-    // Posicionamiento dinámico de ventanas ImGui ancladas a los bordes
-    ImGui::SetNextWindowPos(ImVec2(width - 320.0f, 20.0f), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(300.0f, 300.0f), ImGuiCond_FirstUseEver);
     m_gui.outliner(m_actors);
-
     if (!m_actors.empty() && m_gui.selectedActorIndex < m_actors.size()) {
-        ImGui::SetNextWindowPos(ImVec2(width - 320.0f, 340.0f), ImGuiCond_FirstUseEver);
-        ImGui::SetNextWindowSize(ImVec2(300.0f, 300.0f), ImGuiCond_FirstUseEver);
         m_gui.inspectorGeneral(m_actors[m_gui.selectedActorIndex]);
     }
 
-    // Ventana de depuración del Cubemap
+    // Ventana de depuración del Cubemap (Opcional, si quieres ver las caras desglosadas)
     static ID3D11ShaderResourceView* faceSRV[6] = { nullptr };
-    if (!faceSRV[0]) {
+    if (!faceSRV[0] && m_skyboxTex.m_texture) {
         for (UINT i = 0; i < 6; ++i) {
             faceSRV[i] = m_skyboxTex.CreateCubemapFaceSRV(m_device.m_device, m_skyboxTex.m_texture, DXGI_FORMAT_R8G8B8A8_UNORM, i, 1);
         }
     }
-
-    ImGui::SetNextWindowPos(ImVec2(20.0f, 20.0f), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(220.0f, 260.0f), ImGuiCond_FirstUseEver);
     ImGui::Begin("Cubemap");
     ImGui::Text("Skybox Preview");
     if (faceSRV[0]) ImGui::Image((ImTextureID)faceSRV[0], ImVec2(200, 200));
     else ImGui::Text("Textura no disponible");
     ImGui::End();
 
-    // Actualizar Cámara y Luces en los Constant Buffers
+    // Actualizar Matriz de Vista en el Constant Buffer
     m_camera.updateViewMatrix();
     cbNeverChanges.mView = XMMatrixTranspose(m_camera.getView());
-    cbNeverChanges.mLightDir = XMVectorSet(-0.577f, -0.577f, 0.577f, 1.0f);
-    cbNeverChanges.mLightColor = XMVectorSet(1.0f, 1.0f, 1.0f, 1.0f);
 
+    // NOTA: El shader del profe parece no usar LightDir ni LightColor en cbNeverChanges
     m_cbNeverChanges.update(m_deviceContext, nullptr, 0, nullptr, &cbNeverChanges, 0, 0);
     m_cbChangeOnResize.update(m_deviceContext, nullptr, 0, nullptr, &cbChangesOnResize, 0, 0);
 
@@ -255,7 +281,7 @@ void BaseApp::update(float deltaTime) {
 // FASE 5: RENDER (Dibujo en GPU)
 // ======================================================================================
 void BaseApp::render() {
-    // 1. Limpiar el lienzo con un color sólido (Gris oscuro profesional)
+    // 1. Limpiar el lienzo con un color sólido
     float ClearColor[4] = { 0.1f, 0.1f, 0.1f, 1.0f };
     m_renderTargetView.render(m_deviceContext, m_depthStencilView, 1, ClearColor);
 
@@ -263,23 +289,41 @@ void BaseApp::render() {
     m_viewport.render(m_deviceContext);
     m_depthStencilView.render(m_deviceContext);
 
-    // 3. Aplicar reglas de rasterización (mostrar las caras traseras)
-    if (g_pRasterizerStateNoCull) {
-        m_deviceContext.m_deviceContext->RSSetState(g_pRasterizerStateNoCull);
-    }
+    // ---------------------------------------------------------
+    // PASO 1: DIBUJAR EL SKYBOX (Fondo del mundo)
+    // ---------------------------------------------------------
+    m_skybox.render(m_deviceContext, m_camera);
 
-    // 4. Activar los programas (Shaders) en la GPU
+    // ---------------------------------------------------------
+    // PASO 2: RESTAURAR ESTADOS + PREPARAR PIPELINE PARA MODELOS
+    // ---------------------------------------------------------
+    m_defaultRasterizer.render(m_deviceContext);
+    m_defaultDepthStencil.render(m_deviceContext, 0, false);
+
+    // Limpia SRVs por seguridad (Evita que el cubemap interfiera con las texturas 2D normales)
+    ID3D11ShaderResourceView* nullSRV[1] = { nullptr };
+    m_deviceContext.m_deviceContext->PSSetShaderResources(10, 1, nullSRV);
+    m_deviceContext.m_deviceContext->PSSetShaderResources(0, 1, nullSRV);
+
+    // Re-bindea shader principal y layout de la escena
     m_shaderProgram.render(m_deviceContext);
+    m_deviceContext.IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+    // Mandar matrices globales (Vista / Proyección)
     m_cbNeverChanges.render(m_deviceContext, 0, 1);
     m_cbChangeOnResize.render(m_deviceContext, 1, 1);
 
-    // 5. Ordenar el dibujo de la geometría
+    // ---------------------------------------------------------
+    // PASO 3: DIBUJAR LA ESCENA (Modelos 3D)
+    // ---------------------------------------------------------
     m_sceneGraph.render(m_deviceContext);
 
-    // 6. Dibujar la Interfaz de Usuario (Siempre se dibuja al final para quedar encima)
+    // ---------------------------------------------------------
+    // PASO 4: DIBUJAR LA INTERFAZ GRÁFICA (ImGui)
+    // ---------------------------------------------------------
     m_gui.render();
 
-    // 7. Intercambiar los buffers (Mostrar el frame al usuario)
+    // 5. Intercambiar los buffers (Mostrar en pantalla)
     m_swapChain.present();
 }
 
@@ -287,12 +331,14 @@ void BaseApp::render() {
 // FASE 6: DESTROY (Limpieza de Memoria)
 // ======================================================================================
 void BaseApp::destroy() {
-    // Limpia el estado de la GPU
     if (m_deviceContext.m_deviceContext) m_deviceContext.m_deviceContext->ClearState();
 
     if (g_pRasterizerStateNoCull) { g_pRasterizerStateNoCull->Release(); g_pRasterizerStateNoCull = nullptr; }
 
-    // Destruye en orden inverso de creación
+    m_skybox.destroy();
+    m_defaultRasterizer.destroy();
+    m_defaultDepthStencil.destroy();
+
     m_sceneGraph.destroy();
     m_cbNeverChanges.destroy();
     m_cbChangeOnResize.destroy();
@@ -303,22 +349,21 @@ void BaseApp::destroy() {
     m_swapChain.destroy();
     m_backBuffer.destroy();
     m_gui.destroy();
-    m_deviceContext.destroy();
-    m_device.destroy();
 
     if (m_model) { delete m_model; m_model = nullptr; }
+
+    m_deviceContext.destroy();
+    m_device.destroy();
 }
 
 // ======================================================================================
 // PROCEDIMIENTO DE VENTANA (Captura de Eventos Windows)
 // ======================================================================================
 LRESULT BaseApp::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
-    // Interceptar inputs (clics, teclas) para la interfaz ImGui
     if (ImGui::GetCurrentContext() != nullptr) {
         if (ImGui_ImplWin32_WndProcHandler(hWnd, message, wParam, lParam)) return true;
     }
 
-    // Procesar eventos nativos de Windows
     switch (message) {
     case WM_CREATE: {
         CREATESTRUCT* pCreate = reinterpret_cast<CREATESTRUCT*>(lParam);
@@ -332,7 +377,7 @@ LRESULT BaseApp::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
         return 0;
     }
     case WM_DESTROY:
-        PostQuitMessage(0); // Solicita cerrar la app rompiendo el bucle 'run'
+        PostQuitMessage(0);
         return 0;
     }
     return DefWindowProc(hWnd, message, wParam, lParam);

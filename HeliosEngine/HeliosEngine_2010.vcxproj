@@ -494,8 +494,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\DepthStencilState.h" />
+    <ClInclude Include="include\EngineUtilities\Utilities\Skybox.h" />
     <ClInclude Include="include\RasterizerState.h" />
-    <ClInclude Include="Skybox.h" />
     <ClInclude Include="imgui-docking\backends\imgui_impl_dx11.h" />
     <ClInclude Include="imgui-docking\backends\imgui_impl_win32.h" />
     <ClInclude Include="imgui-docking\imconfig.h" />

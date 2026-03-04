@@ -332,14 +332,14 @@
     <ClInclude Include="include\SceneGraph\SceneGraph.h">
       <Filter>include\SceneGraph</Filter>
     </ClInclude>
-    <ClInclude Include="Skybox.h">
-      <Filter>include\Utilities</Filter>
-    </ClInclude>
     <ClInclude Include="include\DepthStencilState.h">
       <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="include\RasterizerState.h">
       <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\EngineUtilities\Utilities\Skybox.h">
+      <Filter>include\Utilities</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
