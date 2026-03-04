@@ -181,12 +181,14 @@ HRESULT BaseApp::init() {
     std::vector<D3D11_INPUT_ELEMENT_DESC> Layout;
     Layout.push_back({ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 });
     Layout.push_back({ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 });
-    // Layout.push_back({ "NORMAL",   0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 }); 
-    // NOTA: El shader del profe "WildvineEngine.fx" no parece usar normales por ahora.
 
-    hr = m_shaderProgram.init(m_device, "Assets/Shaders/WildvineEngine.fx", Layout);
-    // Fallback por si la ruta no existe
-    if (FAILED(hr)) hr = m_shaderProgram.init(m_device, "WildvineEngine.fx", Layout);
+    // DESCOMENTADO: Tu shader original HeliosEngine.fx SÍ necesita las Normales.
+    Layout.push_back({ "NORMAL",   0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 });
+
+    // 💥 CORRECCIÓN: Buscamos tu shader HeliosEngine, no el Wildvine del profe 💥
+    hr = m_shaderProgram.init(m_device, "Assets/Shaders/HeliosEngine.fx", Layout);
+    if (FAILED(hr)) hr = m_shaderProgram.init(m_device, "HeliosEngine.fx", Layout); // Fallback
+
     if (FAILED(hr)) {
         ERROR("Main", "InitDevice", ("Failed to initialize ShaderProgram. HRESULT: " + std::to_string(hr)).c_str());
         return hr;

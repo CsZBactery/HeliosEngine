@@ -1,31 +1,31 @@
-// ======================================================================================
+Ôªø// ======================================================================================
 // Archivo: Skybox.cpp
-// ImplementaciÛn del entorno 3D (Cielo). 
-// Utiliza un cubo gigante proyectado alrededor de la c·mara.
+// Implementaci√≥n del entorno 3D (Cielo). 
+// Utiliza un cubo gigante proyectado alrededor de la c√°mara.
 // ======================================================================================
 
 #include "EngineUtilities/Utilities/Skybox.h" // Ajusta esta ruta a "include/..." si tu VS lo requiere
 #include "Device.h"
 #include "DeviceContext.h"
 
-// Inicializa la geometrÌa, shaders y buffers necesarios para dibujar el cielo
+// Inicializa la geometr√≠a, shaders y buffers necesarios para dibujar el cielo
 HRESULT
 Skybox::init(Device& device, DeviceContext* deviceContext, Texture& cubemap) {
 	destroy();
 
-	// Guardamos la textura del mapa de cubos (las 6 im·genes del cielo)
+	// Guardamos la textura del mapa de cubos (las 6 im√°genes del cielo)
 	m_skyboxTexture = cubemap;
 
-	// 1) GEOMETRÕA DEL CUBO
-	// Definimos los 8 vÈrtices de un cubo unitario centrado en el origen (0,0,0).
+	// 1) GEOMETR√çA DEL CUBO
+	// Definimos los 8 v√©rtices de un cubo unitario centrado en el origen (0,0,0).
 	const SkyboxVertex vertices[] = {
 		{-1,-1,-1}, {-1,+1,-1}, {+1,+1,-1}, {+1,-1,-1}, // Cara trasera (-Z)
 		{-1,-1,+1}, {-1,+1,+1}, {+1,+1,+1}, {+1,-1,+1}, // Cara delantera (+Z)
 	};
 
-	// Definimos el orden para conectar los puntos y formar los 12 tri·ngulos (36 Ìndices)
+	// Definimos el orden para conectar los puntos y formar los 12 tri√°ngulos (36 √≠ndices)
 	const unsigned int indices[] = {
-		0,1,2, 0,2,3, // Atr·s (-Z)
+		0,1,2, 0,2,3, // Atr√°s (-Z)
 		4,6,5, 4,7,6, // Frente (+Z)
 		4,5,1, 4,1,0, // Izquierda (-X)
 		3,2,6, 3,6,7, // Derecha (+X)
@@ -33,13 +33,13 @@ Skybox::init(Device& device, DeviceContext* deviceContext, Texture& cubemap) {
 		4,0,3, 4,3,7  // Abajo (-Y)
 	};
 
-	// 2) CREACI”N DEL ACTOR DEL ENTORNO
+	// 2) CREACI√ìN DEL ACTOR DEL ENTORNO
 	m_skybox = EU::MakeShared<Actor>(device);
 
 	if (!m_skybox.isNull()) {
 		std::vector<MeshComponent> skybox;
 
-		// Inyectamos la geometrÌa est·tica directamente desde la RAM
+		// Inyectamos la geometr√≠a est√°tica directamente desde la RAM
 		m_cubeModel = new Model3D("Skybox", vertices, indices);
 		skybox = m_cubeModel->GetMeshes();
 
@@ -52,51 +52,55 @@ Skybox::init(Device& device, DeviceContext* deviceContext, Texture& cubemap) {
 		return E_FAIL;
 	}
 
-	// 3) CONFIGURACI”N DE SHADERS (Input Layout)
-	// Para el Skybox, el Shader solo necesita saber la PosiciÛn 3D (x, y, z).
+	// 3) CONFIGURACI√ìN DE SHADERS (Input Layout)
+	// Para el Skybox, el Shader solo necesita saber la Posici√≥n 3D (x, y, z).
 	std::vector<D3D11_INPUT_ELEMENT_DESC> Layout;
 	D3D11_INPUT_ELEMENT_DESC position;
 	position.SemanticName = "POSITION";
 	position.SemanticIndex = 0;
 	position.Format = DXGI_FORMAT_R32G32B32_FLOAT;
 	position.InputSlot = 0;
-	position.AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT; // Autom·tico
+	position.AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT; // Autom√°tico
 	position.InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
 	position.InstanceDataStepRate = 0;
 	Layout.push_back(position);
 
 	HRESULT hr = S_OK;
 
-	// Carga y compila el shader especial para el cielo (OJO: Ahora busca .hlsl)
-	hr = m_shaderProgram.init(device, "Skybox.hlsl", Layout);
+	//  B√∫squeda robusta del shader del Skybox 
+	hr = m_shaderProgram.init(device, "Assets/Shaders/Skybox.hlsl", Layout);
+	if (FAILED(hr)) hr = m_shaderProgram.init(device, "Skybox.hlsl", Layout);
+	if (FAILED(hr)) hr = m_shaderProgram.init(device, "Assets/Shaders/Skybox.fx", Layout);
+	if (FAILED(hr)) hr = m_shaderProgram.init(device, "Skybox.fx", Layout);
+
 	if (FAILED(hr)) {
 		ERROR("Skybox", "init", ("Failed to initialize ShaderProgram. HRESULT: " + std::to_string(hr)).c_str());
 		return hr;
 	}
 
-	// Buffer Constante para enviarle la matriz de la c·mara al Shader
+	// Buffer Constante para enviarle la matriz de la c√°mara al Shader
 	hr = m_constantBuffer.init(device, sizeof(CBSkybox));
 	if (FAILED(hr)) {
 		ERROR("Skybox", "init", ("Failed to initialize NeverChanges Buffer. HRESULT: " + std::to_string(hr)).c_str());
 		return hr;
 	}
 
-	// Sampler: Define cÛmo se filtra la textura del cielo
+	// Sampler: Define c√≥mo se filtra la textura del cielo
 	hr = m_samplerState.init(device);
 	if (FAILED(hr)) {
 		ERROR("Skybox", "init", "Failed to create new SamplerState");
 	}
 
-	// 4) CONFIGURACI”N DE ESTADOS ESPECÕFICOS PARA EL CIELO
+	// 4) CONFIGURACI√ìN DE ESTADOS ESPEC√çFICOS PARA EL CIELO
 
-	// Rasterizer: CULL_FRONT -> Dibujamos las caras INTERNAS del cubo porque estamos adentro de Èl.
+	// Rasterizer: CULL_FRONT -> Dibujamos las caras INTERNAS del cubo porque estamos adentro de √©l.
 	hr = m_rasterizerState.init(device, D3D11_FILL_SOLID, D3D11_CULL_FRONT, false, true);
 	if (FAILED(hr)) {
 		ERROR("Skybox", "init", "Failed to create new RasterizerState");
 	}
 
 	// DepthStencil: WRITE_MASK_ZERO -> No escribe profundidad (no tapa a la moto).
-	// COMPARISON_LESS_EQUAL -> Asegura que se dibuje en el lÌmite m·s lejano (Z = 1.0).
+	// COMPARISON_LESS_EQUAL -> Asegura que se dibuje en el l√≠mite m√°s lejano (Z = 1.0).
 	hr = m_depthStencilState.init(device, true, D3D11_DEPTH_WRITE_MASK_ZERO, D3D11_COMPARISON_LESS_EQUAL);
 	if (FAILED(hr)) {
 		ERROR("Skybox", "init", "Failed to create new DepthStencilState");
@@ -115,24 +119,24 @@ Skybox::render(DeviceContext& deviceContext, Camera& camera) {
 	m_rasterizerState.render(deviceContext);
 	m_depthStencilState.render(deviceContext, 0, false);
 
-	// 2) C¡LCULO DE LA MATRIZ DE VISTA (El truco del cielo infinito)
-	// Le borramos la posiciÛn a la c·mara. Solo nos importa a dÛnde mira.
+	// 2) C√ÅLCULO DE LA MATRIZ DE VISTA (El truco del cielo infinito)
+	// Le borramos la posici√≥n a la c√°mara. Solo nos importa a d√≥nde mira.
 	XMMATRIX viewNoT = camera.GetViewNoTranslation();
 	XMMATRIX vp = viewNoT * camera.getProj();
 
 	CBSkybox cb{};
-	cb.mviewProj = XMMatrixTranspose(vp); // MultiplicaciÛn final
+	cb.mviewProj = XMMatrixTranspose(vp); // Multiplicaci√≥n final
 	m_constantBuffer.update(deviceContext, nullptr, 0, nullptr, &cb, 0, 0);
 	m_constantBuffer.render(deviceContext, 0, 1);
 
 	// 3) Activamos Shaders
 	m_shaderProgram.render(deviceContext);
 
-	// 4) IMPORTANTÕSIMO: Usamos el Slot 10 para no interferir con las texturas de los modelos 3D
+	// 4) IMPORTANT√çSIMO: Usamos el Slot 10 para no interferir con las texturas de los modelos 3D
 	m_samplerState.render(deviceContext, 10, 1);
 	m_skyboxTexture.render(deviceContext, 10, 1);
 
-	// 5) Renderizamos usando la funciÛn especializada que agregamos a Actor
+	// 5) Renderizamos usando la funci√≥n especializada que agregamos a Actor
 	m_skybox->renderForSkybox(deviceContext);
 
 	// 6) FASE DE LIMPIEZA
@@ -145,10 +149,10 @@ Skybox::render(DeviceContext& deviceContext, Camera& camera) {
 // ======================================================================================
 // FASE DE LIMPIEZA
 // ======================================================================================
-// Libera la memoria de la tarjeta gr·fica y la RAM ocupada por el entorno
+// Libera la memoria de la tarjeta gr√°fica y la RAM ocupada por el entorno
 void
 Skybox::destroy() {
-	// Liberar el modelo 3D din·mico
+	// Liberar el modelo 3D din√°mico
 	if (m_cubeModel) {
 		delete m_cubeModel;
 		m_cubeModel = nullptr;
