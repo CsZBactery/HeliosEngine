@@ -105,9 +105,10 @@ HRESULT BaseApp::init() {
     }
 
     // 4. Crear Buffer de Profundidad (Z-Buffer)
-    // CUIDADO: Usamos 4 y 0 para MSAA porque así estaba tu SwapChain original que no fallaba, 
-    // o si corregiste SwapChain a qualityLevel 16, pon 16 aquí. El código del profe usa (..., 4, 0).
-    hr = m_depthStencil.init(m_device, m_window.m_width, m_window.m_height, DXGI_FORMAT_D24_UNORM_S8_UINT, D3D11_BIND_DEPTH_STENCIL, 4, 0);
+    // CORRECCIÓN: Emparejamos el Multisampling a 4 muestras (mc:4) y Calidad 16 (mq:16)
+    // para que coincida exactamente con lo que generó el SwapChain.
+    hr = m_depthStencil.init(m_device, m_window.m_width, m_window.m_height, DXGI_FORMAT_D24_UNORM_S8_UINT, D3D11_BIND_DEPTH_STENCIL, 4, 16);
+
     if (FAILED(hr)) {
         ERROR("Main", "InitDevice", ("Failed to initialize DepthStencil. HRESULT: " + std::to_string(hr)).c_str());
         return hr;
@@ -128,14 +129,14 @@ HRESULT BaseApp::init() {
 
     // 6. Cargar texturas del Entorno (Skybox)
     std::array<std::string, 6> faces = {
-        "Assets/Textures/Skybox/cubemap_0.png", // Asegúrate que la ruta exista
-        "Assets/Textures/Skybox/cubemap_1.png",
-        "Assets/Textures/Skybox/cubemap_2.png",
-        "Assets/Textures/Skybox/cubemap_3.png",
-        "Assets/Textures/Skybox/cubemap_4.png",
-        "Assets/Textures/Skybox/cubemap_5.png"
+        "Assets/Skybox/cubemap_0.png",
+        "Assets/Skybox/cubemap_1.png",
+        "Assets/Skybox/cubemap_2.png",
+        "Assets/Skybox/cubemap_3.png",
+        "Assets/Skybox/cubemap_4.png",
+        "Assets/Skybox/cubemap_5.png"
     };
-    m_skyboxTex.CreateCubemap(m_device, m_deviceContext, faces, false);
+    m_skyboxTex.CreateCubemap(m_device, m_deviceContext, faces, true);
 
     // 7. Crear y ensamblar el Actor Principal (Ej. CyberGun / Moto)
     m_repsolActor = EU::MakeShared<Actor>(m_device);

@@ -54,10 +54,13 @@ PS_INPUT VS(VS_INPUT input)
 }
 
 // ======================================================================================
-// PIXEL SHADER
+// PIXEL SHADER (Skybox)
 // ======================================================================================
 float4 PS(PS_INPUT input) : SV_Target
 {
-    // Muestreamos la textura de las 6 caras usando el vector de dirección 3D
-    return skyboxTexture.Sample(samLinear, input.TexCd);
+    // Muestreamos la textura de las 6 caras
+    float4 color = skyboxTexture.Sample(samLinear, input.TexCd);
+    
+    // Forzamos el color a ser 100% brillante (Emisivo) para que no le afecten las sombras de la escena.
+    return color;
 }

@@ -58,7 +58,7 @@ void GUI::update(Viewport& viewport, Window& window) {
     ImGui::PopStyleVar();
 
     ImGuiID dockspace_id = ImGui::GetID("MyDockSpace");
-    ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_PassthruCentralNode); // <-- IMPORTANTE: Permite ver a través del centro
+    ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_PassthruCentralNode); 
 
     ImGui::End();
 
