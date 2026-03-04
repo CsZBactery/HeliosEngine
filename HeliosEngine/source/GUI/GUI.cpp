@@ -50,15 +50,24 @@ void GUI::update(Viewport& viewport, Window& window) {
     window_flags |= ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove;
     window_flags |= ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus;
 
+    // Le decimos a ImGui que el lienzo de fondo no tenga ningún color
+    window_flags |= ImGuiWindowFlags_NoBackground;
+
     // Quitar padding para que el dockspace ocupe el 100% de la ventana
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
 
+    // Forzamos manualmente el color de fondo a Opacidad Cero (0.0f en el último valor)
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+
     // Iniciamos la ventana principal que sirve de ancla para las demás
     ImGui::Begin("DockSpace Demo", nullptr, window_flags);
+
+    // Inmediatamente después de iniciar la ventana, sacamos el color y el estilo para no afectar otras ventanas
+    ImGui::PopStyleColor();
     ImGui::PopStyleVar();
 
     ImGuiID dockspace_id = ImGui::GetID("MyDockSpace");
-    ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_PassthruCentralNode); 
+    ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_PassthruCentralNode);
 
     ImGui::End();
 
@@ -322,6 +331,7 @@ void GUI::appleLiquidStyle(float opacity, ImVec4 accent) {
 
 void GUI::inspectorContainer(EU::TSharedPointer<Actor> actor) {}
 void GUI::toolTipData() {}
+
 // -----------------------------------------------------------------------------
 // PANEL FLOTANTE DE HERRAMIENTAS DEL GIZMO (T, R, S, Global/Local)
 // -----------------------------------------------------------------------------
