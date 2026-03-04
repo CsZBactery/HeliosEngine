@@ -64,6 +64,8 @@ void GUI::update(Viewport& viewport, Window& window) {
 
     // Dibujar Toolbar en la parte superior
     ToolBar();
+    // Dibujar botones flotantes del Gizmo (T, R, S)
+    drawGizmoToolbar();
 }
 
 void GUI::render() {
@@ -320,4 +322,67 @@ void GUI::appleLiquidStyle(float opacity, ImVec4 accent) {
 
 void GUI::inspectorContainer(EU::TSharedPointer<Actor> actor) {}
 void GUI::toolTipData() {}
-void GUI::drawGizmoToolbar() {}
+// -----------------------------------------------------------------------------
+// PANEL FLOTANTE DE HERRAMIENTAS DEL GIZMO (T, R, S, Global/Local)
+// -----------------------------------------------------------------------------
+void GUI::drawGizmoToolbar() {
+    // Configuramos una pequeña ventana sin fondo, sin título y sin bordes
+    ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoDocking |
+        ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings |
+        ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav |
+        ImGuiWindowFlags_NoBackground;
+
+    // Posicionamos la ventana en la esquina superior izquierda del Viewport principal
+    const float PAD = 20.0f;
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
+    ImVec2 window_pos = ImVec2(viewport->WorkPos.x + PAD, viewport->WorkPos.y + PAD);
+    ImGui::SetNextWindowPos(window_pos, ImGuiCond_Always);
+
+    if (ImGui::Begin("GizmoTools", nullptr, windowFlags)) {
+
+        // Estilo: Hacemos los botones redondos y un poco más grandes
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 15.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8.0f, 8.0f));
+
+        // Colores: Azul si está seleccionado, Gris oscuro si no lo está
+        ImVec4 activeColor = ImVec4(0.2f, 0.5f, 0.9f, 1.0f);   // Azul brillante
+        ImVec4 inactiveColor = ImVec4(0.3f, 0.3f, 0.3f, 0.8f); // Gris semitransparente
+
+        // ---- BOTÓN: TRANSLATE (T) ----
+        ImGui::PushStyleColor(ImGuiCol_Button, mCurrentGizmoOperation == ImGuizmo::TRANSLATE ? activeColor : inactiveColor);
+        if (ImGui::Button(" T ")) mCurrentGizmoOperation = ImGuizmo::TRANSLATE;
+        ImGui::PopStyleColor();
+        ImGui::SameLine();
+
+        // ---- BOTÓN: ROTATE (R) ----
+        ImGui::PushStyleColor(ImGuiCol_Button, mCurrentGizmoOperation == ImGuizmo::ROTATE ? activeColor : inactiveColor);
+        if (ImGui::Button(" R ")) mCurrentGizmoOperation = ImGuizmo::ROTATE;
+        ImGui::PopStyleColor();
+        ImGui::SameLine();
+
+        // ---- BOTÓN: SCALE (S) ----
+        ImGui::PushStyleColor(ImGuiCol_Button, mCurrentGizmoOperation == ImGuizmo::SCALE ? activeColor : inactiveColor);
+        if (ImGui::Button(" S ")) mCurrentGizmoOperation = ImGuizmo::SCALE;
+        ImGui::PopStyleColor();
+
+        // ---- BOTÓN: GLOBAL / LOCAL ----
+        // Salto de línea para ponerlo debajo
+        ImGui::NewLine();
+
+        // El botón cambia su texto dependiendo del modo actual
+        const char* modeText = (mCurrentGizmoMode == ImGuizmo::WORLD) ? "Global" : "Local ";
+
+        ImGui::PushStyleColor(ImGuiCol_Button, inactiveColor); // Siempre gris
+        if (ImGui::Button(modeText, ImVec2(75.0f, 0.0f))) {
+            if (mCurrentGizmoMode == ImGuizmo::WORLD)
+                mCurrentGizmoMode = ImGuizmo::LOCAL;
+            else
+                mCurrentGizmoMode = ImGuizmo::WORLD;
+        }
+        ImGui::PopStyleColor();
+
+        // Restauramos los estilos de bordes
+        ImGui::PopStyleVar(2);
+    }
+    ImGui::End();
+}

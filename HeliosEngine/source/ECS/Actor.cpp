@@ -98,15 +98,6 @@ Actor::update(float deltaTime, DeviceContext& deviceContext) {
 
 void
 Actor::render(DeviceContext& deviceContext) {
-	// 1) Proyectar sombra primero (sobre el suelo)
-	//if (canCastShadow()) {
-	//	renderShadow(deviceContext);
-	//}
-	//
-	// 2) Estados de raster, blend y sampler para el modelo
-	//m_blendstate.render(deviceContext);
-	//m_rasterizer.render(deviceContext);
-
 	m_sampler.render(deviceContext, 0, 1);
 
 	// Dile a DirectX que dibujaremos usando triángulos
@@ -135,8 +126,8 @@ Actor::render(DeviceContext& deviceContext) {
 }
 
 // Método optimizado específicamente para dibujar la geometría del entorno sin afectar al pipeline estándar
-void Actor::renderForSkybox(DeviceContext& deviceContext)
-{
+void
+Actor::renderForSkybox(DeviceContext& deviceContext) {
 	deviceContext.IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 	// Renderiza la geometría del cubo (generalmente m_meshes solo tendrá 1 elemento aquí)

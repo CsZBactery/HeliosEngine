@@ -91,8 +91,7 @@ RasterizerState::render(DeviceContext& deviceContext) {
 		return;
 	}
 
-	// IMPORTANTE: Asegúrate de que tu clase DeviceContext tenga implementado el método RSSetState,
-	// de lo contrario, tendrías que usar: deviceContext.m_deviceContext->RSSetState(m_rasterizerState);
+	// IMPORTANTE: Asegúrate de que tu clase DeviceContext tenga implementado el método RSSetState
 	deviceContext.RSSetState(m_rasterizerState);
 }
 

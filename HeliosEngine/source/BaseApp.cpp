@@ -136,7 +136,7 @@ HRESULT BaseApp::init() {
         "Assets/Skybox/cubemap_4.png",
         "Assets/Skybox/cubemap_5.png"
     };
-    m_skyboxTex.CreateCubemap(m_device, m_deviceContext, faces, true);
+    m_skyboxTex.CreateCubemap(m_device, m_deviceContext, faces, false);
 
     // 7. Crear y ensamblar el Actor Principal (Ej. CyberGun / Moto)
     m_repsolActor = EU::MakeShared<Actor>(m_device);
@@ -186,7 +186,7 @@ HRESULT BaseApp::init() {
     // DESCOMENTADO: Tu shader original HeliosEngine.fx SÍ necesita las Normales.
     Layout.push_back({ "NORMAL",   0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 });
 
-    // 💥 CORRECCIÓN: Buscamos tu shader HeliosEngine, no el Wildvine del profe 💥
+    // CORRECCIÓN: Buscamos tu shader HeliosEngine
     hr = m_shaderProgram.init(m_device, "Assets/Shaders/HeliosEngine.fx", Layout);
     if (FAILED(hr)) hr = m_shaderProgram.init(m_device, "HeliosEngine.fx", Layout); // Fallback
 
@@ -250,17 +250,35 @@ void BaseApp::update(float deltaTime) {
         m_gui.inspectorGeneral(m_actors[m_gui.selectedActorIndex]);
     }
 
-    // Ventana de depuración del Cubemap (Opcional, si quieres ver las caras desglosadas)
+    // =========================================================
+    // VENTANAS DE DEPURACIÓN (ImGui)
+    // =========================================================
     static ID3D11ShaderResourceView* faceSRV[6] = { nullptr };
     if (!faceSRV[0] && m_skyboxTex.m_texture) {
         for (UINT i = 0; i < 6; ++i) {
             faceSRV[i] = m_skyboxTex.CreateCubemapFaceSRV(m_device.m_device, m_skyboxTex.m_texture, DXGI_FORMAT_R8G8B8A8_UNORM, i, 1);
         }
     }
+
+    // 1. Ventana pequeña del Cubemap
     ImGui::Begin("Cubemap");
-    ImGui::Text("Skybox Preview");
+    ImGui::Text("Skybox Cubemap");
     if (faceSRV[0]) ImGui::Image((ImTextureID)faceSRV[0], ImVec2(200, 200));
     else ImGui::Text("Textura no disponible");
+    ImGui::End();
+
+    // 2. Ventana Debug (Grid de 6 imágenes)
+    ImGui::Begin("Debug");
+    ImGui::Text("Cubemap Faces:");
+    if (faceSRV[0]) {
+        for (int i = 0; i < 6; ++i) {
+            ImGui::Image((ImTextureID)faceSRV[i], ImVec2(100, 100)); // Tamaño de cada carita
+            if ((i + 1) % 3 != 0) ImGui::SameLine(); // Ponemos 3 imágenes por fila
+        }
+    }
+    else {
+        ImGui::Text("Texturas no disponibles");
+    }
     ImGui::End();
 
     // Actualizar Matriz de Vista en el Constant Buffer
@@ -270,6 +288,9 @@ void BaseApp::update(float deltaTime) {
     // NOTA: El shader del profe parece no usar LightDir ni LightColor en cbNeverChanges
     m_cbNeverChanges.update(m_deviceContext, nullptr, 0, nullptr, &cbNeverChanges, 0, 0);
     m_cbChangeOnResize.update(m_deviceContext, nullptr, 0, nullptr, &cbChangesOnResize, 0, 0);
+
+    // (Comentado por el profe) Optimización: No actualizamos la proyección a cada frame si no cambió el tamaño de ventana
+    // cbChangesOnResize.mProjection = XMMatrixTranspose(m_camera.getProj());
 
     // Actualizar la jerarquía de todos los actores
     m_sceneGraph.update(deltaTime, m_deviceContext);
@@ -310,7 +331,9 @@ void BaseApp::render() {
 
     // Re-bindea shader principal y layout de la escena
     m_shaderProgram.render(m_deviceContext);
-    m_deviceContext.IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+    // (Comentado por el profe) Redundante, la topología ya se asigna dentro del render del Actor
+    // m_deviceContext.IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
     // Mandar matrices globales (Vista / Proyección)
     m_cbNeverChanges.render(m_deviceContext, 0, 1);
