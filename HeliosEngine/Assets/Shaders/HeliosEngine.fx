@@ -32,7 +32,7 @@ struct VSIN
 {
     float3 Pos : POSITION;
     float2 Tex : TEXCOORD0;
-    // CORRECCION: Agregamos las Normales para coincidir con el Layout de C++
+    // CORRECCION: Agregamos las Normales para que coincida con el Layout de C++
     float3 Norm : NORMAL;
 };
 
@@ -68,14 +68,14 @@ VSOUT VS(VSIN i)
 // ======================================================================================
 float4 PS(VSOUT i) : SV_Target
 {
-    // 1. Obtenemos el color base de la textura (el logo de Repsol)
+    // 1. Obtenemos el color base de la textura
     float4 texColor = gDiffuse.Sample(gSamp, i.Tex);
     
     // 2. Calculos matematicos de luz (Producto Punto)
     float3 normal = normalize(i.Norm);
     float3 lightDir = normalize(-gLightDir.xyz);
     
-    // Intensidad de luz (max 0.2f asegura que haya luz ambiental minima)
+    // Intensidad de luz (max 0.2f asegura que haya una luz ambiental minima)
     float lightIntensity = max(dot(normal, lightDir), 0.2f);
     
     // 3. Combinamos Textura * Color de Malla * Color de Luz * Intensidad
