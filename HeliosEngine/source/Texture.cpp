@@ -1,6 +1,6 @@
 ﻿// ======================================================================================
 // Archivo: Texture.cpp
-// Implementación de carga, creación y gestión de texturas (2D y Cubemaps).
+// Implementación de carga, creación y gestión de texturas (2D y Cubemaps) para HeliosEngine.
 // ======================================================================================
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -49,11 +49,11 @@ Texture& Texture::operator=(const Texture& other) {
     return *this;
 }
 
-// Libera los punteros de DirectX y los pone en null para evitar basura en memoria
+// Libera los punteros de DirectX y los pone en null de forma segura usando la macro
 void Texture::destroy() {
-    if (m_texture) { m_texture->Release(); m_texture = nullptr; }
-    if (m_textureFromImg) { m_textureFromImg->Release(); m_textureFromImg = nullptr; }
-    if (m_samplerState) { m_samplerState->Release(); m_samplerState = nullptr; }
+    SAFE_RELEASE(m_texture);
+    SAFE_RELEASE(m_textureFromImg);
+    SAFE_RELEASE(m_samplerState);
 }
 
 // ===========================================================

@@ -1,115 +1,129 @@
-﻿#pragma once
+﻿/**
+ * @file GUI.h
+ * @brief Interfaz Gráfica de Usuario (Editor) basada en ImGui e ImGuizmo para HeliosEngine.
+ */
+
+#pragma once
 #include "Prerequisites.h"
 
-// ImGui & ImGuizmo Includes
+ // ImGui & ImGuizmo Includes
+#define IMGUI_DEFINE_MATH_OPERATORS
 #include "imgui.h"
-#include "imgui_internal.h"
+#include <imgui_internal.h>
 #include "imgui_impl_win32.h"
 #include "imgui_impl_dx11.h"
 #include "ImGuizmo.h"
 
-// Forward Declarations
 class Viewport;
 class Window;
 class Device;
 class DeviceContext;
 class Actor;
+class Camera;
 
 /**
  * @class GUI
- * @brief Sistema de interfaz de usuario para el editor (ImGui + ImGuizmo).
+ * @brief Orquesta todos los paneles del editor, la gestión de ventanas y herramientas de transformación.
+ * * @details Se encarga de dibujar el Outliner (jerarquía), el Inspector (propiedades),
+ * los Gizmos (manipuladores 3D) y el Dockspace que organiza el layout del motor.
  */
-class GUI {
+class
+	GUI {
 public:
-    GUI() = default;
-    ~GUI() = default;
+	GUI() = default;
+	~GUI() = default;
 
-    void awake();
+	/** @brief Configuración inicial previa a la creación de la ventana. */
+	void awake();
 
-    /**
-     * @brief Inicializa ImGui y sus backends (Win32 / DX11).
-     */
-    void init(Window& window, Device& device, DeviceContext& deviceContext);
+	/** @brief Inicializa ImGui y sus backends para Win32 y DirectX 11. */
+	void init(Window& window, Device& device, DeviceContext& deviceContext);
 
-    /**
-     * @brief Inicia el frame de ImGui y configura el DockSpace.
-     */
-    void update(Viewport& viewport, Window& window);
+	/** @brief Inicia el frame de UI, gestiona el input del Viewport y el Docking. */
+	void update(Viewport& viewport, Window& window);
 
-    /**
-     * @brief Renderiza los datos de dibujo de ImGui.
-     */
-    void render();
+	/** @brief Envía los datos de dibujo de ImGui al pipeline de renderizado. */
+	void render();
 
-    /**
-     * @brief Limpia los recursos de ImGui.
-     */
-    void destroy();
+	/** @brief Libera los recursos de ImGui y cierra los backends. */
+	void destroy();
 
-    // -----------------------------------------------------------
-    // WIDGETS Y PANELES
-    // -----------------------------------------------------------
+	// -----------------------------------------------------------
+	// PANELES Y WIDGETS
+	// -----------------------------------------------------------
 
-    void ToolBar();
-    void closeApp();
-    void toolTipData();
+	/** @brief Barra de herramientas superior (File, Edit, etc.). */
+	void ToolBar();
 
-    /**
-     * @brief Aplica un tema visual estilo macOS/Apple.
-     */
-    void appleLiquidStyle(float opacity = 1.0f, ImVec4 accent = ImVec4(0.04f, 0.52f, 1.0f, 1.0f));
+	/** @brief Diálogo de confirmación para cerrar la aplicación. */
+	void closeApp();
 
-    /**
-     * @brief Control personalizado para editar vectores (X, Y, Z).
-     */
-    void vec3Control(const std::string& label, float* values, float resetValues = 0.0f, float columnWidth = 100.0f);
+	/** @brief Carga de datos de ayuda y tooltips para los botones. */
+	void toolTipData();
 
-    // -----------------------------------------------------------
-    // INSPECTOR Y OUTLINER
-    // -----------------------------------------------------------
+	/** @brief Estilizado visual estilo macOS / Apple Liquid. */
+	void appleLiquidStyle(float opacity = 1.0f, ImVec4 accent = ImVec4(0.04f, 0.52f, 1.0f, 1.0f));
 
-    /**
-     * @brief Muestra las propiedades del actor seleccionado.
-     */
-    void inspectorGeneral(EU::TSharedPointer<Actor> actor);
+	/** @brief Widget personalizado para edición de vectores XYZ (Transform). */
+	void vec3Control(const std::string& label, float* values, float resetValues = 0.0f, float columnWidth = 100.0f);
 
-    void inspectorContainer(EU::TSharedPointer<Actor> actor);
+	/** @brief Panel de propiedades del Actor seleccionado. */
+	void inspectorGeneral(EU::TSharedPointer<Actor> actor);
 
-    /**
-     * @brief Muestra la lista jerárquica de actores en la escena.
-     */
-    void outliner(const std::vector<EU::TSharedPointer<Actor>>& actors);
+	void inspectorContainer(EU::TSharedPointer<Actor> actor);
 
-    // -----------------------------------------------------------
-    // GIZMOS (Transformación en viewport)
-    // -----------------------------------------------------------
+	/** @brief Lista de todos los actores presentes en la escena actual. */
+	void outliner(const std::vector<EU::TSharedPointer<Actor>>& actors);
 
-    /**
-     * @brief Dibuja el manipulador 3D (Gizmo) sobre el actor seleccionado.
-     */
-    void editTransform(const XMMATRIX& view, const XMMATRIX& projection, EU::TSharedPointer<Actor> actor);
+	/** @brief Dibuja la cinta superior (Studio Top Ribbon) de opciones rápidas. */
+	void drawStudioTopRibbon();
 
-    void drawGizmoToolbar();
+	/** @brief Renderiza la textura del juego dentro de un panel de ImGui. */
+	void drawViewportPanel(ID3D11ShaderResourceView* viewportSRV);
 
-    // Helper para conversión de matrices a float array (row-major vs column-major)
-    void ToFloatArray(const XMMATRIX& mat, float* dest) {
-        XMFLOAT4X4 temp;
-        XMStoreFloat4x4(&temp, mat);
-        memcpy(dest, &temp, sizeof(float) * 16);
-    }
+	/** @brief Gestiona el sistema de anclaje de ventanas (Dockspace). */
+	void drawEditorDockspace();
+
+	// -----------------------------------------------------------
+	// GIZMOS Y MATRICES
+	// -----------------------------------------------------------
+
+	/** @brief Dibuja y gestiona los manipuladores de transformación 3D en el viewport. */
+	void editTransform(Camera& cam, Window& window, EU::TSharedPointer<Actor> actor);
+
+	/** @brief Botonera flotante para cambiar entre Traslación, Rotación y Escala. */
+	void drawGizmoToolbar();
+
+	/** @brief Convierte matrices XMMATRIX al formato de array plano que requiere ImGuizmo. */
+	void ToFloatArray(const XMMATRIX& mat, float* dest) {
+		XMFLOAT4X4 temp;
+		XMStoreFloat4x4(&temp, mat);
+		memcpy(dest, &temp, sizeof(float) * 16);
+	}
 
 private:
-    bool checkboxValue = true;
-    bool checkboxValue2 = false;
-    std::vector<const char*> m_objectsNames;
-    std::vector<const char*> m_tooltips;
+	bool m_checkboxValue = true;
+	bool m_checkboxValue2 = false;
+	std::vector<const char*> m_objectsNames;
+	std::vector<const char*> m_tooltips;
 
-    bool show_exit_popup = false;
+	bool m_showExitPopup = false;
+	ImDrawList* m_viewportDrawList = nullptr;
+	bool m_viewportActive = false;
 
 public:
-    int selectedActorIndex = -1; // Índice del actor seleccionado en el vector m_actors
+	// Estados de interacción
+	bool m_isUsingGizmo = false;
+	int  selectedActorIndex = -1;
+	bool m_isInitialized = false;
 
-    // Operación actual del Gizmo (Translate, Rotate, Scale)
-    ImGuizmo::OPERATION mCurrentGizmoOperation = ImGuizmo::TRANSLATE;
-    ImGuizmo::MODE mCurrentGizmoMode = ImGuizmo::WORLD;
+	// Datos del Viewport del Editor
+	ImVec2 m_viewportPos = ImVec2(0.0f, 0.0f);
+	ImVec2 m_viewportSize = ImVec2(0.0f, 0.0f);
+	bool   m_viewportHovered = false;
+	bool   m_viewportFocused = false;
+
+	// Configuración de ImGuizmo
+	ImGuizmo::OPERATION mCurrentGizmoOperation = ImGuizmo::TRANSLATE;
+	ImGuizmo::MODE      mCurrentGizmoMode = ImGuizmo::WORLD;
 };

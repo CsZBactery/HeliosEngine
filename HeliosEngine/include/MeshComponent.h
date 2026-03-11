@@ -1,34 +1,30 @@
-﻿/**
- * @file MeshComponent.h
- * @brief Componente del sistema ECS encargado de almacenar la geometría de los modelos 3D.
- */
-
-#pragma once
+﻿#pragma once
 #include "Prerequisites.h"
 #include "ECS\Component.h"
+
+/**
+ * @file MeshComponent.h
+ * @brief Componente ECS encargado de almacenar la geometría de los objetos en HeliosEngine.
+ */
+
 class DeviceContext;
 
 /**
  * @class MeshComponent
- * @brief Componente ECS que almacena la información de geometría (malla) de un actor.
- *
- * @details Un @c MeshComponent contiene los vértices e índices que describen la geometría de un objeto.
- * Forma parte del sistema ECS y se asocia a entidades como @c Actor.
- *
- * La malla incluye:
- * - Lista de vértices (posición, normal, UV, etc.).
- * - Lista especial de vértices para el Skybox.
- * - Lista de índices que definen las primitivas (triángulos, líneas).
- * - Contadores de vértices e índices.
+ * @brief Componente que encapsula la información de geometría (vértices e índices) de un Actor.
+ * * Forma parte de la arquitectura ECS y es fundamental para el proceso de renderizado.
+ * Contiene los datos en crudo que luego son cargados en los Buffers de DirectX 11.
+ * * La malla soporta:
+ * - Vértices estándar (SimpleVertex) para modelos como tu Xbox.
+ * - Vértices optimizados (SkyboxVertex) para el entorno.
+ * - Índices para el ensamblado de triángulos.
  */
 class
 	MeshComponent : public Component {
 public:
 	/**
 	 * @brief Constructor por defecto.
-	 *
-	 * @details Inicializa el componente de malla con cero vértices e índices
-	 * y lo registra como tipo @c MESH en el sistema ECS.
+	 * * Inicializa contadores y registra el componente como tipo MESH.
 	 */
 	MeshComponent() : m_numVertex(0), m_numIndex(0), Component(ComponentType::MESH) {}
 
@@ -39,75 +35,47 @@ public:
 		~MeshComponent() = default;
 
 	/**
-	 * @brief Inicializa el componente de malla.
-	 *
-	 * @details Método heredado de @c Component.
-	 * Puede usarse para reservar memoria o cargar datos en mallas derivadas.
+	 * @brief Inicialización de lógica de malla (heredado de Component).
 	 */
 	void
 		init() override {};
 
 	/**
-	 * @brief Actualiza la malla.
-	 *
-	 * @details Método heredado de @c Component.
-	 * Útil para actualizar animaciones de vértices, morphing u otros procesos relacionados
-	 * que cambien la topología del modelo en tiempo real.
-	 *
-	 * @param deltaTime Tiempo transcurrido desde la última actualización.
+	 * @brief Actualización de datos de geometría en tiempo real.
+	 * @param deltaTime Tiempo transcurrido desde el último frame.
 	 */
 	void
 		update(float deltaTime) override {};
 
 	/**
-	 * @brief Renderiza la malla.
-	 *
-	 * @details Método heredado de @c Component.
-	 * Normalmente se usaría junto con @c DeviceContext para dibujar buffers
-	 * asociados a la malla.
-	 *
-	 * @param deviceContext Contexto del dispositivo para operaciones gráficas.
+	 * @brief Preparación de la malla para ser enviada al pipeline de renderizado.
+	 * @param deviceContext Contexto de dispositivo para operaciones gráficas.
 	 */
 	void
 		render(DeviceContext& deviceContext) override {};
 
 	/**
-	 * @brief Libera los recursos asociados al componente de malla.
-	 *
-	 * @details Método heredado de @c Component.
-	 * En implementaciones más complejas, puede usarse para vaciar vectores o liberar buffers de GPU.
+	 * @brief Limpieza de recursos y vectores de memoria.
 	 */
 	void
 		destroy() override {};
 
 public:
-	/**
-	 * @brief Nombre identificador de la malla.
-	 */
+	/** @brief Nombre identificador de la sub-malla. */
 	std::string m_name;
 
-	/**
-	 * @brief Lista de vértices estándar de la malla (usado para modelos 3D normales).
-	 */
+	/** @brief Contenedor de vértices estándar (Posición, Normal, UV). */
 	std::vector<SimpleVertex> m_vertex;
 
-	/**
-	 * @brief Lista de vértices especiales para el entorno (Skybox).
-	 */
+	/** @brief Contenedor de vértices simplificados para el Skybox. */
 	std::vector<SkyboxVertex> m_skyVertex;
 
-	/**
-	 * @brief Lista de índices que definen las primitivas (orden para armar los triángulos).
-	 */
+	/** @brief Lista de índices que define el orden de dibujo (Topology). */
 	std::vector<unsigned int> m_index;
 
-	/**
-	 * @brief Número total de vértices almacenados en la malla.
-	 */
+	/** @brief Contador total de vértices en el sistema. */
 	int m_numVertex;
 
-	/**
-	 * @brief Número total de índices almacenados en la malla.
-	 */
+	/** @brief Contador total de índices para DrawIndexed. */
 	int m_numIndex;
 };

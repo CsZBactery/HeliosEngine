@@ -158,6 +158,9 @@
     <ClCompile Include="source\Skybox.cpp">
       <Filter>source</Filter>
     </ClCompile>
+    <ClCompile Include="include\EditorViewportPass.cpp">
+      <Filter>source</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="HeliosEngine.fx">
@@ -339,6 +342,12 @@
       <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="include\EngineUtilities\Utilities\Skybox.h">
+      <Filter>include\Utilities</Filter>
+    </ClInclude>
+    <ClInclude Include="include\EngineUtilities\Utilities\LayoutBuilder.h">
+      <Filter>include\Utilities</Filter>
+    </ClInclude>
+    <ClInclude Include="include\EngineUtilities\Utilities\EditorViewportPass.h">
       <Filter>include\Utilities</Filter>
     </ClInclude>
   </ItemGroup>

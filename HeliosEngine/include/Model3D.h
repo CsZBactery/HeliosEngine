@@ -1,38 +1,37 @@
-﻿/**
- * @file Model3D.h
- * @brief Clase para la carga y gestión de modelos 3D en formatos OBJ y FBX, además de generación geométrica para entornos (Skybox).
- */
-
-#pragma once
+﻿#pragma once
 #include "Prerequisites.h"
 #include "IResource.h"
 #include "MeshComponent.h"
 #include "fbxsdk.h"
 
+/**
+ * @file Model3D.h
+ * @brief Orquestador de recursos 3D (OBJ/FBX) y geometría generada por HeliosEngine.
+ */
+
  /**
   * @enum ModelType
-  * @brief Define los formatos de archivo de modelos 3D soportados por el motor.
+  * @brief Formatos de archivos 3D compatibles con el motor.
   */
 enum
 	ModelType {
-	OBJ, /**< Formato Wavefront OBJ (Vértices, UVs y Normales simples). */
-	FBX  /**< Formato Autodesk FBX (Soporta jerarquías, materiales complejos y animaciones). */
+	OBJ, /**< Formato Wavefront OBJ para mallas estáticas simples. */
+	FBX  /**< Formato Autodesk FBX para mallas complejas y jerarquías. */
 };
 
 /**
  * @class Model3D
- * @brief Recurso que representa un modelo tridimensional compuesto por una o varias mallas.
- * @details Hereda de IResource para integrarse en el sistema de gestión de recursos.
- * Utiliza el SDK de Autodesk para procesar archivos FBX y extraer geometría y materiales.
- * Adicionalmente, permite la creación manual de geometría paramétrica (como el cubo para el Skybox).
+ * @brief Representa un recurso tridimensional que contiene uno o varios MeshComponents.
+ * * HeliosEngine usa esta clase para gestionar la importación de datos desde disco
+ * y la creación manual de geometrías especiales como el Skybox.
  */
 class
 	Model3D : public IResource {
 public:
 	/**
-	 * @brief Constructor estándar para cargar un modelo desde un archivo en disco.
-	 * @param name Nombre o ruta del recurso.
-	 * @param modelType Tipo de modelo a cargar (OBJ o FBX).
+	 * @brief Constructor para carga de archivos (OBJ/FBX).
+	 * @param name Nombre o ruta del archivo.
+	 * @param modelType Tipo de formato de origen.
 	 */
 	Model3D(const std::string& name, ModelType modelType)
 		: IResource(name), m_modelType(modelType), lSdkManager(nullptr), lScene(nullptr) {
@@ -41,12 +40,10 @@ public:
 	}
 
 	/**
-	 * @brief Constructor paramétrico especializado en la creación de geometría estática (Ej. Skybox).
-	 * @details Genera un modelo creando directamente un MeshComponent a partir de arreglos en código,
-	 * lo cual es ideal para generar el cubo de entorno sin depender de la lectura de un archivo 3D.
-	 * @param name Nombre identificador del recurso.
-	 * @param vertices Arreglo estático con los vértices especiales del entorno.
-	 * @param indices Arreglo estático con el orden de los índices para formar los polígonos.
+	 * @brief Constructor para geometría manual (utilizado para el Skybox infinito).
+	 * @param name Identificador del recurso.
+	 * @param vertices Arreglo de vértices espaciales.
+	 * @param indices Arreglo de índices para el dibujo de caras.
 	 */
 	Model3D(const std::string& name,
 		const SkyboxVertex vertices[],
@@ -54,102 +51,66 @@ public:
 		MeshComponent mesh;
 		mesh.m_skyVertex.assign(vertices, vertices + 8);
 		mesh.m_index.assign(indices, indices + 36);
-		mesh.m_numIndex = mesh.m_index.size(); // <--- LÍNEA AÑADIDA: Crucial para el DrawIndexed
+		mesh.m_numIndex = mesh.m_index.size(); // Sincronización con m_numIndex para DrawIndexed
 		SetType(ResourceType::Model3D);
 		m_meshes.push_back(mesh);
 	}
 
-	/**
-	 * @brief Destructor por defecto.
-	 */
+	/** @brief Destructor por defecto. */
 	~Model3D() = default;
 
-	/**
-	 * @brief Carga los datos del modelo desde el disco.
-	 * @param path Ruta del archivo del modelo.
-	 * @return true si la carga fue exitosa, false en caso contrario.
-	 */
+	/** @brief Implementación de carga de IResource. */
 	bool
 		load(const std::string& path) override;
 
-	/**
-	 * @brief Inicializa los recursos del modelo (preparación para renderizado).
-	 * @return true si la inicialización fue correcta.
-	 */
+	/** @brief Prepara los buffers de la GPU para el renderizado. */
 	bool
 		init() override;
 
-	/**
-	 * @brief Libera la memoria ocupada por las mallas y el SDK.
-	 */
+	/** @brief Libera los recursos de memoria y el SDK. */
 	void
 		unload() override;
 
-	/**
-	 * @brief Obtiene el tamaño aproximado del modelo en bytes.
-	 * @return Tamaño en bytes basado en la cantidad de vértices e índices.
-	 */
+	/** @brief Calcula el peso en memoria del recurso. */
 	size_t
 		getSizeInBytes() const override;
 
-	/**
-	 * @brief Obtiene el contenedor de todas las mallas que conforman el modelo.
-	 * @return Referencia constante al vector de MeshComponent.
-	 */
+	/** @brief Retorna el listado de sub-mallas procesadas. */
 	const std::vector<MeshComponent>&
 		GetMeshes() const { return m_meshes; }
 
-	/* FBX MODEL LOADER*/
+	/* FBX MODEL LOADER - Integración con Autodesk SDK */
 
-	/**
-	 * @brief Inicializa el administrador de memoria y el sistema de IO del SDK de Autodesk FBX.
-	 * @return true si el manager se inicializó correctamente.
-	 */
+	/** @brief Inicia el sistema de gestión del SDK de FBX. */
 	bool
 		InitializeFBXManager();
 
-	/**
-	 * @brief Carga un archivo FBX utilizando el sistema de importación del SDK.
-	 * @param filePath Ruta completa al archivo .fbx.
-	 * @return Vector con los componentes de malla extraídos y listos para usar en el motor.
-	 */
+	/** @brief Importa el contenido de un archivo FBX. */
 	std::vector<MeshComponent>
 		LoadFBXModel(const std::string& filePath);
 
-	/**
-	 * @brief Recorre recursivamente la jerarquía de nodos del archivo FBX.
-	 * @param node Puntero al nodo actual a procesar.
-	 */
+	/** @brief Navega por el árbol de nodos del archivo importado. */
 	void
 		ProcessFBXNode(FbxNode* node);
 
-	/**
-	 * @brief Extrae la geometría (vértices, normales, UVs) de un nodo FBX de tipo Mesh.
-	 * @param node Nodo que contiene el componente de malla.
-	 */
+	/** @brief Extrae geometría de vértices, normales y UVs de un nodo. */
 	void
 		ProcessFBXMesh(FbxNode* node);
 
-	/**
-	 * @brief Extrae las propiedades de materiales y rutas de texturas de un material FBX.
-	 * @param material Puntero al material del SDK de FBX.
-	 */
+	/** @brief Procesa las propiedades de superficie y texturas asociadas. */
 	void
 		ProcessFBXMaterials(FbxSurfaceMaterial* material);
 
-	/**
-	 * @brief Obtiene la lista de nombres de archivos de textura requeridos por el modelo.
-	 * @return Vector de strings con las rutas/nombres de las texturas.
-	 */
+	/** @brief Obtiene la lista de texturas que el motor debe cargar para este modelo. */
 	std::vector<std::string>
 		GetTextureFileNames() const { return textureFileNames; }
 
 private:
-	FbxManager* lSdkManager;                   /**< Administrador global de memoria del SDK de FBX. */
-	FbxScene* lScene;                          /**< Objeto escena que contiene toda la información del archivo importado. */
-	std::vector<std::string> textureFileNames; /**< Almacén temporal de nombres de texturas extraídas del modelo. */
+	FbxManager* lSdkManager; /**< Gestor de memoria del SDK FBX. */
+	FbxScene* lScene;       /**< Escena cargada actualmente. */
+	std::vector<std::string> textureFileNames; /**< Rutas de texturas encontradas. */
 
 public:
-	ModelType m_modelType;                     /**< Almacena el formato de origen del modelo actual. */
-	std::vector<MeshComponent> m_meshes;       /**< Lista de sub-mallas procesadas y listas para el motor. */
+	ModelType m_modelType; /**< Formato cargado (OBJ/FBX). */
+	std::vector<MeshComponent> m_meshes; /**< Mallas listas para renderizar. */
 };

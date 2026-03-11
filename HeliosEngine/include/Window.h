@@ -2,98 +2,77 @@
 #include "Prerequisites.h"
 
 /**
- * @class Window
- * @brief Encapsula una ventana nativa de sistema (Win32 API).
- *
- * Esta clase se encarga de:
- * 1. Registrar la clase de ventana en Windows.
- * 2. Crear la ventana física y gestionar su ciclo de vida (creación, gestión, destrucción).
- * 3. Proporcionar el **HWND** (Handle Window), que es el identificador que DirectX
- * necesita para crear la SwapChain y saber dónde dibujar los gráficos.
+ * @file Window.h
+ * @brief Gestión de la ventana nativa de Windows para HeliosEngine.
  */
-class Window {
+
+class BaseApp;
+
+/**
+ * @class Window
+ * @brief Clase encargada de la creación, gestión y ciclo de vida de la ventana Win32.
+ * * Proporciona el HWND (Window Handle) necesario para que DirectX 11 pueda
+ * vincular el SwapChain y realizar el renderizado en el área cliente.
+ */
+class
+	Window {
 public:
-    /**
-     * @brief Constructor por defecto.
-     */
-    Window() = default;
+	/**
+	 * @brief Constructor por defecto.
+	 */
+	Window() = default;
 
-    /**
-     * @brief Destructor por defecto.
-     */
-    ~Window() = default;
+	/**
+	 * @brief Destructor por defecto.
+	 */
+	~Window() = default;
 
-    /**
-     * @brief Inicializa, registra y muestra la ventana de la aplicación.
-     *
-     * @param hInstance Manejador (Handle) de la instancia de la aplicación (proviene del Main).
-     * @param nCmdShow Parámetro que indica cómo se mostrará la ventana (minimizado, maximizado, etc.).
-     * @param wndproc Puntero a la función de procedimiento de ventana (Callback) que procesará
-     * los mensajes de entrada (teclado, ratón, cierre).
-     * @return HRESULT S_OK si la ventana se creó y registró correctamente.
-     */
-    HRESULT
-        init(HINSTANCE hInstance, int nCmdShow, WNDPROC wndproc);
+	/**
+	 * @brief Inicializa y registra la clase de ventana en el sistema operativo.
+	 * * @param hInstance Instancia de la aplicación proporcionada por el sistema.
+	 * @param nCmdShow Estado de visualización inicial de la ventana.
+	 * @param wndproc Puntero a la función de procedimiento (Callback) para mensajes.
+	 * @param app Puntero a la aplicación base para vinculación de lógica interna.
+	 * @return HRESULT S_OK si la creación fue exitosa, código de error en caso contrario.
+	 */
+	HRESULT
+		init(HINSTANCE hInstance, int nCmdShow, WNDPROC wndproc, BaseApp* app);
 
-    /**
-     * @brief Actualiza la lógica de la ventana.
-     *
-     * Procesa la cola de mensajes de Windows (PeekMessage/Translate/Dispatch) para mantener
-     * la ventana receptiva (que no se congele).
-     */
-    void
-        update();
+	/**
+	 * @brief Procesa la cola de mensajes de Windows para mantener la ventana activa.
+	 */
+	void
+		update();
 
-    /**
-     * @brief Renderiza el contenido de la ventana.
-     *
-     * @note En este motor, el renderizado real lo hace DirectX (Device/SwapChain),
-     * por lo que este método suele estar vacío o usado para dibujar bordes de ventana (GDI).
-     */
-    void
-        render();
+	/**
+	 * @brief Punto de entrada para el dibujado de la ventana a nivel de OS.
+	 */
+	void
+		render();
 
-    /**
-     * @brief Cierra la ventana y libera los recursos del sistema operativo.
-     *
-     * Llama a DestroyWindow y UnregisterClass.
-     */
-    void
-        destroy();
+	/**
+	 * @brief Libera los recursos de la ventana y la destruye en el sistema.
+	 */
+	void
+		destroy();
 
 public:
-    /**
-     * @brief Handle (Manejador) de la ventana Win32.
-     *
-     * Este es el dato más importante de esta clase. Se debe pasar a la SwapChain
-     * para vincular la salida de la GPU con esta ventana.
-     */
-    HWND m_hWnd = nullptr;
+	/** @brief Identificador único de la ventana (Window Handle). */
+	HWND m_hWnd = nullptr;
 
-    /**
-     * @brief Ancho actual del área cliente de la ventana en píxeles.
-     */
-    unsigned int m_width;
+	/** @brief Ancho de la ventana en píxeles. */
+	unsigned int m_width;
 
-    /**
-     * @brief Alto actual del área cliente de la ventana en píxeles.
-     */
-    unsigned int m_height;
+	/** @brief Alto de la ventana en píxeles. */
+	unsigned int m_height;
 
 private:
-    /**
-     * @brief Handle de la instancia de la aplicación (identificador del .exe en memoria).
-     */
-    HINSTANCE m_hInst = nullptr;
+	/** @brief Instancia de la aplicación (HINSTANCE). */
+	HINSTANCE m_hInst = nullptr;
 
-    /**
-     * @brief Estructura que define las dimensiones y posición del rectángulo de la ventana.
-     */
-    RECT m_rect;
+	/** @brief Estructura de dimensiones de la ventana (Rect). */
+	RECT m_rect;
 
-    /**
-     * @brief Nombre que aparecerá en la barra de título.
-     * @note Veo que se llama "Porygon Engine", asegúrate de cambiarlo si tu proyecto actual es "HeliosEngine".
-     */
-    std::string m_windowName = "Porygon Engine";
+	/** @brief Nombre identificador del motor en la barra de título. */
+	std::string m_windowName = "HeliosEngine";
 };

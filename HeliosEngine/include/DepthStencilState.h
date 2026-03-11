@@ -1,49 +1,37 @@
-/**
- * @file DepthStencilState.h
- * @brief Clase que define las reglas lógicas para las pruebas de Profundidad (Z-Buffer) y Plantilla (Stencil).
- */
-
 #pragma once
 #include "Prerequisites.h"
+
+/**
+ * @file DepthStencilState.h
+ * @brief Gestión de las reglas lógicas para pruebas de Profundidad y Stencil en HeliosEngine.
+ */
 
 class Device;
 class DeviceContext;
 
 /**
  * @class DepthStencilState
- * @brief Encapsula un objeto ID3D11DepthStencilState de DirectX 11.
- *
- * @details A diferencia del DepthStencilView (que es la memoria física donde se guarda la profundidad),
- * esta clase representa las "Reglas" del pipeline en la etapa Output-Merger.
- * Administra si la prueba de profundidad está activa, cómo se comparan los píxeles (ej. si están más cerca o lejos),
- * y qué hacer con las máscaras de estarcido (Stencil).
+ * @brief Encapsula un objeto ID3D11DepthStencilState de DirectX 11 para la etapa Output-Merger.
+ * * A diferencia del DepthStencilView (que es la memoria física), esta clase representa
+ * las "Reglas" del pipeline. Administra si la prueba de profundidad está activa,
+ * cómo se comparan los píxeles (Z-Test) y cómo operan las máscaras de estarcido (Stencil).
  */
 class
 	DepthStencilState {
 public:
-	/**
-	 * @brief Constructor por defecto. No inicializa el recurso en GPU.
-	 */
+	/** @brief Constructor por defecto. No reserva recursos en GPU. */
 	DepthStencilState() = default;
 
-	/**
-	 * @brief Destructor.
-	 * @warning No libera la memoria automáticamente; se debe llamar a destroy().
-	 */
+	/** @brief Destructor por defecto. Se requiere llamar a destroy() para liberar recursos COM. */
 	~DepthStencilState() = default;
 
 	/**
-	 * @brief Crea y configura el estado lógico de profundidad y estarcido de forma avanzada.
-	 *
-	 * @details Construye el ID3D11DepthStencilState definiendo si los objetos deben
-	 * ocultarse unos a otros (Depth) y permitiendo personalizar la máscara de escritura y
-	 * la función matemática de comparación.
-	 *
-	 * @param device Dispositivo de hardware encargado de crear el recurso.
+	 * @brief Crea y configura el estado lógico de profundidad y estarcido.
+	 * * @param device Dispositivo de hardware encargado de crear el recurso.
 	 * @param depthEnable Si es true, activa el Z-Buffer (los objetos cercanos tapan a los lejanos).
-	 * @param writeMask Define si se permite modificar el Z-Buffer (ej. D3D11_DEPTH_WRITE_MASK_ALL o ZERO).
-	 * @param depthFunc Define la regla matemática para aprobar el dibujo de un píxel (ej. D3D11_COMPARISON_LESS_EQUAL).
-	 * @return S_OK si el estado se configuró correctamente en la GPU.
+	 * @param writeMask Define si se permite escribir en el Z-Buffer (ALL para objetos sólidos, ZERO para efectos).
+	 * @param depthFunc Regla de comparación (ej. D3D11_COMPARISON_LESS para que lo más cercano gane).
+	 * @return S_OK si la creación fue exitosa.
 	 */
 	HRESULT
 		init(Device& device,
@@ -51,36 +39,26 @@ public:
 			D3D11_DEPTH_WRITE_MASK writeMask,
 			D3D11_COMPARISON_FUNC depthFunc);
 
-	/**
-	 * @brief Método para actualizar configuraciones del estado en tiempo real.
-	 * @note Actualmente actúa como un placeholder (espacio reservado) para uso futuro.
-	 */
+	/** @brief Método placeholder para futuras actualizaciones dinámicas. */
 	void
 		update();
 
 	/**
-	 * @brief Inyecta estas reglas en el pipeline de renderizado actual.
-	 *
-	 * @details Llama a OMSetDepthStencilState. Todos los objetos dibujados después de llamar
-	 * a este método obedecerán las reglas de profundidad/stencil definidas aquí.
-	 *
-	 * @param deviceContext Contexto del dispositivo que emite la orden de renderizado.
-	 * @param stencilRef Valor de referencia numérico usado si el Stencil está activado (por defecto 0).
-	 * @param reset Si es true, limpia el estado actual del pipeline dejándolo en null.
+	 * @brief Inyecta estas reglas en el pipeline de renderizado (OMSetDepthStencilState).
+	 * * @param deviceContext Contexto de dispositivo que emite la orden.
+	 * @param stencilRef Valor de referencia para operaciones de Stencil.
+	 * @param reset Si es true, desvincula el estado del pipeline tras el render.
 	 */
 	void
 		render(DeviceContext& deviceContext, unsigned int stencilRef = 0, bool reset = false);
 
 	/**
-	 * @brief Libera la memoria del objeto de estado COM en la tarjeta de video.
-	 * @post m_depthStencilState vuelve a ser nullptr.
+	 * @brief Libera el recurso ID3D11DepthStencilState en la tarjeta de video.
 	 */
 	void
 		destroy();
 
 private:
-	/**
-	 * @brief Puntero al recurso de estado lógico en DirectX 11.
-	 */
+	/** @brief Recurso COM de Direct3D 11 para el estado de profundidad/estencil. */
 	ID3D11DepthStencilState* m_depthStencilState = nullptr;
 };

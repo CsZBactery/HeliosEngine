@@ -5,33 +5,24 @@
 
 #include "Model3D.h"
 
-// NOTA: El destructor fue eliminado de aquí porque en Model3D.h ya lo definimos 
-// como "~Model3D() = default;". Esto soluciona el error "already has a body".
-
 // Inicia el proceso estándar de carga desde el sistema de archivos
 bool Model3D::load(const std::string& path) {
     SetPath(path);
     SetState(ResourceState::Loading);
 
     // Intentamos procesar el archivo y extraer sus mallas
-    if (init()) {
-        SetState(ResourceState::Loaded);
-        return true;
-    }
+    init();
 
-    SetState(ResourceState::Failed);
-    return false;
+    // Si el vector de mallas no está vacío, la carga fue un éxito
+    bool success = !m_meshes.empty();
+    SetState(success ? ResourceState::Loaded : ResourceState::Failed);
+    return success;
 }
 
 // Inicia la conversión del archivo 3D a datos que el motor puede usar
 bool Model3D::init() {
-    // Si ya hay mallas cargadas (por ejemplo si hacemos un recargado), las limpiamos
     m_meshes.clear();
-
-    // Enviamos la ruta al procesador de FBX (el cual también puede leer OBJs)
     LoadFBXModel(m_filePath);
-
-    // Si el vector de mallas no está vacío, la carga fue un éxito
     return !m_meshes.empty();
 }
 
@@ -54,7 +45,7 @@ void Model3D::unload() {
     SetState(ResourceState::Unloaded);
 }
 
-// Calcula cuánta memoria RAM/VRAM ocupan todos los vértices e índices de este modelo
+// Calcula cuánta memoria RAM ocupan todos los vértices e índices de este modelo
 size_t Model3D::getSizeInBytes() const {
     size_t size = 0;
     for (const auto& mesh : m_meshes) {
@@ -66,7 +57,7 @@ size_t Model3D::getSizeInBytes() const {
 
 // Inicializa el motor interno del SDK de FBX (necesario antes de cargar cualquier archivo)
 bool Model3D::InitializeFBXManager() {
-    // Si ya existe, no hacemos nada para evitar fugas de memoria
+    // Si ya existe, no hacemos nada
     if (lSdkManager) return true;
 
     lSdkManager = FbxManager::Create();
@@ -78,6 +69,11 @@ bool Model3D::InitializeFBXManager() {
     FbxIOSettings* ios = FbxIOSettings::Create(lSdkManager, IOSROOT);
     lSdkManager->SetIOSettings(ios);
 
+    lScene = FbxScene::Create(lSdkManager, "MyScene");
+    if (!lScene) {
+        ERROR("Model3D", "InitializeFBXManager", "Unable to create FBX Scene!");
+        return false;
+    }
     return true;
 }
 
@@ -87,46 +83,40 @@ std::vector<MeshComponent> Model3D::LoadFBXModel(const std::string& filePath) {
 
     // El importador es el objeto encargado de leer los bytes del archivo en el disco
     FbxImporter* lImporter = FbxImporter::Create(lSdkManager, "");
-    if (!lImporter) {
-        ERROR("Model3D", "LoadFBXModel", "Unable to create FBX Importer!");
-        return m_meshes;
-    }
+    if (!lImporter) return m_meshes;
 
-    // El parámetro "-1" permite que el SDK adivine el formato de archivo automáticamente
+    // El parámetro "-1" permite que el SDK adivine el formato automáticamente
     if (!lImporter->Initialize(filePath.c_str(), -1, lSdkManager->GetIOSettings())) {
-        ERROR("Model3D", "LoadFBXModel", ("Unable to initialize Importer for: " + filePath + " Error: " + lImporter->GetStatus().GetErrorString()).c_str());
+        ERROR("Model3D", "LoadFBXModel", ("Unable to init Importer: " + std::string(lImporter->GetStatus().GetErrorString())).c_str());
         lImporter->Destroy();
         return m_meshes;
     }
-
-    // La Escena es donde se almacenará toda la jerarquía de nodos, mallas y materiales
-    lScene = FbxScene::Create(lSdkManager, "MyScene");
 
     if (!lImporter->Import(lScene)) {
-        ERROR("Model3D", "LoadFBXModel", "Unable to import FBX Scene!");
+        ERROR("Model3D", "LoadFBXModel", ("Unable to import Scene: " + std::string(lImporter->GetStatus().GetErrorString())).c_str());
         lImporter->Destroy();
         return m_meshes;
     }
 
-    // Destruimos el importador para liberar memoria, ya que la info ya está en lScene
-    lImporter->Destroy();
+    m_name = lImporter->GetFileName();
+    lImporter->Destroy(); // Destruimos el importador para liberar memoria
 
-    // MUY IMPORTANTE: Convertimos el modelo de FBX (usualmente Right-Handed) 
-    // al sistema que utiliza DirectX (Left-Handed)
+    // MUY IMPORTANTE: Convertimos el modelo al sistema de DirectX (Left-Handed)
     FbxAxisSystem::DirectX.ConvertScene(lScene);
+    FbxSystemUnit::m.ConvertScene(lScene); // Estandariza a Metros
 
-    // CRUCIAL PARA DIRECTX: Si el artista hizo el modelo usando Cuadrados (Quads),
-    // esta función convierte todo obligatoriamente a Triángulos.
+    // CRUCIAL PARA DIRECTX: Convierte Cuadrados (Quads) a Triángulos.
     FbxGeometryConverter geometryConverter(lSdkManager);
     geometryConverter.Triangulate(lScene, /*replace*/true);
 
     // Empezamos a buscar mallas desde el nodo principal
     FbxNode* lRootNode = lScene->GetRootNode();
     if (lRootNode) {
-        ProcessFBXNode(lRootNode);
+        for (int i = 0; i < lRootNode->GetChildCount(); i++) {
+            ProcessFBXNode(lRootNode->GetChild(i));
+        }
     }
 
-    // Retornamos la lista de mallas que pudimos extraer
     return m_meshes;
 }
 
@@ -134,136 +124,175 @@ std::vector<MeshComponent> Model3D::LoadFBXModel(const std::string& filePath) {
 void Model3D::ProcessFBXNode(FbxNode* node) {
     if (!node) return;
 
-    // Verificamos si este "nodo" es en realidad una geometría (Malla)
-    FbxNodeAttribute* attribute = node->GetNodeAttribute();
-    if (attribute && attribute->GetAttributeType() == FbxNodeAttribute::eMesh) {
+    if (node->GetNodeAttribute() && node->GetNodeAttribute()->GetAttributeType() == FbxNodeAttribute::eMesh) {
         ProcessFBXMesh(node);
     }
 
-    // Volvemos a llamar a esta función por cada "hijo" que tenga este nodo
     for (int i = 0; i < node->GetChildCount(); i++) {
         ProcessFBXNode(node->GetChild(i));
     }
 }
 
-// Convierte un FbxMesh (formato de Autodesk) a nuestro formato de motor (MeshComponent)
+// ======================================================================================
+// EXTRAE LA GEOMETRÍA: Posición, UV, Normales, Tangentes y Bitangentes.
+// (Esta es la versión PBR optimizada del profesor)
+// ======================================================================================
 void Model3D::ProcessFBXMesh(FbxNode* node) {
     FbxMesh* mesh = node->GetMesh();
     if (!mesh) return;
 
-    // Asegura que las normales existan calculándolas automáticamente si el archivo no las traía
-    mesh->GenerateNormals(true, true);
+    // --- Asegura que normales y tangentes existan en el FBX ---
+    if (mesh->GetElementNormalCount() == 0)
+        mesh->GenerateNormals(true, true);
 
-    MeshComponent mc;
-    mc.m_name = node->GetName();
+    const char* uvSetName = nullptr;
+    {
+        FbxStringList uvSets; mesh->GetUVSetNames(uvSets);
+        if (uvSets.GetCount() > 0) uvSetName = uvSets[0];
+    }
 
-    // Buscamos los canales de UVs y Normales dentro de la malla
-    const FbxGeometryElementUV* uvElement = (mesh->GetElementUVCount() > 0) ? mesh->GetElementUV(0) : nullptr;
-    const FbxGeometryElementNormal* normalElement = (mesh->GetElementNormalCount() > 0) ? mesh->GetElementNormal(0) : nullptr;
+    if (mesh->GetElementTangentCount() == 0 && uvSetName)
+        mesh->GenerateTangentsData(uvSetName);
 
-    int polygonCount = mesh->GetPolygonCount();
-    int vertexCounter = 0;
+    // Punteros a los canales de datos
+    const FbxGeometryElementUV* uvElem = (mesh->GetElementUVCount() > 0) ? mesh->GetElementUV(0) : nullptr;
+    const FbxGeometryElementTangent* tanElem = (mesh->GetElementTangentCount() > 0) ? mesh->GetElementTangent(0) : nullptr;
+    const FbxGeometryElementBinormal* binElem = (mesh->GetElementBinormalCount() > 0) ? mesh->GetElementBinormal(0) : nullptr;
 
-    // Iteramos por cada triángulo (polígono) de la malla
-    for (int i = 0; i < polygonCount; i++) {
-        int polygonSize = mesh->GetPolygonSize(i); // Como triangulamos arriba, esto siempre será 3
+    std::vector<SimpleVertex> vertices;
+    std::vector<unsigned int> indices;
+    vertices.reserve(mesh->GetPolygonCount() * 3);
+    indices.reserve(mesh->GetPolygonCount() * 3);
 
-        // Iteramos por cada uno de los 3 vértices del triángulo
-        for (int j = 0; j < polygonSize; j++) {
-            int controlPointIndex = mesh->GetPolygonVertex(i, j);
+    // Funciones Lambda (Helpers) para leer los datos del complicado formato de FBX
+    auto readV2 = [](const FbxGeometryElementUV* elem, int cpIdx, int pvIdx) -> FbxVector2 {
+        if (!elem) return FbxVector2(0, 0);
+        using E = FbxGeometryElement;
+        int idx;
+        if (elem->GetMappingMode() == E::eByControlPoint)
+            idx = (elem->GetReferenceMode() == E::eIndexToDirect) ? elem->GetIndexArray().GetAt(cpIdx) : cpIdx;
+        else
+            idx = (elem->GetReferenceMode() == E::eIndexToDirect) ? elem->GetIndexArray().GetAt(pvIdx) : pvIdx;
+        return elem->GetDirectArray().GetAt(idx);
+        };
 
-            SimpleVertex vertex;
+    auto readV4 = [](auto* elem, int cpIdx, int pvIdx) -> FbxVector4 {
+        if (!elem) return FbxVector4(0, 0, 0, 0);
+        using E = FbxGeometryElement;
+        int idx;
+        if (elem->GetMappingMode() == E::eByControlPoint)
+            idx = (elem->GetReferenceMode() == E::eIndexToDirect) ? elem->GetIndexArray().GetAt(cpIdx) : cpIdx;
+        else
+            idx = (elem->GetReferenceMode() == E::eIndexToDirect) ? elem->GetIndexArray().GetAt(pvIdx) : pvIdx;
+        return elem->GetDirectArray().GetAt(idx);
+        };
 
-            // 1. EXTRAER POSICIÓN (X, Y, Z)
-            FbxVector4 pos = mesh->GetControlPointAt(controlPointIndex);
-            vertex.Pos.x = (float)pos.mData[0];
-            vertex.Pos.y = (float)pos.mData[1];
-            vertex.Pos.z = (float)pos.mData[2];
+    // --- Construcción del vértice por esquina (Corner approach) ---
+    for (int p = 0; p < mesh->GetPolygonCount(); ++p) {
+        const int polySize = mesh->GetPolygonSize(p);
+        std::vector<unsigned> cornerIdx; cornerIdx.reserve(polySize);
 
-            // 2. EXTRAER UVs (Coordenadas de Textura)
-            if (uvElement) {
-                FbxVector2 uv;
-                int uvIndex = -1;
+        for (int v = 0; v < polySize; ++v) {
+            const int cpIndex = mesh->GetPolygonVertex(p, v);
+            const int pvIndex = mesh->GetPolygonVertexIndex(p) + v;
 
-                // El SDK de FBX guarda los datos de formas muy extrañas, aquí descubrimos 
-                // dónde está guardado el UV exacto de este vértice en específico.
-                if (uvElement->GetMappingMode() == FbxGeometryElement::eByControlPoint) {
-                    uvIndex = (uvElement->GetReferenceMode() == FbxGeometryElement::eDirect)
-                        ? controlPointIndex
-                        : uvElement->GetIndexArray().GetAt(controlPointIndex);
-                }
-                else if (uvElement->GetMappingMode() == FbxGeometryElement::eByPolygonVertex) {
-                    uvIndex = (uvElement->GetReferenceMode() == FbxGeometryElement::eDirect)
-                        ? mesh->GetTextureUVIndex(i, j)
-                        : mesh->GetTextureUVIndex(i, j);
-                }
+            SimpleVertex out{};
 
-                if (uvIndex != -1) {
-                    uv = uvElement->GetDirectArray().GetAt(uvIndex);
-                    vertex.Tex.x = (float)uv.mData[0];
-                    vertex.Tex.y = 1.0f - (float)uv.mData[1]; // INVERTIMOS LA V porque DirectX lee las imágenes al revés que OpenGL/Maya
-                }
+            // 1. Posición local
+            FbxVector4 P = mesh->GetControlPointAt(cpIndex);
+            out.Position = { (float)P[0], (float)P[1], (float)P[2] };
+
+            // 2. Normal por esquina
+            FbxVector4 N(0, 1, 0, 0);
+            mesh->GetPolygonVertexNormal(p, v, N);
+            N.Normalize();
+            out.Normal = { (float)N[0], (float)N[1], (float)N[2] };
+
+            // 3. UV (Invertimos la V para DirectX)
+            if (uvElem && uvSetName) {
+                int uvIdx = mesh->GetTextureUVIndex(p, v);
+                FbxVector2 uv = (uvIdx >= 0) ? uvElem->GetDirectArray().GetAt(uvIdx) : readV2(uvElem, cpIndex, pvIndex);
+                out.TextureCoordinate = { (float)uv[0], 1.0f - (float)uv[1] };
             }
             else {
-                vertex.Tex = { 0.0f, 0.0f }; // Si no tiene UV, rellenamos con 0 para evitar fallos
+                out.TextureCoordinate = { 0.0f, 0.0f };
             }
 
-            // 3. EXTRAER NORMALES (Crucial para que la iluminación funcione)
-            if (normalElement) {
-                FbxVector4 normal;
-                int normalIndex = -1;
-
-                // Misma lógica de búsqueda extraña del SDK que aplicamos en los UVs
-                if (normalElement->GetMappingMode() == FbxGeometryElement::eByControlPoint) {
-                    normalIndex = (normalElement->GetReferenceMode() == FbxGeometryElement::eDirect)
-                        ? controlPointIndex
-                        : normalElement->GetIndexArray().GetAt(controlPointIndex);
-                }
-                else if (normalElement->GetMappingMode() == FbxGeometryElement::eByPolygonVertex) {
-                    normalIndex = (normalElement->GetReferenceMode() == FbxGeometryElement::eDirect)
-                        ? vertexCounter
-                        : normalElement->GetIndexArray().GetAt(vertexCounter);
-                }
-
-                if (normalIndex != -1) {
-                    normal = normalElement->GetDirectArray().GetAt(normalIndex);
-                    vertex.Normal.x = (float)normal.mData[0];
-                    vertex.Normal.y = (float)normal.mData[1];
-                    vertex.Normal.z = (float)normal.mData[2];
-                }
+            // 4. Tangente y Bitangente (Para el Normal Mapping)
+            if (tanElem) {
+                FbxVector4 T = readV4(tanElem, cpIndex, pvIndex);
+                out.Tangent = { (float)T[0], (float)T[1], (float)T[2] };
             }
-            else {
-                // Si el modelo de plano no tiene normales y falló la autogeneración, apuntamos hacia arriba
-                vertex.Normal = { 0.0f, 1.0f, 0.0f };
-            }
+            else out.Tangent = { 0,0,0 };
 
-            // 4. GUARDAR VÉRTICE E ÍNDICE
-            mc.m_vertex.push_back(vertex);
-            mc.m_index.push_back(vertexCounter);
-            vertexCounter++;
+            if (binElem) {
+                FbxVector4 B = readV4(binElem, cpIndex, pvIndex);
+                out.Bitangent = { (float)B[0], (float)B[1], (float)B[2] };
+            }
+            else out.Bitangent = { 0,0,0 };
+
+            cornerIdx.push_back((unsigned)vertices.size());
+            vertices.push_back(out);
+        }
+
+        // Triangulación "en abanico" (CW por defecto)
+        for (int k = 1; k + 1 < polySize; ++k) {
+            indices.push_back(cornerIdx[0]);
+            indices.push_back(cornerIdx[k + 1]);
+            indices.push_back(cornerIdx[k]);
         }
     }
 
-    // Guardamos los contadores finales para que la GPU sepa cuánto dibujar
+    // --- Autodetección de espejo global (Previene normales invertidas en la escala negativa) ---
+    bool autoDetectMirror = true;
+    bool forceFlipWinding = false;
+    bool mirrored = false;
+
+    if (autoDetectMirror) {
+        FbxAMatrix geo;
+        geo.SetT(node->GetGeometricTranslation(FbxNode::eSourcePivot));
+        geo.SetR(node->GetGeometricRotation(FbxNode::eSourcePivot));
+        geo.SetS(node->GetGeometricScaling(FbxNode::eSourcePivot));
+        FbxAMatrix world = node->EvaluateGlobalTransform() * geo;
+
+        FbxVector4 S = world.GetS();
+        double detScale = S[0] * S[1] * S[2];
+        mirrored = (detScale < 0.0); // Si el producto de la escala es negativo, está espejado
+    }
+
+    if (mirrored || forceFlipWinding) {
+        // Invertir el orden de dibujado (Winding)
+        for (size_t i = 0; i + 2 < indices.size(); i += 3)
+            std::swap(indices[i + 1], indices[i + 2]);
+
+        // Invertir vectores direccionales
+        for (auto& v : vertices) {
+            v.Normal = { v.Normal.x, v.Normal.y, v.Normal.z };
+            v.Tangent = { v.Tangent.x, v.Tangent.y, v.Tangent.z };
+            v.Bitangent = { v.Bitangent.x, v.Bitangent.y, v.Bitangent.z };
+        }
+    }
+
+    // --- Empaquetado Final ---
+    MeshComponent mc;
+    mc.m_name = node->GetName();
+    mc.m_vertex = std::move(vertices);
+    mc.m_index = std::move(indices);
     mc.m_numVertex = (int)mc.m_vertex.size();
     mc.m_numIndex = (int)mc.m_index.size();
-
-    // Registramos la malla resultante en nuestro arreglo de la clase
-    m_meshes.push_back(mc);
+    m_meshes.push_back(std::move(mc));
 }
 
-// Extrae los nombres de las texturas asignadas al modelo desde el programa 3D (Ej. Blender/Maya)
+// Extrae los nombres de las texturas asignadas al modelo en el programa 3D (Opcional para autocaragado)
 void Model3D::ProcessFBXMaterials(FbxSurfaceMaterial* material) {
     if (!material) return;
 
-    // Buscamos si el material tiene un canal "Difuso" (Color base)
     FbxProperty prop = material->FindProperty(FbxSurfaceMaterial::sDiffuse);
     if (prop.IsValid()) {
         int textureCount = prop.GetSrcObjectCount<FbxTexture>();
         for (int i = 0; i < textureCount; ++i) {
             FbxTexture* texture = FbxCast<FbxTexture>(prop.GetSrcObject<FbxTexture>(i));
             if (texture) {
-                // Guardamos el nombre en un vector por si luego queremos hacer carga automática
                 textureFileNames.push_back(texture->GetName());
             }
         }

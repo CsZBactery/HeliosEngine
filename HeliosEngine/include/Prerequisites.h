@@ -1,29 +1,36 @@
 ﻿/**
  * @file Prerequisites.h
- * @brief Definiciones globales, estructuras de datos y macros de utilidad para el HeliosEngine.
+ * @brief Definiciones globales, estructuras de datos y macros de utilidad para HeliosEngine.
  */
 
 #pragma once
+
+ //--------------------------------------------------------------------------------------
  // Librerias STD
+ //--------------------------------------------------------------------------------------
 #include <string>
 #include <sstream>
 #include <vector>
 #include <windows.h>
-#include <xnamath.h> 
+#include <xnamath.h>
 #include <thread>
 #include <memory>
 #include <unordered_map>
 #include <type_traits>
 #include <array>
 
+//--------------------------------------------------------------------------------------
 // Librerias DirectX
+//--------------------------------------------------------------------------------------
 #include <d3d11.h>
 #include <d3dx11.h>
 #include <d3dcompiler.h>
 #include "Resource.h"
-// #include "resource.h" // Descomentar solo si tienes un archivo de recursos de Windows (.rc) configurado.
+#include "resource.h"
 
-// Third Party Libraries
+//--------------------------------------------------------------------------------------
+// Third Party Libraries (Engine Utilities)
+//--------------------------------------------------------------------------------------
 #include "EngineUtilities/Vectors/Vector2.h"
 #include "EngineUtilities/Vectors/Vector3.h"
 #include "EngineUtilities/Memory/TSharedPointer.h"
@@ -31,24 +38,14 @@
 #include "EngineUtilities/Memory/TStaticPtr.h"
 #include "EngineUtilities/Memory/TUniquePtr.h"
 
-// ======================================================================================
+//--------------------------------------------------------------------------------------
 // MACROS
-// ======================================================================================
+//--------------------------------------------------------------------------------------
 
-/**
- * @def SAFE_RELEASE(x)
- * @brief Libera de forma segura un recurso de DirectX (interfaz COM) y lo establece a nullptr.
- * @param x Puntero al recurso a liberar.
- */
+/** @def SAFE_RELEASE(x) Libera recursos COM de DirectX de forma segura. */
 #define SAFE_RELEASE(x) if(x != nullptr) x->Release(); x = nullptr;
 
- /**
-  * @def MESSAGE(classObj, method, state)
-  * @brief Envía un mensaje formateado sobre la creación de recursos a la consola de salida de depuración.
-  * @param classObj Nombre de la clase que genera el mensaje.
-  * @param method Nombre del método donde ocurre el evento.
-  * @param state Estado o descripción del recurso creado.
-  */
+/** @def MESSAGE Logs de creación de recursos en la consola de salida. */
 #define MESSAGE( classObj, method, state )   \
 {                                            \
    std::wostringstream os_;                  \
@@ -56,13 +53,7 @@
    OutputDebugStringW( os_.str().c_str() );  \
 }
 
-  /**
-   * @def ERROR(classObj, method, errorMSG)
-   * @brief Registra un error detallado en la salida de depuración utilizando un bloque try-catch para mayor seguridad.
-   * @param classObj Nombre de la clase donde ocurrió el error.
-   * @param method Método donde se detectó el error.
-   * @param errorMSG Mensaje descriptivo del error.
-   */
+/** @def ERROR Logs de errores con bloque try-catch de seguridad. */
 #define ERROR(classObj, method, errorMSG)                     \
 {                                                             \
     try {                                                     \
@@ -75,108 +66,100 @@
     }                                                         \
 }
 
-   // ======================================================================================
-   // STRUCTURES
-   // ======================================================================================
+//--------------------------------------------------------------------------------------
+// Structures
+//--------------------------------------------------------------------------------------
 
-   /**
-	* @struct SimpleVertex
-	* @brief Estructura de entrada estándar para los vértices de modelos 3D en el Vertex Shader.
-	*/
+/**
+ * @struct SimpleVertex
+ * @brief Estructura de vértice completa para modelos 3D con soporte para Normal Mapping.
+ */
 struct
 	SimpleVertex {
-	XMFLOAT3 Pos;    /**< Posición del vértice en el espacio 3D. */
-	XMFLOAT2 Tex;    /**< Coordenadas de textura (UV). */
-	XMFLOAT3 Normal; /**< Vector normal para cálculos de iluminación. */
+	EU::Vector3 Position;        /**< Posición en el espacio 3D. */
+	EU::Vector3 Normal;          /**< Vector normal para iluminación. */
+	EU::Vector3 Tangent;         /**< Tangente para Normal Mapping. */
+	EU::Vector3 Bitangent;       /**< Bitangente para calcular el espacio Tangente. */
+	EU::Vector2 TextureCoordinate; /**< Coordenadas UV. */
 };
 
-/**
- * @struct SkyboxVertex
- * @brief Estructura de entrada mínima optimizada para la geometría del entorno (Cielo).
- */
+/** @struct SkyboxVertex Geometría mínima para el Cubemap. */
 struct
 	SkyboxVertex {
-	float x, y, z;   /**< Coordenadas espaciales locales del cubo. */
+	float x, y, z;
 };
 
-/**
- * @struct CBNeverChanges
- * @brief Buffer constante para datos estáticos de escena e iluminación.
- */
+/** @struct CBNeverChanges Buffers constantes que no varían tras la carga. */
 struct
 	CBNeverChanges {
-	XMMATRIX mView;       /**< Matriz de Vista (Cámara). */
-	XMVECTOR mLightDir;   /**< Dirección de la luz direccional principal en el mundo. */
-	XMVECTOR mLightColor; /**< Color e intensidad de la luz principal. */
+	XMMATRIX mView;
 };
 
-/**
- * @struct CBSkybox
- * @brief Buffer constante especializado para el renderizado del Skybox.
- */
+/** @struct CBSkybox Matriz específica para el renderizado del fondo. */
 struct
 	CBSkybox {
-	XMMATRIX mviewProj;   /**< Matriz combinada de Vista y Proyección sin traslación. */
+	XMMATRIX mviewProj;
 };
 
-/**
- * @struct CBChangeOnResize
- * @brief Buffer constante para datos que dependen de la resolución de la ventana.
- */
+/** @struct CBChangeOnResize Datos dependientes de la resolución. */
 struct
 	CBChangeOnResize {
-	XMMATRIX mProjection; /**< Matriz de Proyección (Perspectiva u Ortográfica). */
+	XMMATRIX mProjection;
 };
 
 /**
- * @struct CBChangesEveryFrame
- * @brief Buffer constante para datos únicos por cada objeto renderizado.
+ * @struct CBMain
+ * @brief Buffer principal para el HeliosEngine.fx (Iluminación y Cámara).
+ * @note Alineado a 16 bytes.
  */
 struct
+	CBMain {
+	XMFLOAT4X4 View;
+	XMFLOAT4X4 Projection;
+	EU::Vector3 CameraPos;
+	float pad0;
+	EU::Vector3 LightDir;
+	float pad1;
+	EU::Vector3 LightColor;
+	float pad2;
+};
+
+/** @struct CBChangesEveryFrame Datos por cada instancia de objeto (Actor). */
+struct
 	CBChangesEveryFrame {
-	XMMATRIX mWorld;      /**< Matriz de Mundo (Transformación local a global). */
-	XMFLOAT4 vMeshColor;  /**< Tinte de color general aplicable a la malla. */
+	XMMATRIX mWorld;
+	XMFLOAT4 vMeshColor;
 };
 
-// ======================================================================================
-// ENUMS
-// ======================================================================================
+//--------------------------------------------------------------------------------------
+// Enums
+//--------------------------------------------------------------------------------------
 
-/**
- * @enum ExtensionType
- * @brief Define los formatos de archivo de imagen soportados por el gestor de texturas.
- */
-enum
-	ExtensionType {
-	DDS = 0, /**< DirectDraw Surface (Formato nativo y optimizado para DirectX). */
-	PNG = 1, /**< Portable Network Graphics (Con soporte para canal Alpha). */
-	JPG = 2, /**< Joint Photographic Experts Group. */
-	TGA = 3  /**< Truevision TGA (Común en exportaciones de modelado 3D). */
+enum ExtensionType {
+	DDS = 0,
+	PNG = 1,
+	JPG = 2,
+	TGA = 3
 };
 
-/**
- * @enum ShaderType
- * @brief Identificadores de etapa en el pipeline programable.
- */
-enum
-	ShaderType {
-	VERTEX_SHADER = 0, /**< Etapa de procesamiento de vértices (Transformaciones). */
-	PIXEL_SHADER = 1   /**< Etapa de procesamiento de fragmentos (Color y Texturizado). */
+enum ShaderType {
+	VERTEX_SHADER = 0,
+	PIXEL_SHADER = 1
 };
 
 /**
  * @enum ComponentType
- * @brief Identificadores de la arquitectura ECS para adjuntar comportamientos a los actores.
+ * @brief Identificadores para el sistema de arquitectura de HeliosEngine.
  */
 enum
 	ComponentType {
-	NONE = 0,      /**< Sin tipo definido o nulo. */
-	TRANSFORM = 1, /**< Componente de posición, rotación y escala en el mundo. */
-	MESH = 2,      /**< Componente portador de geometría (vértices e índices). */
-	MATERIAL = 3,  /**< Componente definidor de propiedades visuales y texturas. */
-	CAMERA = 4,    /**< Componente para proyectar la escena en pantalla. */
-	SCRIPT = 5,    /**< Componente contenedor de lógica personalizada. */
-	AUDIO = 6,     /**< Componente emisor de sonido espacial. */
-	HIERARCHY = 7, /**< Componente de gestión de relaciones padre/hijo. */
-	UNKNOWN = 8    /**< Tipo de componente no registrado nativamente. */
+	NONE = 0,
+	TRANSFORM = 1,
+	MESH = 2,
+	MATERIAL = 3,
+	CAMERA = 4,
+	SCRIPT = 5,
+	AUDIO = 6,
+	HIERARCHY = 7,
+	UNKNOWN = 8
 };

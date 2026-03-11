@@ -465,6 +465,7 @@
     <ClCompile Include="imgui-docking\imgui_draw.cpp" />
     <ClCompile Include="imgui-docking\imgui_tables.cpp" />
     <ClCompile Include="imgui-docking\imgui_widgets.cpp" />
+    <ClCompile Include="include\EditorViewportPass.cpp" />
     <ClCompile Include="source\BaseApp.cpp" />
     <ClCompile Include="source\Buffer.cpp" />
     <ClCompile Include="source\Camera.cpp" />
@@ -494,6 +495,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\DepthStencilState.h" />
+    <ClInclude Include="include\EngineUtilities\Utilities\EditorViewportPass.h" />
+    <ClInclude Include="include\EngineUtilities\Utilities\LayoutBuilder.h" />
     <ClInclude Include="include\EngineUtilities\Utilities\Skybox.h" />
     <ClInclude Include="include\RasterizerState.h" />
     <ClInclude Include="imgui-docking\backends\imgui_impl_dx11.h" />

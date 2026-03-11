@@ -1,71 +1,76 @@
 #pragma once
 #include "Prerequisites.h"
 
+/**
+ * @file InputLayout.h
+ * @brief Gestión del formato de entrada de vértices para el pipeline de DirectX 11.
+ */
+
 class Device;
 class DeviceContext;
 
 /**
  * @class InputLayout
  * @brief Define el formato de los datos de los vértices en el pipeline gráfico.
- *
- * El Input Layout actúa como un "puente" o "diccionario" entre los datos crudos
- * que enviamos en los Vertex Buffers (C++) y las variables de entrada que espera
- * recibir el Vertex Shader (HLSL).
- *
- * Sin esto, la GPU no sabría que los primeros 12 bytes corresponden a la Posición,
- * los siguientes 8 a las Coordenadas de Textura, etc.
+ * * El Input Layout actúa como un "puente" o "diccionario" entre los datos crudos
+ * de los Vertex Buffers (C++) y las variables de entrada que espera el Vertex Shader (HLSL).
+ * * Sin esto, la GPU no sabría interpretar si un grupo de bytes corresponde a una
+ * Posición (float3), a una Normal o a Coordenadas de Textura (UV).
  */
-class InputLayout {
+class
+	InputLayout {
 public:
-    /**
-     * @brief Constructor por defecto.
-     */
-    InputLayout() = default;
+	/** @brief Constructor por defecto. */
+	InputLayout() = default;
 
-    /**
-     * @brief Destructor por defecto.
-     */
-    ~InputLayout() = default;
+	/** @brief Destructor por defecto. Se debe liberar con destroy(). */
+	~InputLayout() = default;
 
-    /**
-     * @brief Crea e inicializa el Input Layout en la GPU.
-     *
-     * @param device Referencia al dispositivo para crear el recurso.
-     * @param Layout Vector que describe cada elemento del vértice (Semántica, formato, slot).
-     * @param VertexShaderData Blob con el código compilado del Vertex Shader.
-     * Es necesario para validar que el Layout de C++ coincide con el del Shader.
-     * @return HRESULT S_OK si la creación fue exitosa.
-     */
-    HRESULT
-        init(Device& device,
-            std::vector<D3D11_INPUT_ELEMENT_DESC>& Layout,
-            ID3DBlob* VertexShaderData);
+	/**
+	 * @brief Inicializa el Input Layout en la GPU mediante puntero y conteo.
+	 * * @param device Dispositivo con el que se crea el recurso.
+	 * @param layoutDesc Arreglo de descripciones de elementos de entrada.
+	 * @param layoutCount Número de elementos en el arreglo.
+	 * @param vertexShaderData Bytecode del Vertex Shader para validar la firma.
+	 * @return HRESULT S_OK si la creación fue exitosa.
+	 */
+	HRESULT
+		init(Device& device,
+			const D3D11_INPUT_ELEMENT_DESC* layoutDesc,
+			UINT layoutCount,
+			ID3DBlob* vertexShaderData);
 
-    /**
-     * @brief Actualiza la lógica del layout (si fuera necesario).
-     * @note Generalmente no se utiliza en layouts estáticos.
-     */
-    void
-        update();
+	/**
+	 * @brief Sobrecarga de inicialización usando std::vector (más amigable para HeliosEngine).
+	 * @param device Referencia al dispositivo.
+	 * @param layout Vector con la descripción del formato de vértices.
+	 * @param vertexShaderData Bytecode compilado del VS.
+	 */
+	HRESULT
+		init(Device& device,
+			std::vector<D3D11_INPUT_ELEMENT_DESC>& layout,
+			ID3DBlob* vertexShaderData);
 
-    /**
-     * @brief Activa este Input Layout en el contexto de renderizado.
-     *
-     * Llama internamente a IASetInputLayout. A partir de este momento, la GPU
-     * interpretará los buffers de vértices siguiendo este formato.
-     *
-     * @param deviceContext El contexto donde se realizará el dibujo.
-     */
-    void
-        render(DeviceContext& deviceContext);
+	/** @brief Actualización lógica del layout (Placeholder). */
+	void
+		update();
 
-    /**
-     * @brief Libera el recurso de memoria de la GPU.
-     */
-    void
-        destroy();
+	/**
+	 * @brief Aplica el Input Layout al pipeline gráfico.
+	 * * Invoca IASetInputLayout. A partir de este momento, la GPU interpretará
+	 * los buffers de vértices siguiendo este formato específico.
+	 * @param deviceContext Contexto donde se establecerá el layout.
+	 */
+	void
+		render(DeviceContext& deviceContext);
+
+	/**
+	 * @brief Libera el recurso ID3D11InputLayout de la memoria de video.
+	 */
+	void
+		destroy();
 
 public:
-    /// Puntero nativo a la interfaz de Input Layout de DirectX 11.
-    ID3D11InputLayout* m_inputLayout = nullptr;
+	/** @brief Recurso COM de Direct3D 11 que representa el Input Layout. */
+	ID3D11InputLayout* m_inputLayout = nullptr;
 };

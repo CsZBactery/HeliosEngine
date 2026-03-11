@@ -1,13 +1,13 @@
 ﻿// ======================================================================================
 // Archivo: SwapChain.cpp
-// Gestiona el intercambio de los buffers de la pantalla (Doble Buffering).
+// Gestiona la cadena de intercambio DXGI y el Doble Buffering para presentar en pantalla.
 // ======================================================================================
 
-#include "../include/SwapChain.h"
-#include "../include/Device.h"
-#include "../include/DeviceContext.h"
-#include "../include/Texture.h"
-#include "../include/Window.h"
+#include "SwapChain.h"
+#include "Device.h"
+#include "DeviceContext.h"
+#include "Texture.h"
+#include "Window.h"
 
 // Inicializa el Swap Chain permitiendo que la imagen en el back buffer pase a la pantalla.
 HRESULT
@@ -46,7 +46,8 @@ SwapChain::init(Device& device, DeviceContext& deviceContext, Texture& backBuffe
     // Se intenta crear el dispositivo y el contexto de Direct3D.
     for (unsigned int driverTypeIndex = 0; driverTypeIndex < numDriverTypes; driverTypeIndex++) {
         D3D_DRIVER_TYPE driverType = driverTypes[driverTypeIndex];
-        hr = D3D11CreateDevice(nullptr,
+        hr = D3D11CreateDevice(
+            nullptr,
             driverType,
             nullptr,
             createDeviceFlags,
@@ -55,7 +56,8 @@ SwapChain::init(Device& device, DeviceContext& deviceContext, Texture& backBuffe
             D3D11_SDK_VERSION,
             &device.m_device,
             &m_featureLevel,
-            &deviceContext.m_deviceContext);
+            &deviceContext.m_deviceContext
+        );
 
         if (SUCCEEDED(hr)) {
             MESSAGE("SwapChain", "init", "Device created successfully.");
@@ -80,7 +82,7 @@ SwapChain::init(Device& device, DeviceContext& deviceContext, Texture& backBuffe
     // Configuración de la estructura de la Cadena de Intercambio
     DXGI_SWAP_CHAIN_DESC sd;
     memset(&sd, 0, sizeof(sd));
-    sd.BufferCount = 1;
+    sd.BufferCount = 1; // 1 Backbuffer (+1 Frontbuffer implícito) = Double Buffering
     sd.BufferDesc.Width = window.m_width;
     sd.BufferDesc.Height = window.m_height;
     sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -89,13 +91,13 @@ SwapChain::init(Device& device, DeviceContext& deviceContext, Texture& backBuffe
     sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
     sd.OutputWindow = window.m_hWnd;
     sd.Windowed = TRUE;
-    sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD; // Destruye el frame viejo tras mostrarlo
+    sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD; // Destruye el frame viejo tras mostrarlo para mayor velocidad
 
     // Asignación de MSAA al SwapChain principal
     sd.SampleDesc.Count = m_sampleCount;
     sd.SampleDesc.Quality = m_qualityLevels - 1;
 
-    // Obtención de las interfaces de fábrica de la placa de video
+    // Obtención de las interfaces de fábrica de la placa de video (Jerarquía DXGI)
     hr = device.m_device->QueryInterface(__uuidof(IDXGIDevice), (void**)&m_dxgiDevice);
     if (FAILED(hr)) return hr;
 
@@ -124,16 +126,16 @@ SwapChain::init(Device& device, DeviceContext& deviceContext, Texture& backBuffe
 
 // Libera los recursos de Direct3D relacionados en el orden correcto
 void SwapChain::destroy() {
-    if (m_swapChain) SAFE_RELEASE(m_swapChain);
-    if (m_dxgiDevice) SAFE_RELEASE(m_dxgiDevice);
-    if (m_dxgiAdapter) SAFE_RELEASE(m_dxgiAdapter);
-    if (m_dxgiFactory) SAFE_RELEASE(m_dxgiFactory);
+    SAFE_RELEASE(m_swapChain);
+    SAFE_RELEASE(m_dxgiDevice);
+    SAFE_RELEASE(m_dxgiAdapter);
+    SAFE_RELEASE(m_dxgiFactory);
 }
 
 // Intercambia el back buffer con la pantalla visible.
 void SwapChain::present() {
     if (m_swapChain) {
-        // Enviar imagen a pantalla
+        // Enviar imagen a pantalla (Flip)
         HRESULT hr = m_swapChain->Present(0, 0);
         if (FAILED(hr)) {
             ERROR("SwapChain", "present", ("Failed to present swap chain. HRESULT: " + std::to_string(hr)).c_str());
@@ -142,4 +144,56 @@ void SwapChain::present() {
     else {
         ERROR("SwapChain", "present", "Swap chain is not initialized.");
     }
+}
+
+// ======================================================================================
+// NUEVOS MÉTODOS DEL PROFESOR: Vitales para soportar redimensionado de ventana.
+// ======================================================================================
+
+// Cambia dinámicamente la resolución interna de los buffers para coincidir con la UI.
+HRESULT
+SwapChain::resizeBuffers(UINT width, UINT height) {
+    if (!m_swapChain) {
+        ERROR("SwapChain", "resizeBuffers", "Swap chain is not initialized.");
+        return E_POINTER;
+    }
+
+    // Pasar 0 en formato y cantidad de buffers indica a DXGI que mantenga la config actual,
+    // pero actualizando a los nuevos 'width' y 'height'.
+    HRESULT hr = m_swapChain->ResizeBuffers(
+        0,
+        width,
+        height,
+        DXGI_FORMAT_UNKNOWN,
+        0
+    );
+
+    if (FAILED(hr)) {
+        ERROR("SwapChain", "resizeBuffers", ("ResizeBuffers failed. HRESULT: " + std::to_string(hr)).c_str());
+        return hr;
+    }
+
+    return S_OK;
+}
+
+// Devuelve el BackBuffer actual tras un redimensionado.
+HRESULT
+SwapChain::getBackBuffer(Texture& backBuffer) {
+    if (!m_swapChain) {
+        ERROR("SwapChain", "getBackBuffer", "Swap chain is not initialized.");
+        return E_POINTER;
+    }
+
+    // IMPORTANTE: Se inyecta la memoria directamente en la variable miembro m_texture
+    HRESULT hr = m_swapChain->GetBuffer(
+        0, __uuidof(ID3D11Texture2D),
+        reinterpret_cast<void**>(&backBuffer.m_texture)
+    );
+
+    if (FAILED(hr)) {
+        ERROR("SwapChain", "getBackBuffer", ("Failed to get back buffer. HRESULT: " + std::to_string(hr)).c_str());
+        return hr;
+    }
+
+    return S_OK;
 }

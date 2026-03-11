@@ -1,8 +1,16 @@
-﻿#include "../include/DepthStencilView.h"
-#include "../include/Device.h"
-#include "../include/DeviceContext.h"
-#include "../include/Texture.h"
+﻿// ======================================================================================
+// Archivo: DepthStencilView.cpp
+// Implementación de la vista de Profundidad (Z-Buffer) y Estarcido (Stencil)
+// ======================================================================================
 
+#include "DepthStencilView.h"
+#include "Device.h"
+#include "DeviceContext.h"
+#include "Texture.h"
+
+// ======================================================================================
+// Inicialización con AUTO-DETECCIÓN de MSAA (Multisampling)
+// ======================================================================================
 HRESULT
 DepthStencilView::init(Device& device, Texture& depthStencil, DXGI_FORMAT format) {
 
@@ -20,8 +28,8 @@ DepthStencilView::init(Device& device, Texture& depthStencil, DXGI_FORMAT format
         return E_INVALIDARG;
     }
 
-    // Consultamos la descripcion de la textura para saber si tiene MSAA (Antialiasing) activado.
-    // Esto es importante porque la "Dimension" de la vista cambia si es multisampleada o no.
+    // Consultamos la descripción de la textura base para saber si tiene MSAA (Antialiasing) activado.
+    // Esto es vital porque la "Dimension" de la vista requerida por DirectX cambia.
     D3D11_TEXTURE2D_DESC texDesc;
     depthStencil.m_texture->GetDesc(&texDesc);
 
@@ -29,9 +37,9 @@ DepthStencilView::init(Device& device, Texture& depthStencil, DXGI_FORMAT format
     ZeroMemory(&descDSV, sizeof(descDSV));
     descDSV.Format = format;
 
-    // Logica de seleccion de dimension:
+    // Lógica de selección de dimensión inteligente:
     if (texDesc.SampleDesc.Count > 1) {
-        // Si tiene mas de 1 muestra, es una textura Multisampling (MS)
+        // Si tiene más de 1 muestra, exige una vista Multisampling (MS)
         descDSV.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2DMS;
     }
     else {
@@ -48,18 +56,62 @@ DepthStencilView::init(Device& device, Texture& depthStencil, DXGI_FORMAT format
     );
 
     if (FAILED(hr)) {
-        ERROR("DepthStencilView", "init",
-            ("Failed to create depth stencil view. HRESULT: " + std::to_string(hr)).c_str());
+        ERROR("DepthStencilView", "init", ("Failed to create depth stencil view. HRESULT: " + std::to_string(hr)).c_str());
         return hr;
     }
 
     return S_OK;
 }
 
+// ======================================================================================
+// Inicialización MANUAL (Permite forzar la dimensión, útil para efectos como Shadow Maps)
+// ======================================================================================
+HRESULT
+DepthStencilView::init(Device& device,
+    Texture& depthStencil,
+    DXGI_FORMAT format,
+    D3D11_DSV_DIMENSION viewDimension) {
+
+    if (!device.m_device) {
+        ERROR("DepthStencilView", "init", "Device is null.");
+        return E_POINTER;
+    }
+    if (!depthStencil.m_texture) {
+        ERROR("DepthStencilView", "init", "Texture is null.");
+        return E_FAIL;
+    }
+
+    D3D11_DEPTH_STENCIL_VIEW_DESC descDSV{};
+    descDSV.Format = format;
+    descDSV.ViewDimension = viewDimension;
+
+    // Si forzamos 2D normal, inicializamos el nivel de Mip
+    if (viewDimension == D3D11_DSV_DIMENSION_TEXTURE2D) {
+        descDSV.Texture2D.MipSlice = 0;
+    }
+
+    HRESULT hr = device.m_device->CreateDepthStencilView(
+        depthStencil.m_texture,
+        &descDSV,
+        &m_depthStencilView
+    );
+
+    if (FAILED(hr)) {
+        ERROR("DepthStencilView", "init", ("Failed to create depth stencil view. HRESULT: " + std::to_string(hr)).c_str());
+        return hr;
+    }
+
+    return S_OK;
+}
+
+// ======================================================================================
+// PREPARACIÓN DE FRAME: Limpieza del Buffer
+// ======================================================================================
 void
 DepthStencilView::render(DeviceContext& deviceContext) {
-    // Aunque la funcion se llame "render", su trabajo real es LIMPIAR el buffer.
-    // Esto se debe llamar al inicio de cada frame para borrar la profundidad vieja (1.0f).
+    // Aunque la función se llame "render" por estándar de clase, su trabajo real es LIMPIAR el buffer.
+    // Esto se debe llamar al inicio de cada frame para borrar la profundidad vieja y evitar que 
+    // píxeles de frames anteriores sigan tapando objetos nuevos.
 
     if (!deviceContext.m_deviceContext) {
         ERROR("DepthStencilView", "render", "Device context is null.");
@@ -71,7 +123,7 @@ DepthStencilView::render(DeviceContext& deviceContext) {
         return;
     }
 
-    // Limpiamos Depth a 1.0 (lo mas lejano) y Stencil a 0
+    // Limpiamos: Depth a 1.0 (lo más lejano, "infinito") y Stencil a 0
     deviceContext.m_deviceContext->ClearDepthStencilView(
         m_depthStencilView,
         D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL,
@@ -80,6 +132,9 @@ DepthStencilView::render(DeviceContext& deviceContext) {
     );
 }
 
+// ======================================================================================
+// LIBERACIÓN DE MEMORIA
+// ======================================================================================
 void
 DepthStencilView::destroy() {
     SAFE_RELEASE(m_depthStencilView);

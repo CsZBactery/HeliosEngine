@@ -1,27 +1,23 @@
 ﻿// ======================================================================================
 // Archivo: BaseApp.cpp
-// Implementación de la clase principal del motor. 
+// Implementación de la clase principal del motor (HeliosEngine). 
 // Controla el Game Loop, inicialización de DirectX y renderizado general.
 // ======================================================================================
 
 #include "BaseApp.h"
 #include "ResourceManager.h"
-#include <array>
-#include <string>
-#include "imgui.h"
-
-// Variable global (temporal) para el estado del rasterizador sin culling (si aún la necesitas para algo externo)
-ID3D11RasterizerState* g_pRasterizerStateNoCull = nullptr;
 
 // ======================================================================================
 // FASE 1: AWAKE (Preparación Lógica)
 // ======================================================================================
-HRESULT BaseApp::awake() {
+HRESULT
+BaseApp::awake() {
     HRESULT hr = S_OK;
 
-    // Inicialización de sistemas lógicos (sin hardware de GPU aún)
+    // Inicializacion de dlls y elementos externos al motor (Ej. Grafo de Escena).
     m_sceneGraph.init();
 
+    // Log Success Message
     MESSAGE("Main", "Awake", "Application awake successfully.");
     return hr;
 }
@@ -29,26 +25,25 @@ HRESULT BaseApp::awake() {
 // ======================================================================================
 // FASE 2: BUCLE PRINCIPAL (Game Loop)
 // ======================================================================================
-int BaseApp::run(HINSTANCE hInst, int nCmdShow) {
-    // 1. Inicializar la ventana del sistema operativo Windows
-    if (FAILED(m_window.init(hInst, nCmdShow, WndProc))) {
+int
+BaseApp::run(HINSTANCE hInst, int nCmdShow) {
+    // 1) Inicializar la ventana del sistema operativo Windows
+    // ¡Ojo! Le pasamos 'this' para que el WndProc pueda comunicarse con nuestra clase
+    if (FAILED(m_window.init(hInst, nCmdShow, WndProc, this))) {
         ERROR("Main", "Run", "Failed to initialize window.");
         return 0;
     }
-
-    // 2. Despertar los subsistemas lógicos del motor
+    // 2) Despertar los subsistemas lógicos del motor
     if (FAILED(awake())) {
         ERROR("Main", "Run", "Failed to awake application.");
         return 0;
     }
-
-    // 3. Iniciar DirectX 11 y cargar recursos (Texturas, Modelos) 
+    // 3) Iniciar DirectX 11 y cargar recursos (Texturas, Modelos) 
     if (FAILED(init())) {
         ERROR("Main", "Run", "Failed to initialize device and device context.");
         return 0;
     }
-
-    // 4. Inicializar la interfaz gráfica de usuario (ImGui)
+    // 4) Inicializar la interfaz gráfica de usuario (ImGui)
     m_gui.init(m_window, m_device, m_deviceContext);
 
     // Preparación del temporizador de alta resolución para calcular el Delta Time
@@ -58,13 +53,16 @@ int BaseApp::run(HINSTANCE hInst, int nCmdShow) {
     QueryPerformanceCounter(&prev);
 
     // Bucle infinito: Se ejecuta hasta que el usuario cierra la ventana
-    while (WM_QUIT != msg.message) {
+    while (WM_QUIT != msg.message)
+    {
         // Procesar mensajes del SO (mouse, teclado, redimensionado)
-        if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
+        if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
+        {
             TranslateMessage(&msg);
             DispatchMessage(&msg);
         }
-        else {
+        else
+        {
             // Calcular el tiempo transcurrido desde el último frame
             LARGE_INTEGER curr;
             QueryPerformanceCounter(&curr);
@@ -80,35 +78,28 @@ int BaseApp::run(HINSTANCE hInst, int nCmdShow) {
 }
 
 // ======================================================================================
-// FASE 3: INICIALIZACIÓN DE HARDWARE (DirectX 11)
+// FASE 3: INICIALIZACIÓN DE HARDWARE (DirectX 11) Y CARGA DE RECURSOS
 // ======================================================================================
-HRESULT BaseApp::init() {
+HRESULT
+BaseApp::init() {
     HRESULT hr = S_OK;
 
-    // 1. Crear el Dispositivo (conexión física con la GPU) y su Contexto (emisor de comandos)
-    // Inicialización implícita de device y deviceContext
-    // m_device.init(); ya se hace en la creación de las variables internamente en algunos diseños,
-    // o se confía en que las funciones siguientes lo rellenen. El profe no llama a init() explícito en m_device.
-
-    // 2. Crear SwapChain (Doble Buffer) 
+    // 1. Crear SwapChain (Doble Buffer e Inicialización del Device implícita)
     hr = m_swapChain.init(m_device, m_deviceContext, m_backBuffer, m_window);
     if (FAILED(hr)) {
         ERROR("Main", "InitDevice", ("Failed to initialize SwapChain. HRESULT: " + std::to_string(hr)).c_str());
         return hr;
     }
 
-    // 3. Crear el lienzo principal (Render Target)
+    // 2. Crear el lienzo principal (Render Target)
     hr = m_renderTargetView.init(m_device, m_backBuffer, DXGI_FORMAT_R8G8B8A8_UNORM);
     if (FAILED(hr)) {
         ERROR("Main", "InitDevice", ("Failed to initialize RenderTargetView. HRESULT: " + std::to_string(hr)).c_str());
         return hr;
     }
 
-    // 4. Crear Buffer de Profundidad (Z-Buffer)
-    // CORRECCIÓN: Emparejamos el Multisampling a 4 muestras (mc:4) y Calidad 16 (mq:16)
-    // para que coincida exactamente con lo que generó el SwapChain.
-    hr = m_depthStencil.init(m_device, m_window.m_width, m_window.m_height, DXGI_FORMAT_D24_UNORM_S8_UINT, D3D11_BIND_DEPTH_STENCIL, 4, 16);
-
+    // 3. Crear Buffer de Profundidad (Z-Buffer Principal)
+    hr = m_depthStencil.init(m_device, m_window.m_width, m_window.m_height, DXGI_FORMAT_D24_UNORM_S8_UINT, D3D11_BIND_DEPTH_STENCIL, 4, 0);
     if (FAILED(hr)) {
         ERROR("Main", "InitDevice", ("Failed to initialize DepthStencil. HRESULT: " + std::to_string(hr)).c_str());
         return hr;
@@ -120,56 +111,78 @@ HRESULT BaseApp::init() {
         return hr;
     }
 
-    // 5. Configurar Viewport
+    // 4. Configurar Viewport Principal
     hr = m_viewport.init(m_window);
     if (FAILED(hr)) {
         ERROR("Main", "InitDevice", ("Failed to initialize Viewport. HRESULT: " + std::to_string(hr)).c_str());
         return hr;
     }
 
-    // 6. Cargar texturas del Entorno (Skybox)
+    m_d3dReady = true;
+
+    // =========================================================
+    // CARGA DE RECURSOS (MODELOS Y TEXTURAS)
+    // =========================================================
+
+    // A) Cargar texturas del Entorno (Skybox)
     std::array<std::string, 6> faces = {
-        "Assets/Skybox/cubemap_0.png",
-        "Assets/Skybox/cubemap_1.png",
-        "Assets/Skybox/cubemap_2.png",
-        "Assets/Skybox/cubemap_3.png",
-        "Assets/Skybox/cubemap_4.png",
-        "Assets/Skybox/cubemap_5.png"
+        "Skybox/cubemap_0.png",
+        "Skybox/cubemap_1.png",
+        "Skybox/cubemap_2.png",
+        "Skybox/cubemap_3.png",
+        "Skybox/cubemap_4.png",
+        "Skybox/cubemap_5.png"
     };
     m_skyboxTex.CreateCubemap(m_device, m_deviceContext, faces, false);
 
-    // 7. Crear y ensamblar el Actor Principal (Ej. CyberGun / Moto)
-    m_repsolActor = EU::MakeShared<Actor>(m_device);
+    // B) Crear y ensamblar el Actor Principal (CyberGun con PBR)
+    m_cyberGun = EU::MakeShared<Actor>(m_device);
 
-    if (!m_repsolActor.isNull()) {
-        // Cargar Modelo 
-        m_model = new Model3D("Assets/Moto/repsol3.obj", ModelType::OBJ);
-        std::vector<MeshComponent> meshes = m_model->GetMeshes();
+    if (!m_cyberGun.isNull()) {
+        // Cargar Modelo FBX
+        std::vector<MeshComponent> cyberGunMeshes;
+        m_model = new Model3D("CyberGun.fbx", ModelType::FBX);
+        cyberGunMeshes = m_model->GetMeshes();
 
-        // Cargar Textura
-        std::vector<Texture> textures;
-        hr = m_repsolTexture.init(m_device, "Assets/Textures/BaseColor", ExtensionType::PNG);
-        if (FAILED(hr)) {
-            ERROR("Main", "InitDevice", ("Failed to load texture BaseColor.png. HRESULT: " + std::to_string(hr)).c_str());
-            return hr;
-        }
-        textures.push_back(m_repsolTexture);
+        // Cargar Texturas PBR (Physically Based Rendering)
+        std::vector<Texture> cyberGunTextures;
+        hr = m_AlbedoSRV.init(m_device, "Textures/CyberGun/base.tga", PNG);
+        if (FAILED(hr)) return hr;
 
-        // Asignar al Actor
-        m_repsolActor->setMesh(m_device, meshes);
-        m_repsolActor->setTextures(textures);
-        m_repsolActor->setName("RepsolBike");
-        m_actors.push_back(m_repsolActor);
+        hr = m_MetallicSRV.init(m_device, "Textures/CyberGun/metallic.tga", PNG);
+        if (FAILED(hr)) return hr;
 
-        // Posición Inicial
-        m_repsolActor->getComponent<Transform>()->setTransform(
-            EU::Vector3(0.0f, -4.0f, 0.0f),
-            EU::Vector3(0.0f, 0.0f, 0.0f),
-            EU::Vector3(5.0f, 5.0f, 5.0f)
+        hr = m_RoughnessSRV.init(m_device, "Textures/CyberGun/roughness.tga", PNG);
+        if (FAILED(hr)) return hr;
+
+        hr = m_AOSRV.init(m_device, "Textures/CyberGun/ao.tga", PNG);
+        if (FAILED(hr)) return hr;
+
+        hr = m_NormalSRV.init(m_device, "Textures/CyberGun/normal.tga", PNG);
+        if (FAILED(hr)) return hr;
+
+        // El orden de inserción es crítico para los registros del Pixel Shader (t0, t1, t2...)
+        cyberGunTextures.push_back(m_AlbedoSRV);
+        cyberGunTextures.push_back(m_NormalSRV);
+        cyberGunTextures.push_back(m_MetallicSRV);
+        cyberGunTextures.push_back(m_RoughnessSRV);
+        cyberGunTextures.push_back(m_AOSRV);
+
+        // Ensamblaje del Actor
+        m_cyberGun->setMesh(m_device, cyberGunMeshes);
+        m_cyberGun->setTextures(cyberGunTextures);
+        m_cyberGun->setName("CyberGun");
+        m_actors.push_back(m_cyberGun);
+
+        // Posición Inicial para que se vea bien en cámara
+        m_cyberGun->getComponent<Transform>()->setTransform(
+            EU::Vector3(2.0f, -1.90f, 11.60f),
+            EU::Vector3(-0.60f, 3.0f, -0.20f),
+            EU::Vector3(1.0f, 1.0f, 1.0f)
         );
     }
     else {
-        ERROR("Main", "InitDevice", "Failed to create main Actor.");
+        ERROR("Main", "InitDevice", "Failed to create cyber Gun Actor.");
         return E_FAIL;
     }
 
@@ -178,49 +191,53 @@ HRESULT BaseApp::init() {
         m_sceneGraph.addEntity(actor.get());
     }
 
-    // 8. Configurar Input Layout (Cómo la CPU envía vértices a la GPU)
-    std::vector<D3D11_INPUT_ELEMENT_DESC> Layout;
-    Layout.push_back({ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 });
-    Layout.push_back({ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 });
+    // =========================================================
+    // CONFIGURACIÓN DEL PIPELINE GRÁFICO (SHADERS Y BUFFERS)
+    // =========================================================
 
-    // DESCOMENTADO: Tu shader original HeliosEngine.fx SÍ necesita las Normales.
-    Layout.push_back({ "NORMAL",   0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 });
+    // 5. Configurar Input Layout avanzado (Incluye Tangentes para Normal Mapping)
+    LayoutBuilder builder;
+    builder.Add("POSITION", DXGI_FORMAT_R32G32B32_FLOAT)
+        .Add("NORMAL", DXGI_FORMAT_R32G32B32_FLOAT)
+        .Add("TANGENT", DXGI_FORMAT_R32G32B32_FLOAT)
+        .Add("BITANGENT", DXGI_FORMAT_R32G32B32_FLOAT)
+        .Add("TEXCOORD", DXGI_FORMAT_R32G32_FLOAT);
 
-    // CORRECCIÓN: Buscamos tu shader HeliosEngine
-    hr = m_shaderProgram.init(m_device, "Assets/Shaders/HeliosEngine.fx", Layout);
-    if (FAILED(hr)) hr = m_shaderProgram.init(m_device, "HeliosEngine.fx", Layout); // Fallback
-
+    // Crear el Programa de Shader PBR
+    hr = m_shaderProgram.init(m_device, "PBRShader.hlsl", builder);
     if (FAILED(hr)) {
         ERROR("Main", "InitDevice", ("Failed to initialize ShaderProgram. HRESULT: " + std::to_string(hr)).c_str());
         return hr;
     }
 
-    // 9. Crear Buffers Constantes
-    hr = m_cbNeverChanges.init(m_device, sizeof(CBNeverChanges));
-    if (FAILED(hr)) return hr;
-
-    hr = m_cbChangeOnResize.init(m_device, sizeof(CBChangeOnResize));
-    if (FAILED(hr)) return hr;
-
-    // 10. Configurar Cámara
-    m_camera.setLens(XM_PIDIV4, m_window.m_width / (float)m_window.m_height, 0.01f, 100.0f);
-    m_camera.setPosition(0.0f, 3.0f, -6.0f);
-
-    cbNeverChanges.mView = XMMatrixTranspose(m_camera.getView());
-    cbChangesOnResize.mProjection = XMMatrixTranspose(m_camera.getProj());
-
-    // 11. Inicializar el Skybox y los Estados Base (ESTO ES CRUCIAL PARA VER EL CIELO BIEN)
-    m_skybox.init(m_device, &m_deviceContext, m_skyboxTex);
-
-    hr = m_defaultRasterizer.init(m_device, D3D11_FILL_SOLID, D3D11_CULL_BACK, false, true);
+    // Crear el Buffer Constante Principal unificado
+    hr = m_constantBuffer.init(m_device, sizeof(CBMain));
     if (FAILED(hr)) {
-        ERROR("Main", "InitDevice", "Failed to initialize default Rasterizer.");
+        ERROR("Main", "InitDevice", ("Failed to initialize Constant Buffer. HRESULT: " + std::to_string(hr)).c_str());
         return hr;
     }
 
+    // 6. Configurar Cámara Inicial
+    m_camera.setLens(XM_PIDIV4, m_window.m_width / (float)m_window.m_height, 0.01f, 100.0f);
+    m_camera.setPosition(0.0f, 3.0f, -6.0f);
+
+    // Configurar Luz Global Falsa (Direccional)
+    m_constantBufferStruct.LightColor = EU::Vector3(1.0f, 1.0f, 1.0f);
+    m_constantBufferStruct.LightDir = EU::Vector3(-0.20f, -1.0f, 1.0f);
+
+    // 7. Inicializar Subsistemas del Motor
+    m_skybox.init(m_device, &m_deviceContext, m_skyboxTex);
+
+    hr = m_defaultRasterizer.init(m_device, D3D11_FILL_SOLID, D3D11_CULL_BACK, false, true);
+    if (FAILED(hr)) return hr;
+
     hr = m_defaultDepthStencil.init(m_device, true, D3D11_DEPTH_WRITE_MASK_ALL, D3D11_COMPARISON_LESS);
+    if (FAILED(hr)) return hr;
+
+    // 8. Inicializar el Pase de Editor (Render To Texture para ImGui)
+    hr = m_editorViewportPass.init(m_device, 1280, 720);
     if (FAILED(hr)) {
-        ERROR("Main", "InitDevice", "Failed to initialize default DepthStencilState.");
+        ERROR("Main", "InitDevice", ("Failed to initialize EditorViewportPass. HRESULT: " + std::to_string(hr)).c_str());
         return hr;
     }
 
@@ -230,123 +247,116 @@ HRESULT BaseApp::init() {
 // ======================================================================================
 // FASE 4: UPDATE (Lógica de cada Frame)
 // ======================================================================================
-void BaseApp::update(float deltaTime) {
-    // Control de redimensionamiento de ventana
-    RECT rc;
-    GetClientRect(m_window.m_hWnd, &rc);
-    float width = static_cast<float>(rc.right - rc.left);
-    float height = static_cast<float>(rc.bottom - rc.top);
-
-    if (height > 0) {
-        m_camera.setLens(XM_PIDIV4, width / height, 0.1f, 1000.0f);
-        cbChangesOnResize.mProjection = XMMatrixTranspose(m_camera.getProj());
-    }
+void
+BaseApp::update(float deltaTime) {
 
     // Actualización de la GUI (ImGui)
     m_gui.update(m_viewport, m_window);
 
+    // Dibuja la textura del juego dentro del panel de ImGui
+    m_gui.drawViewportPanel(m_editorViewportPass.getSRV());
+
+    // Dibuja los paneles de herramientas del editor
     m_gui.outliner(m_actors);
-    if (!m_actors.empty() && m_gui.selectedActorIndex < m_actors.size()) {
+    if (m_gui.selectedActorIndex >= 0 && m_gui.selectedActorIndex < m_actors.size()) {
         m_gui.inspectorGeneral(m_actors[m_gui.selectedActorIndex]);
+        m_gui.editTransform(m_camera, m_window, m_actors[m_gui.selectedActorIndex]);
     }
 
     // =========================================================
-    // VENTANAS DE DEPURACIÓN (ImGui)
+    // LÓGICA DE REDIMENSIONAMIENTO DEL EDITOR VIEWPORT (Debounce)
     // =========================================================
-    static ID3D11ShaderResourceView* faceSRV[6] = { nullptr };
-    if (!faceSRV[0] && m_skyboxTex.m_texture) {
-        for (UINT i = 0; i < 6; ++i) {
-            faceSRV[i] = m_skyboxTex.CreateCubemapFaceSRV(m_device.m_device, m_skyboxTex.m_texture, DXGI_FORMAT_R8G8B8A8_UNORM, i, 1);
-        }
-    }
+    unsigned int desiredW = static_cast<unsigned int>(m_gui.m_viewportSize.x);
+    unsigned int desiredH = static_cast<unsigned int>(m_gui.m_viewportSize.y);
+    const unsigned int kMinViewportSize = 64;
 
-    // 1. Ventana pequeña del Cubemap
-    ImGui::Begin("Cubemap");
-    ImGui::Text("Skybox Cubemap");
-    if (faceSRV[0]) ImGui::Image((ImTextureID)faceSRV[0], ImVec2(200, 200));
-    else ImGui::Text("Textura no disponible");
-    ImGui::End();
+    if (desiredW < kMinViewportSize) desiredW = kMinViewportSize;
+    if (desiredH < kMinViewportSize) desiredH = kMinViewportSize;
 
-    // 2. Ventana Debug (Grid de 6 imágenes)
-    ImGui::Begin("Debug");
-    ImGui::Text("Cubemap Faces:");
-    if (faceSRV[0]) {
-        for (int i = 0; i < 6; ++i) {
-            ImGui::Image((ImTextureID)faceSRV[i], ImVec2(100, 100)); // Tamaño de cada carita
-            if ((i + 1) % 3 != 0) ImGui::SameLine(); // Ponemos 3 imágenes por fila
-        }
+    // Si cambió el tamaño solicitado, reiniciamos el contador de estabilidad
+    if (desiredW != m_lastRequestedViewportWidth || desiredH != m_lastRequestedViewportHeight) {
+        m_lastRequestedViewportWidth = desiredW;
+        m_lastRequestedViewportHeight = desiredH;
+        m_viewportResizeStableFrames = 0;
     }
     else {
-        ImGui::Text("Texturas no disponibles");
+        m_viewportResizeStableFrames++;
     }
-    ImGui::End();
 
-    // Actualizar Matriz de Vista en el Constant Buffer
+    // Solo pedimos recrear la textura a la GPU cuando el usuario dejó de arrastrar la ventana
+    // por al menos un par de frames. Esto evita tirones graves de rendimiento (Stuttering).
+    const int kStableFramesRequired = 2;
+    if (m_viewportResizeStableFrames >= kStableFramesRequired) {
+        if (desiredW != m_editorViewportPass.getWidth() || desiredH != m_editorViewportPass.getHeight()) {
+            m_editorViewportResizePending = true;
+            m_pendingViewportWidth = desiredW;
+            m_pendingViewportHeight = desiredH;
+        }
+    }
+
+    // Actualizar Matriz de Vista y Proyección de la cámara principal
     m_camera.updateViewMatrix();
-    cbNeverChanges.mView = XMMatrixTranspose(m_camera.getView());
 
-    // NOTA: El shader del profe parece no usar LightDir ni LightColor en cbNeverChanges
-    m_cbNeverChanges.update(m_deviceContext, nullptr, 0, nullptr, &cbNeverChanges, 0, 0);
-    m_cbChangeOnResize.update(m_deviceContext, nullptr, 0, nullptr, &cbChangesOnResize, 0, 0);
+    // Llenar la estructura de datos que viaja al Vertex Shader (PBR)
+    XMStoreFloat4x4(&m_constantBufferStruct.View, XMMatrixTranspose(m_camera.getView()));
+    XMStoreFloat4x4(&m_constantBufferStruct.Projection, XMMatrixTranspose(m_camera.getProj()));
+    m_constantBufferStruct.CameraPos = m_camera.getPosition();
 
-    // (Comentado por el profe) Optimización: No actualizamos la proyección a cada frame si no cambió el tamaño de ventana
-    // cbChangesOnResize.mProjection = XMMatrixTranspose(m_camera.getProj());
+    // Controles de luz en la UI
+    m_gui.vec3Control("Light Direction", &m_constantBufferStruct.LightDir.x, 0.1f);
+    m_gui.vec3Control("Light Color", &m_constantBufferStruct.LightColor.x, 0.1f);
 
-    // Actualizar la jerarquía de todos los actores
+    // Actualizamos el Skybox (solo necesita rotación y proyección)
+    m_skybox.update(m_deviceContext, m_camera);
+
+    // Enviamos los datos actualizados al Buffer en la VRAM
+    m_constantBuffer.update(m_deviceContext, nullptr, 0, nullptr, &m_constantBufferStruct, 0, 0);
+
+    // Actualizar la jerarquía (matrices de mundo) de todos los actores
     m_sceneGraph.update(deltaTime, m_deviceContext);
-
-    // Habilitar la edición visual (Gizmos) del objeto seleccionado
-    if (!m_actors.empty() && m_gui.selectedActorIndex < m_actors.size()) {
-        m_gui.editTransform(m_camera.getView(), m_camera.getProj(), m_actors[m_gui.selectedActorIndex]);
-    }
 }
 
 // ======================================================================================
 // FASE 5: RENDER (Dibujo en GPU)
 // ======================================================================================
-void BaseApp::render() {
-    // 1. Limpiar el lienzo con un color sólido
-    float ClearColor[4] = { 0.1f, 0.1f, 0.1f, 1.0f };
-    m_renderTargetView.render(m_deviceContext, m_depthStencilView, 1, ClearColor);
+void
+BaseApp::render() {
 
-    // 2. Aplicar Viewport y limpiar el buffer de profundidad
-    m_viewport.render(m_deviceContext);
-    m_depthStencilView.render(m_deviceContext);
+    // 0. Si el Viewport cambió de tamaño, recreamos sus texturas antes de dibujar
+    handleEditorViewportResize();
 
-    // ---------------------------------------------------------
-    // PASO 1: DIBUJAR EL SKYBOX (Fondo del mundo)
-    // ---------------------------------------------------------
-    m_skybox.render(m_deviceContext, m_camera);
+    // =========================================================
+    // PASE 1: DIBUJAR EL JUEGO EN LA TEXTURA DEL EDITOR
+    // =========================================================
+    float clearColor[4] = { 0.1f, 0.1f, 0.1f, 1.0f };
+    const float viewportClear[4] = { 0.10f, 0.10f, 0.10f, 1.0f };
 
-    // ---------------------------------------------------------
-    // PASO 2: RESTAURAR ESTADOS + PREPARAR PIPELINE PARA MODELOS
-    // ---------------------------------------------------------
+    m_editorViewportPass.begin(m_deviceContext, viewportClear);
+    m_editorViewportPass.setViewport(m_deviceContext);
+    m_editorViewportPass.clearDepth(m_deviceContext);
+
+    // A) Dibujar el Fondo
+    m_skybox.render(m_deviceContext);
+
+    // B) Restaurar estados por defecto y preparar pipeline para modelos 3D
     m_defaultRasterizer.render(m_deviceContext);
     m_defaultDepthStencil.render(m_deviceContext, 0, false);
 
-    // Limpia SRVs por seguridad (Evita que el cubemap interfiera con las texturas 2D normales)
-    ID3D11ShaderResourceView* nullSRV[1] = { nullptr };
-    m_deviceContext.m_deviceContext->PSSetShaderResources(10, 1, nullSRV);
-    m_deviceContext.m_deviceContext->PSSetShaderResources(0, 1, nullSRV);
-
-    // Re-bindea shader principal y layout de la escena
     m_shaderProgram.render(m_deviceContext);
+    m_constantBuffer.render(m_deviceContext, 0, 1, true); // true = Enviar también al Pixel Shader (Para la luz)
 
-    // (Comentado por el profe) Redundante, la topología ya se asigna dentro del render del Actor
-    // m_deviceContext.IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
-    // Mandar matrices globales (Vista / Proyección)
-    m_cbNeverChanges.render(m_deviceContext, 0, 1);
-    m_cbChangeOnResize.render(m_deviceContext, 1, 1);
-
-    // ---------------------------------------------------------
-    // PASO 3: DIBUJAR LA ESCENA (Modelos 3D)
-    // ---------------------------------------------------------
+    // C) Dibujar la Escena (La CyberGun PBR)
     m_sceneGraph.render(m_deviceContext);
 
-    // ---------------------------------------------------------
-    // PASO 4: DIBUJAR LA INTERFAZ GRÁFICA (ImGui)
-    // ---------------------------------------------------------
+
+    // =========================================================
+    // PASE 2: VOLVER AL BACKBUFFER PRINCIPAL (PANTALLA COMPLETA)
+    // =========================================================
+    m_renderTargetView.render(m_deviceContext, m_depthStencilView, 1, clearColor);
+    m_viewport.render(m_deviceContext);
+    m_depthStencilView.render(m_deviceContext);
+
+    // Dibujar la interfaz de ImGui (Que incluye el panel con la textura generada en el Pase 1)
     m_gui.render();
 
     // 5. Intercambiar los buffers (Mostrar en pantalla)
@@ -356,28 +366,30 @@ void BaseApp::render() {
 // ======================================================================================
 // FASE 6: DESTROY (Limpieza de Memoria)
 // ======================================================================================
-void BaseApp::destroy() {
+void
+BaseApp::destroy() {
     if (m_deviceContext.m_deviceContext) m_deviceContext.m_deviceContext->ClearState();
 
-    if (g_pRasterizerStateNoCull) { g_pRasterizerStateNoCull->Release(); g_pRasterizerStateNoCull = nullptr; }
+    m_sceneGraph.destroy();
+    m_editorViewportPass.destroy();
 
-    m_skybox.destroy();
+    m_AlbedoSRV.destroy();
+    m_MetallicSRV.destroy();
+    m_NormalSRV.destroy();
+    m_RoughnessSRV.destroy();
+    m_AOSRV.destroy();
+
     m_defaultRasterizer.destroy();
     m_defaultDepthStencil.destroy();
-
-    m_sceneGraph.destroy();
-    m_cbNeverChanges.destroy();
-    m_cbChangeOnResize.destroy();
     m_shaderProgram.destroy();
+
     m_depthStencil.destroy();
     m_depthStencilView.destroy();
     m_renderTargetView.destroy();
     m_swapChain.destroy();
     m_backBuffer.destroy();
+
     m_gui.destroy();
-
-    if (m_model) { delete m_model; m_model = nullptr; }
-
     m_deviceContext.destroy();
     m_device.destroy();
 }
@@ -385,9 +397,11 @@ void BaseApp::destroy() {
 // ======================================================================================
 // PROCEDIMIENTO DE VENTANA (Captura de Eventos Windows)
 // ======================================================================================
-LRESULT BaseApp::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
-    if (ImGui::GetCurrentContext() != nullptr) {
-        if (ImGui_ImplWin32_WndProcHandler(hWnd, message, wParam, lParam)) return true;
+LRESULT
+BaseApp::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
+    // Le damos prioridad a ImGui para leer clics y teclas
+    if (ImGui_ImplWin32_WndProcHandler(hWnd, message, wParam, lParam)) {
+        return true;
     }
 
     switch (message) {
@@ -402,9 +416,102 @@ LRESULT BaseApp::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
         EndPaint(hWnd, &ps);
         return 0;
     }
+    case WM_SIZE: {
+        // Evita recrear buffers cuando la ventana está minimizada
+        if (wParam == SIZE_MINIMIZED) return 0;
+
+        UINT newW = LOWORD(lParam);
+        UINT newH = HIWORD(lParam);
+        if (newW == 0 || newH == 0) return 0;
+
+        // Recupera la instancia de BaseApp y lanza el evento de redimensionado principal
+        BaseApp* app = reinterpret_cast<BaseApp*>(GetWindowLongPtr(hWnd, GWLP_USERDATA));
+        if (app) app->onResize(newW, newH);
+        return 0;
+    }
     case WM_DESTROY:
         PostQuitMessage(0);
         return 0;
     }
     return DefWindowProc(hWnd, message, wParam, lParam);
+}
+
+// ======================================================================================
+// GESTIÓN DE REDIMENSIONADO DE LA VENTANA PRINCIPAL (OS WINDOW)
+// ======================================================================================
+void BaseApp::onResize(UINT newW, UINT newH) {
+    // 1) Si DirectX aún no inicializa, solo actualizamos el tamaño lógico
+    if (!m_d3dReady) {
+        m_window.m_width = (int)newW;
+        m_window.m_height = (int)newH;
+        return;
+    }
+
+    if (!m_deviceContext.m_deviceContext || !m_swapChain.m_swapChain) return;
+    if (newW == 0 || newH == 0) return;
+
+    m_window.m_width = (int)newW;
+    m_window.m_height = (int)newH;
+
+    // 2) Desbindear targets actuales (CLAVE antes de destruir buffers en la GPU)
+    ID3D11RenderTargetView* nullRTV = nullptr;
+    m_deviceContext.m_deviceContext->OMSetRenderTargets(1, &nullRTV, nullptr);
+
+    // 3) Libera recursos dependientes del tamaño de la ventana
+    m_renderTargetView.destroy();
+    m_depthStencilView.destroy();
+    m_depthStencil.destroy();
+    m_backBuffer.destroy();
+
+    // 4) Resize SwapChain
+    HRESULT hr = m_swapChain.resizeBuffers(newW, newH);
+    if (FAILED(hr)) return;
+
+    // 5) Re-obtén backbuffer
+    hr = m_swapChain.getBackBuffer(m_backBuffer);
+    if (FAILED(hr)) return;
+
+    // 6) Re-crea RTV
+    hr = m_renderTargetView.init(m_device, m_backBuffer, DXGI_FORMAT_R8G8B8A8_UNORM);
+    if (FAILED(hr)) return;
+
+    // 7) Re-crea Depth y DSV
+    hr = m_depthStencil.init(m_device, newW, newH, DXGI_FORMAT_D24_UNORM_S8_UINT, D3D11_BIND_DEPTH_STENCIL, 4, 0);
+    if (FAILED(hr)) return;
+
+    hr = m_depthStencilView.init(m_device, m_depthStencil, DXGI_FORMAT_D24_UNORM_S8_UINT);
+    if (FAILED(hr)) return;
+
+    // 8) Actualizar Viewport Principal
+    m_viewport.init(m_window);
+
+    // 9) Actualizar Ratio de Cámara
+    m_camera.setLens(XM_PIDIV4, newW / (float)newH, 0.01f, 100.0f);
+}
+
+// ======================================================================================
+// GESTIÓN DE REDIMENSIONADO DEL PANEL DE EDITOR (IMGUI VIEWPORT)
+// ======================================================================================
+void BaseApp::handleEditorViewportResize() {
+    if (!m_editorViewportResizePending)
+        return;
+
+    // Desbindear para evitar conflictos (Resource in use)
+    m_deviceContext.m_deviceContext->OMSetRenderTargets(0, nullptr, nullptr);
+
+    ID3D11ShaderResourceView* nullSRVs[D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT] = {};
+    m_deviceContext.m_deviceContext->PSSetShaderResources(0, D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT, nullSRVs);
+
+    // Crear un pase temporal con la nueva resolución
+    EditorViewportPass newPass;
+    HRESULT hr = newPass.init(m_device, m_pendingViewportWidth, m_pendingViewportHeight);
+    if (FAILED(hr)) {
+        // Si falla (ej. RAM de video llena), abortamos y conservamos el pass actual
+        m_editorViewportResizePending = false;
+        return;
+    }
+
+    // Intercambio seguro (El pass viejo se destruirá solo al salir de la función)
+    m_editorViewportPass.swap(newPass);
+    m_editorViewportResizePending = false;
 }
