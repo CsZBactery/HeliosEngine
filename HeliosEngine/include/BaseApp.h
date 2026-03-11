@@ -91,8 +91,12 @@ private:
 	// SHADERS Y CONSTANT BUFFERS
 	// ==========================================
 	ShaderProgram     m_shaderProgram;        /**< Pipeline completo de Shaders (Vertex + Pixel). */
-	Buffer            m_constantBuffer;       /**< Región de VRAM para enviar matrices de la cámara. */
-	CBMain            m_constantBufferStruct; /**< Estructura espejo en la RAM (CPU) para modificar datos antes de enviarlos. */
+
+	// Tus Buffers originales de HeliosEngine
+	Buffer            m_cbNeverChanges;
+	Buffer            m_cbChangeOnResize;
+	CBNeverChanges    cbNeverChanges;
+	CBChangeOnResize  cbChangesOnResize;
 
 	// ==========================================
 	// MATERIALES PBR (Texturas de alta fidelidad)

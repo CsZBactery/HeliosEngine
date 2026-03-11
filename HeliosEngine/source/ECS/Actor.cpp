@@ -66,7 +66,7 @@ Actor::update(float deltaTime, DeviceContext& deviceContext) {
     m_modelBuffer.update(deviceContext, nullptr, 0, nullptr, &m_model, 0, 0);
 }
 
-void
+void 
 Actor::render(DeviceContext& deviceContext) {
     // Activa el filtrado de texturas
     m_sampler.render(deviceContext, 0, 1);
@@ -80,19 +80,19 @@ Actor::render(DeviceContext& deviceContext) {
         // A) Enviar Geometría y Matrices
         m_vertexBuffers[i].render(deviceContext, 0, 1);
         m_indexBuffers[i].render(deviceContext, 0, 1, false, DXGI_FORMAT_R32_UINT);
-        m_modelBuffer.render(deviceContext, 1, 1, true); // Slot 1 para diferenciarlo de CBMain(Slot 0)
+
+        // Slot 2 para el Constant Buffer de modelo (Coincide con HeliosEngine.fx)
+        m_modelBuffer.render(deviceContext, 2, 1, true);
 
         // B) Limpiar texturas de pasadas anteriores por seguridad
         ID3D11ShaderResourceView* nullSRV[1] = { nullptr };
         deviceContext.m_deviceContext->PSSetShaderResources(0, 1, nullSRV);
 
-        // C) Enviar Material PBR a la GPU
-        // Si el actor tiene texturas, recorremos el arreglo y las vinculamos en orden:
-        // Slot 0: Albedo | Slot 1: Normal | Slot 2: Metallic | Slot 3: Roughness | Slot 4: AO
-        if (i < m_textures.size()) {
-            for (int k = 0; k < m_textures.size(); k++) {
-                m_textures[k].render(deviceContext, k, 1);
-            }
+        // C) Enviar Material a la GPU
+        // MODIFICACIÓN: En lugar de limitar la textura según el número de malla,
+        // forzamos a que TODAS las mallas de este actor usen la lista de texturas cargada.
+        for (int k = 0; k < m_textures.size(); k++) {
+            m_textures[k].render(deviceContext, k, 1);
         }
 
         // D) Comando final: Dibujar los píxeles
