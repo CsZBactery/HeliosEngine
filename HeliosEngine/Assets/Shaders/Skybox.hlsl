@@ -4,7 +4,7 @@
 // ======================================================================================
 
 // 1. BUFFER CONSTANTE (Debe coincidir con tu struct CBSkybox en C++)
-// Recibe la matriz de Vista-Proyección (sin traslación) desde la CPU.
+// Recibe la matriz de Vista-Proyeccion (sin traslacion) desde la CPU.
 cbuffer CBSkybox : register(b0)
 {
     matrix viewProj;
@@ -16,7 +16,7 @@ TextureCube skyboxTexture : register(t10);
 SamplerState samLinear : register(s10);
 
 // 3. ESTRUCTURAS DE DATOS
-// Lo que entra al Vertex Shader (Coincide con tu Input Layout: Solo Posición)
+// Lo que entra al Vertex Shader (Coincide con tu Input Layout: Solo Posicion)
 struct VS_INPUT
 {
     float3 Pos : POSITION;
@@ -36,18 +36,18 @@ PS_INPUT VS(VS_INPUT input)
 {
     PS_INPUT output = (PS_INPUT) 0;
 
-    // TRUCO #1: Las coordenadas de textura del cubo son exactamente la posición local 
-    // del vértice original, ya que el cubo está centrado en (0,0,0).
+    // TRUCO #1: Las coordenadas de textura del cubo son exactamente la posicion local 
+    // del vertice original, ya que el cubo esta centrado en (0,0,0).
     output.TexCd = input.Pos;
 
-    // Multiplicamos la posición por la matriz (recuerda que tu matriz ya transpuesta viene de C++)
+    // Multiplicamos la posicion por la matriz (recuerda que tu matriz ya transpuesta viene de C++)
     output.Pos = mul(float4(input.Pos, 1.0f), viewProj);
 
-    // TRUCO MÁGICO DEL SKYBOX #2:
+    // TRUCO MAGICO DEL SKYBOX #2:
     // Forzamos que el valor Z sea igual a W. 
-    // Cuando la GPU haga su división de perspectiva (Z / W), el resultado siempre será 1.0.
-    // En DirectX, 1.0 es la profundidad más lejana posible, haciendo que el cielo 
-    // siempre se dibuje al fondo sin importar el tamaño del cubo.
+    // Cuando la GPU haga su division de perspectiva (Z / W), el resultado siempre sera 1.0.
+    // En DirectX, 1.0 es la profundidad mas lejana posible, haciendo que el cielo 
+    // siempre se dibuje al fondo sin importar el tamano del cubo.
     output.Pos.z = output.Pos.w;
 
     return output;

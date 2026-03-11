@@ -194,16 +194,13 @@ ShaderProgram::CompileShaderFromFile(char* szFileName,
 
     if (FAILED(hr)) {
         if (pErrorBlob) {
-            ERROR("ShaderProgram", "CompileShaderFromFile",
-                "Failed to compile shader from file: %s. Error: %s",
-                szFileName, static_cast<const char*>(pErrorBlob->GetBufferPointer()));
-
-            SAFE_RELEASE(pErrorBlob);
+            // Si el archivo se encontró pero tiene un error de código HLSL, mostrará el error exacto:
+            MessageBoxA(NULL, (char*)pErrorBlob->GetBufferPointer(), "ERROR INTERNO DEL SHADER", MB_OK | MB_ICONERROR);
+            pErrorBlob->Release();
         }
         else {
-            ERROR("ShaderProgram", "CompileShaderFromFile",
-                "Failed to compile shader from file: %s. No error message available.",
-                szFileName);
+            // Si el archivo NO se encontró, mostrará la ruta que está intentando buscar:
+            MessageBoxA(NULL, szFileName, "ARCHIVO DE SHADER NO ENCONTRADO", MB_OK | MB_ICONWARNING);
         }
         return hr;
     }
