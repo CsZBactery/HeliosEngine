@@ -164,14 +164,16 @@ HRESULT BaseApp::init() {
     // CONFIGURACIÓN DE SHADERS 
     // =========================================================
 
-    // ¡CORRECCIÓN! Usamos LayoutBuilder para coincidir con la nueva actualización
+    // Ahora le decimos a DirectX el tamaño exacto del vértice
     LayoutBuilder builder;
     builder.Add("POSITION", DXGI_FORMAT_R32G32B32_FLOAT)
-        .Add("TEXCOORD", DXGI_FORMAT_R32G32_FLOAT)
-        .Add("NORMAL", DXGI_FORMAT_R32G32B32_FLOAT);
+        .Add("NORMAL", DXGI_FORMAT_R32G32B32_FLOAT)
+        .Add("TANGENT", DXGI_FORMAT_R32G32B32_FLOAT)
+        .Add("BITANGENT", DXGI_FORMAT_R32G32B32_FLOAT)
+        .Add("TEXCOORD", DXGI_FORMAT_R32G32_FLOAT);
 
     hr = m_shaderProgram.init(m_device, "Assets/Shaders/HeliosEngine.fx", builder);
-    if (FAILED(hr)) hr = m_shaderProgram.init(m_device, "HeliosEngine.fx", builder); // Fallback
+    if (FAILED(hr)) hr = m_shaderProgram.init(m_device, "HeliosEngine.fx", builder);
 
     if (FAILED(hr)) {
         ERROR("Main", "InitDevice", ("Failed to initialize ShaderProgram. HRESULT: " + std::to_string(hr)).c_str());
@@ -189,14 +191,14 @@ HRESULT BaseApp::init() {
     m_camera.setLens(XM_PIDIV4, m_window.m_width / (float)m_window.m_height, 0.01f, 100.0f);
     m_camera.setPosition(0.0f, 3.0f, -6.0f);
 
-    // ¡CORRECCIÓN! Transponer la matriz para que HLSL la entienda correctamente
+    // Transponer la matriz para que HLSL la entienda correctamente
     cbNeverChanges.mView = XMMatrixTranspose(m_camera.getView());
     cbChangesOnResize.mProjection = XMMatrixTranspose(m_camera.getProj());
 
     // 11. Inicializar Skybox y Estados Base
     m_skybox.init(m_device, &m_deviceContext, m_skyboxTex);
 
-    hr = m_defaultRasterizer.init(m_device, D3D11_FILL_SOLID, D3D11_CULL_BACK, false, true);
+    hr = m_defaultRasterizer.init(m_device, D3D11_FILL_SOLID, D3D11_CULL_NONE, false, true);
     if (FAILED(hr)) return hr;
 
     hr = m_defaultDepthStencil.init(m_device, true, D3D11_DEPTH_WRITE_MASK_ALL, D3D11_COMPARISON_LESS);
