@@ -316,7 +316,7 @@ BaseApp::render() {
     m_shaderProgram.render(m_deviceContext);
 
     // =========================================================
-    // ¡CORRECCIÓN AQUÍ! (Usar tu variable original)
+    // ¡Render! (Variable)
     // =========================================================
     m_cbNeverChanges.render(m_deviceContext, 0, 1);
     m_cbChangeOnResize.render(m_deviceContext, 1, 1);

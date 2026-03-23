@@ -61,7 +61,7 @@ Skybox::init(Device& device, DeviceContext* deviceContext, Texture& cubemap) {
 
     HRESULT hr = S_OK;
 
-    // Búsqueda robusta del shader del Skybox (Combinación de tu lógica y la del profe)
+    // Búsqueda robusta del shader del Skybox
     hr = m_shaderProgram.init(device, "Assets/Shaders/Skybox.hlsl", builder);
     if (FAILED(hr)) hr = m_shaderProgram.init(device, "Skybox.hlsl", builder);
     if (FAILED(hr)) hr = m_shaderProgram.init(device, "Assets/Shaders/Skybox.fx", builder);
@@ -137,7 +137,7 @@ void Skybox::render(DeviceContext& deviceContext) {
     // 3) Activamos Shaders y Filtros
     m_shaderProgram.render(deviceContext);
 
-    // IMPORTANTÍSIMO: Usamos el Slot 10 para no interferir con el PBR (Materiales de la moto)
+    // IMPORTANTÍSIMO: Usamos el Slot 10 para no interferir con el PBR (Materiales del xbox)
     m_samplerState.render(deviceContext, 10, 1);
     m_skyboxTexture.render(deviceContext, 10, 1);
 

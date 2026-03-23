@@ -50,7 +50,8 @@ Texture& Texture::operator=(const Texture& other) {
 }
 
 // Libera los punteros de DirectX y los pone en null de forma segura usando la macro
-void Texture::destroy() {
+void 
+Texture::destroy() {
     SAFE_RELEASE(m_texture);
     SAFE_RELEASE(m_textureFromImg);
     SAFE_RELEASE(m_samplerState);
@@ -274,7 +275,8 @@ Texture::init(Device& device, Texture& textureRef, DXGI_FORMAT format) {
     return S_OK;
 }
 
-void Texture::update() {}
+void 
+Texture::update() {}
 
 // Vincula la textura al Pixel Shader para que se pueda dibujar
 void

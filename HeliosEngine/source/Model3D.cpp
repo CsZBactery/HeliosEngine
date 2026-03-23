@@ -6,7 +6,8 @@
 #include "Model3D.h"
 
 // Inicia el proceso estándar de carga desde el sistema de archivos
-bool Model3D::load(const std::string& path) {
+bool 
+Model3D::load(const std::string& path) {
     SetPath(path);
     SetState(ResourceState::Loading);
 
@@ -20,14 +21,16 @@ bool Model3D::load(const std::string& path) {
 }
 
 // Inicia la conversión del archivo 3D a datos que el motor puede usar
-bool Model3D::init() {
+bool 
+Model3D::init() {
     m_meshes.clear();
     LoadFBXModel(m_filePath);
     return !m_meshes.empty();
 }
 
 // Libera toda la memoria ocupada por las geometrías y cierra el SDK de Autodesk
-void Model3D::unload() {
+void 
+Model3D::unload() {
     m_meshes.clear();
     textureFileNames.clear();
 
@@ -56,7 +59,8 @@ size_t Model3D::getSizeInBytes() const {
 }
 
 // Inicializa el motor interno del SDK de FBX (necesario antes de cargar cualquier archivo)
-bool Model3D::InitializeFBXManager() {
+bool 
+Model3D::InitializeFBXManager() {
     // Si ya existe, no hacemos nada
     if (lSdkManager) return true;
 
@@ -121,7 +125,8 @@ std::vector<MeshComponent> Model3D::LoadFBXModel(const std::string& filePath) {
 }
 
 // Recorre recursivamente el árbol de objetos dentro del archivo 3D
-void Model3D::ProcessFBXNode(FbxNode* node) {
+void 
+Model3D::ProcessFBXNode(FbxNode* node) {
     if (!node) return;
 
     if (node->GetNodeAttribute() && node->GetNodeAttribute()->GetAttributeType() == FbxNodeAttribute::eMesh) {
@@ -135,9 +140,9 @@ void Model3D::ProcessFBXNode(FbxNode* node) {
 
 // ======================================================================================
 // EXTRAE LA GEOMETRÍA: Posición, UV, Normales, Tangentes y Bitangentes.
-// (Esta es la versión PBR optimizada del profesor)
 // ======================================================================================
-void Model3D::ProcessFBXMesh(FbxNode* node) {
+void 
+Model3D::ProcessFBXMesh(FbxNode* node) {
     FbxMesh* mesh = node->GetMesh();
     if (!mesh) return;
 
@@ -284,7 +289,8 @@ void Model3D::ProcessFBXMesh(FbxNode* node) {
 }
 
 // Extrae los nombres de las texturas asignadas al modelo en el programa 3D (Opcional para autocaragado)
-void Model3D::ProcessFBXMaterials(FbxSurfaceMaterial* material) {
+void 
+Model3D::ProcessFBXMaterials(FbxSurfaceMaterial* material) {
     if (!material) return;
 
     FbxProperty prop = material->FindProperty(FbxSurfaceMaterial::sDiffuse);

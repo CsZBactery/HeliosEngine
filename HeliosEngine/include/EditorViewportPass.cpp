@@ -106,7 +106,8 @@ HRESULT EditorViewportPass::createResources(Device& device, unsigned int width, 
 // ======================================================================================
 // Preparación del frame
 // ======================================================================================
-void EditorViewportPass::begin(DeviceContext& deviceContext, const float clearColor[4]) {
+void 
+EditorViewportPass::begin(DeviceContext& deviceContext, const float clearColor[4]) {
     // Limpia la textura con el color de fondo y vincula este RTV al pipeline.
     // A partir de esta línea, todo lo que se dibuje irá a nuestra textura, no a la pantalla.
     m_rtv.render(deviceContext, m_dsv, 1, clearColor);
@@ -115,7 +116,8 @@ void EditorViewportPass::begin(DeviceContext& deviceContext, const float clearCo
 // ======================================================================================
 // Intercambio (Útil para Ping-Pong en Post-Procesado)
 // ======================================================================================
-void EditorViewportPass::swap(EditorViewportPass& other) {
+void 
+EditorViewportPass::swap(EditorViewportPass& other) {
     std::swap(m_colorTexture, other.m_colorTexture);
     std::swap(m_colorSRV, other.m_colorSRV);
     std::swap(m_rtv, other.m_rtv);
@@ -128,14 +130,16 @@ void EditorViewportPass::swap(EditorViewportPass& other) {
 // ======================================================================================
 // Limpieza parcial
 // ======================================================================================
-void EditorViewportPass::clearDepth(DeviceContext& deviceContext) {
+void 
+EditorViewportPass::clearDepth(DeviceContext& deviceContext) {
     m_dsv.render(deviceContext);
 }
 
 // ======================================================================================
 // Configura el Viewport de la GPU para que coincida con la textura
 // ======================================================================================
-void EditorViewportPass::setViewport(DeviceContext& deviceContext) {
+void 
+EditorViewportPass::setViewport(DeviceContext& deviceContext) {
     D3D11_VIEWPORT vp{};
     vp.TopLeftX = 0.0f;
     vp.TopLeftY = 0.0f;
@@ -150,7 +154,8 @@ void EditorViewportPass::setViewport(DeviceContext& deviceContext) {
 // ======================================================================================
 // Destrucción segura
 // ======================================================================================
-void EditorViewportPass::destroy() {
+void 
+EditorViewportPass::destroy() {
     m_dsv.destroy();
     m_depthTexture.destroy();
     m_colorSRV.destroy();

@@ -18,11 +18,13 @@ static ImGuizmo::OPERATION mCurrentGizmoOperation(ImGuizmo::TRANSLATE);
 // ======================================================================================
 // CONFIGURACIÓN INICIAL
 // ======================================================================================
-void GUI::awake() {
+void 
+GUI::awake() {
     // Configuración previa si fuera necesaria
 }
 
-void GUI::init(Window& window, Device& device, DeviceContext& deviceContext) {
+void 
+GUI::init(Window& window, Device& device, DeviceContext& deviceContext) {
     // 1. Crear contexto de ImGui
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -62,7 +64,8 @@ void GUI::init(Window& window, Device& device, DeviceContext& deviceContext) {
 // ======================================================================================
 // PREPARACIÓN DE FRAME
 // ======================================================================================
-void GUI::update(Viewport& viewport, Window& window) {
+void 
+GUI::update(Viewport& viewport, Window& window) {
     // 1. Iniciar un nuevo frame
     ImGui_ImplDX11_NewFrame();
     ImGui_ImplWin32_NewFrame();
@@ -82,7 +85,8 @@ void GUI::update(Viewport& viewport, Window& window) {
 // ======================================================================================
 // ENVÍO A LA GPU
 // ======================================================================================
-void GUI::render() {
+void 
+GUI::render() {
     ImGui::Render();
     ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
 
@@ -97,7 +101,8 @@ void GUI::render() {
 // ======================================================================================
 // LIMPIEZA DE MEMORIA
 // ======================================================================================
-void GUI::destroy() {
+void 
+GUI::destroy() {
     // =========================================================
     // NUEVO: Guardia de seguridad. Si el motor falla cargando 
     // un modelo 3D y nunca llegó a ejecutar GUI::init, esto 
@@ -122,7 +127,8 @@ void GUI::destroy() {
 // ======================================================================================
 // PANEL: VIEWPORT (Muestra la textura renderizada por el juego)
 // ======================================================================================
-void GUI::drawViewportPanel(ID3D11ShaderResourceView* viewportSRV) {
+void 
+GUI::drawViewportPanel(ID3D11ShaderResourceView* viewportSRV) {
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoCollapse;
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
@@ -165,7 +171,8 @@ void GUI::drawViewportPanel(ID3D11ShaderResourceView* viewportSRV) {
 // ======================================================================================
 // GIZMOS: Manipulación 3D confinada al Viewport
 // ======================================================================================
-void GUI::editTransform(Camera& cam, Window& window, EU::TSharedPointer<Actor> actor) {
+void 
+GUI::editTransform(Camera& cam, Window& window, EU::TSharedPointer<Actor> actor) {
     if (!actor.get()) return;
 
     auto transform = actor->getComponent<Transform>();
@@ -234,7 +241,8 @@ void GUI::editTransform(Camera& cam, Window& window, EU::TSharedPointer<Actor> a
 // ======================================================================================
 // PANEL: OUTLINER (Jerarquía)
 // ======================================================================================
-void GUI::outliner(const std::vector<EU::TSharedPointer<Actor>>& actors) {
+void 
+GUI::outliner(const std::vector<EU::TSharedPointer<Actor>>& actors) {
     ImGui::Begin("Hierarchy");
 
     // Barra de búsqueda
@@ -266,7 +274,8 @@ void GUI::outliner(const std::vector<EU::TSharedPointer<Actor>>& actors) {
 // ======================================================================================
 // PANEL: INSPECTOR (Propiedades)
 // ======================================================================================
-void GUI::inspectorGeneral(EU::TSharedPointer<Actor> actor) {
+void 
+GUI::inspectorGeneral(EU::TSharedPointer<Actor> actor) {
     if (!actor.get()) return;
 
     ImGui::Begin("Inspector");
@@ -292,7 +301,8 @@ void GUI::inspectorGeneral(EU::TSharedPointer<Actor> actor) {
     ImGui::End();
 }
 
-void GUI::inspectorContainer(EU::TSharedPointer<Actor> actor) {
+void 
+GUI::inspectorContainer(EU::TSharedPointer<Actor> actor) {
     auto transform = actor->getComponent<Transform>();
     if (!transform.get()) return;
 
@@ -316,7 +326,8 @@ void GUI::inspectorContainer(EU::TSharedPointer<Actor> actor) {
 // ======================================================================================
 // HELPER: Controles XYZ con botones de colores
 // ======================================================================================
-void GUI::vec3Control(const std::string& label, float* values, float resetValue, float columnWidth) {
+void 
+GUI::vec3Control(const std::string& label, float* values, float resetValue, float columnWidth) {
     ImGuiIO& io = ImGui::GetIO();
     auto boldFont = io.Fonts->Fonts[0];
 
@@ -378,7 +389,8 @@ void GUI::vec3Control(const std::string& label, float* values, float resetValue,
 // ======================================================================================
 // HELPER: Dockspace y Popups
 // ======================================================================================
-void GUI::drawEditorDockspace() {
+void 
+GUI::drawEditorDockspace() {
     ImGuiViewport* mainViewport = ImGui::GetMainViewport();
 
     // Offset para dar espacio a la barra Ribbon
@@ -407,7 +419,8 @@ void GUI::drawEditorDockspace() {
     ImGui::PopStyleVar(3);
 }
 
-void GUI::closeApp() {
+void 
+GUI::closeApp() {
     // CORRECCIÓN DE NOMBRE DE VARIABLE: show_exit_popup -> m_showExitPopup
     if (m_showExitPopup) {
         ImGui::OpenPopup("Exit?");
@@ -436,10 +449,12 @@ void GUI::closeApp() {
 // MENÚS Y ESTILOS (Omitidos los cuerpos de ToolBar y appleLiquidStyle por espacio,
 // puedes pegar tus versiones exactas aquí)
 // ======================================================================================
-void GUI::drawGizmoToolbar() {
+void 
+GUI::drawGizmoToolbar() {
     // Tu implementación de botones T, R, S redondeados (Igual a tu código original)
 }
-void GUI::drawStudioTopRibbon() {
+void 
+GUI::drawStudioTopRibbon() {
     // Implementación del Ribbon (Igual al código original del profesor)
 }
 void GUI::ToolBar() {}
