@@ -48,7 +48,7 @@ VSOUT VS(VSIN i)
     float4 p = float4(i.Pos, 1.0f);
     o.Pos = mul(mul(mul(p, gWorld), gView), gProj);
     
-    // ¡CORRECCIÓN! Devolvemos la textura a su estado original
+    // Â¡CORRECCIÃ“N! Devolvemos la textura a su estado original
     o.Tex = i.Tex;
     
     o.Norm = mul(i.Norm, (float3x3) gWorld);

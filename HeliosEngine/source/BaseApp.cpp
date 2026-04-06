@@ -214,14 +214,45 @@ HRESULT BaseApp::init() {
     return S_OK;
 }
 
-/// ======================================================================================
-// FASE 4: UPDATE (Lógica de cada Frame)
-// ======================================================================================
-void 
-BaseApp::update(float deltaTime) {
+void BaseApp::update(float deltaTime) {
 
     // Actualización de la GUI (ImGui)
     m_gui.update(m_viewport, m_window);
+
+    // =========================================================
+    // CREACIÓN DINÁMICA DE OBJETOS (Llamada desde la UI)
+    // =========================================================
+    if (m_gui.m_requestSpawnCube) {
+
+        // 1. Crear un nuevo actor
+        auto newCube = EU::MakeShared<Actor>(m_device);
+
+        if (!newCube.isNull()) {
+            // Nota: Aquí asumo que tienes "cube.obj" en tus Assets. 
+            // Si se llama diferente o está en otra ruta, ajusta este string.
+            Model3D* cubeModel = new Model3D("Assets/Models/cube.obj", ModelType::OBJ);
+            newCube->setMesh(m_device, cubeModel->GetMeshes());
+
+            // Asignarle la misma textura base temporalmente para que no crashee
+            std::vector<Texture> textures;
+            textures.push_back(m_AlbedoSRV);
+            newCube->setTextures(textures);
+
+            newCube->setName("New Part");
+            newCube->getComponent<Transform>()->setTransform(
+                EU::Vector3(0.0f, 0.0f, 0.0f),
+                EU::Vector3(0.0f, 0.0f, 0.0f),
+                EU::Vector3(1.0f, 1.0f, 1.0f)
+            );
+
+            // Agregarlo a las listas del motor
+            m_actors.push_back(newCube);
+            m_sceneGraph.addEntity(newCube.get());
+        }
+
+        // Apagamos la señal para que no cree objetos infinitamente
+        m_gui.m_requestSpawnCube = false;
+    }
 
     // Enviar textura del juego al panel Viewport de ImGui
     m_gui.drawViewportPanel(m_editorViewportPass.getSRV());
@@ -232,6 +263,8 @@ BaseApp::update(float deltaTime) {
         m_gui.inspectorGeneral(m_actors[m_gui.selectedActorIndex]);
         m_gui.editTransform(m_camera, m_window, m_actors[m_gui.selectedActorIndex]);
     }
+
+    // ... (el resto de tu lógica de actualización de viewport y cámara se queda igual)
 
     // =========================================================
     // LÓGICA DE REDIMENSIONAMIENTO DEL EDITOR VIEWPORT
