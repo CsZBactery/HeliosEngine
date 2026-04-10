@@ -152,7 +152,7 @@ void SwapChain::present() {
 
 // Cambia dinámicamente la resolución interna de los buffers para coincidir con la UI.
 HRESULT
-SwapChain::resizeBuffers(UINT width, UINT height) {
+SwapChain::resizeBuffers(unsigned int width, unsigned int height) {
     if (!m_swapChain) {
         ERROR("SwapChain", "resizeBuffers", "Swap chain is not initialized.");
         return E_POINTER;

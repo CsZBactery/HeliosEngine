@@ -26,10 +26,11 @@
 #include "EngineUtilities/Utilities/LayoutBuilder.h"
 #include "EngineUtilities/Utilities/EditorViewportPass.h"
 
- // ======================================================================================
- // Declaración externa para el manejador de eventos de ImGui.
- // Esto permite que ImGui intercepte los clics del mouse antes que nuestro motor.
- // ======================================================================================
+#include <DirectXMath.h> // Necesario para XMFLOAT4X4
+
+// ======================================================================================
+// Declaración externa para el manejador de eventos de ImGui.
+// ======================================================================================
 extern IMGUI_IMPL_API
 LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
@@ -88,15 +89,12 @@ private:
 	bool              m_d3dReady = false;  /**< Bandera para saber si la GPU ya está inicializada. */
 
 	// ==========================================
-	// SHADERS Y CONSTANT BUFFERS
+	// SHADERS Y CONSTANT BUFFERS (Actualizado a la versión del Profe)
 	// ==========================================
 	ShaderProgram     m_shaderProgram;        /**< Pipeline completo de Shaders (Vertex + Pixel). */
 
-	// Tus Buffers originales de HeliosEngine
-	Buffer            m_cbNeverChanges;
-	Buffer            m_cbChangeOnResize;
-	CBNeverChanges    cbNeverChanges;
-	CBChangeOnResize  cbChangesOnResize;
+	Buffer            m_constantBuffer;       /**< Buffer unificado para reemplazar a los dos anteriores. */
+	CBMain            m_constantBufferStruct; /**< Estructura de datos que se enviará al Shader. */
 
 	// ==========================================
 	// MATERIALES PBR (Texturas de alta fidelidad)
@@ -111,6 +109,7 @@ private:
 	// ESCENA 3D Y ACTORES
 	// ==========================================
 	Camera                                 m_camera;     /**< La "lente" a través de la cual el jugador ve el mundo. */
+	EU::Vector3                            m_cameraPos;  /**< Posición de la cámara (Añadido por el profe). */
 	SceneGraph                             m_sceneGraph; /**< Árbol jerárquico que organiza quién es hijo de quién. */
 	std::vector<EU::TSharedPointer<Actor>> m_actors;     /**< Lista maestra de todos los objetos en el nivel. */
 	EU::TSharedPointer<Actor>              m_cyberGun;   /**< Puntero al arma principal de prueba. */
@@ -132,9 +131,8 @@ private:
 	bool               m_editorViewportResizePending = false;
 	int                m_viewportResizeStableFrames = 0;
 
-	// Variables faltantes añadidas para el "Debounce" del redimensionamiento:
 	unsigned int       m_pendingViewportWidth = 1;
 	unsigned int       m_pendingViewportHeight = 1;
-	unsigned int       m_lastRequestedViewportWidth = 0;
-	unsigned int       m_lastRequestedViewportHeight = 0;
+	unsigned int       m_lastRequestedViewportWidth = 1;
+	unsigned int       m_lastRequestedViewportHeight = 1;
 };

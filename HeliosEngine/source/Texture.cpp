@@ -9,6 +9,10 @@
 #include "Device.h"
 #include "DeviceContext.h"
 
+// Librerías estándar modernas para matemáticas (Necesarias tras quitar xnamath.h)
+#include <algorithm> 
+#include <cmath>     
+
 // ===========================================================
 // GESTIÓN DE MEMORIA
 // ===========================================================
@@ -50,7 +54,7 @@ Texture& Texture::operator=(const Texture& other) {
 }
 
 // Libera los punteros de DirectX y los pone en null de forma segura usando la macro
-void 
+void
 Texture::destroy() {
     SAFE_RELEASE(m_texture);
     SAFE_RELEASE(m_textureFromImg);
@@ -275,7 +279,7 @@ Texture::init(Device& device, Texture& textureRef, DXGI_FORMAT format) {
     return S_OK;
 }
 
-void 
+void
 Texture::update() {}
 
 // Vincula la textura al Pixel Shader para que se pueda dibujar
@@ -380,8 +384,8 @@ Texture::CreateCubemap(Device& device,
             return hr;
         }
 
-        // Calcular cuántos niveles de detalle (MipMaps) se generarán
-        UINT mipCount = 1 + (UINT)floor(log2(max(width, height)));
+        // Calcular cuántos niveles de detalle (MipMaps) se generarán (CORREGIDO PARA C++ MODERNO)
+        UINT mipCount = 1 + (UINT)std::floor(std::log2((float)std::max(width, height)));
 
         // Subir la imagen de alta calidad al Mip 0 de cada una de las 6 caras
         for (UINT face = 0; face < 6; ++face) {
