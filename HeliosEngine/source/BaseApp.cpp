@@ -10,6 +10,12 @@
 #include <string>
 #include "imgui.h"
 
+// Nuevos includes del profesor para Guardado/Carga y utilidades
+#include <algorithm>
+#include <cctype>
+#include <fstream>
+#include <iomanip>
+
 // Variable global (temporal) para el estado del rasterizador sin culling
 ID3D11RasterizerState* g_pRasterizerStateNoCull = nullptr;
 
@@ -32,7 +38,7 @@ BaseApp::awake() {
 // ======================================================================================
 int
 BaseApp::run(HINSTANCE hInst, int nCmdShow) {
-    // 1. Inicializar la ventana (OJO: Se pasa 'this' para que el WndProc pueda acceder a onResize)
+    // 1. Inicializar la ventana
     if (FAILED(m_window.init(hInst, nCmdShow, WndProc, this))) {
         ERROR("Main", "Run", "Failed to initialize window.");
         return 0;
@@ -44,7 +50,7 @@ BaseApp::run(HINSTANCE hInst, int nCmdShow) {
         return 0;
     }
 
-    // 3. Iniciar DirectX 11 y cargar recursos (Texturas, Modelos) 
+    // 3. Iniciar DirectX 11 y cargar recursos
     if (FAILED(init())) {
         ERROR("Main", "Run", "Failed to initialize device and device context.");
         return 0;
@@ -52,6 +58,7 @@ BaseApp::run(HINSTANCE hInst, int nCmdShow) {
 
     // 4. Inicializar la interfaz gráfica de usuario (ImGui)
     m_gui.init(m_window, m_device, m_deviceContext);
+    m_guiInitialized = true;
 
     // Preparación del temporizador de alta resolución
     MSG msg = {};
@@ -84,45 +91,73 @@ BaseApp::run(HINSTANCE hInst, int nCmdShow) {
 HRESULT BaseApp::init() {
     HRESULT hr = S_OK;
 
-    // 1. Crear SwapChain (Doble Buffer e Inicialización implícita de Device) 
     hr = m_swapChain.init(m_device, m_deviceContext, m_backBuffer, m_window);
-    if (FAILED(hr)) {
-        ERROR("Main", "InitDevice", ("Failed to initialize SwapChain. HRESULT: " + std::to_string(hr)).c_str());
-        return hr;
-    }
+    if (FAILED(hr)) return hr;
 
-    // 2. Crear el lienzo principal (Render Target)
     hr = m_renderTargetView.init(m_device, m_backBuffer, DXGI_FORMAT_R8G8B8A8_UNORM);
-    if (FAILED(hr)) {
-        ERROR("Main", "InitDevice", ("Failed to initialize RenderTargetView. HRESULT: " + std::to_string(hr)).c_str());
-        return hr;
-    }
+    if (FAILED(hr)) return hr;
 
-    // 3. Crear Buffer de Profundidad (Z-Buffer)
+    // MSAA Fix: 4, 16 para evitar crashes en el DepthStencil
     hr = m_depthStencil.init(m_device, m_window.m_width, m_window.m_height, DXGI_FORMAT_D24_UNORM_S8_UINT, D3D11_BIND_DEPTH_STENCIL, 4, 16);
-    if (FAILED(hr)) {
-        ERROR("Main", "InitDevice", ("Failed to initialize DepthStencil. HRESULT: " + std::to_string(hr)).c_str());
-        return hr;
-    }
+    if (FAILED(hr)) return hr;
 
     hr = m_depthStencilView.init(m_device, m_depthStencil, DXGI_FORMAT_D24_UNORM_S8_UINT);
-    if (FAILED(hr)) {
-        ERROR("Main", "InitDevice", ("Failed to initialize DepthStencilView. HRESULT: " + std::to_string(hr)).c_str());
-        return hr;
-    }
+    if (FAILED(hr)) return hr;
 
-    // 4. Configurar Viewport Principal
     hr = m_viewport.init(m_window);
-    if (FAILED(hr)) {
-        ERROR("Main", "InitDevice", ("Failed to initialize Viewport. HRESULT: " + std::to_string(hr)).c_str());
-        return hr;
-    }
+    if (FAILED(hr)) return hr;
+
     m_d3dReady = true;
 
     // =========================================================
-    // CARGA DE RECURSOS (Corregido a tus rutas)
+    // CONFIGURACIÓN DE SHADERS Y CONSTANT BUFFERS
     // =========================================================
+    LayoutBuilder builder;
+    builder.Add("POSITION", DXGI_FORMAT_R32G32B32_FLOAT)
+        .Add("NORMAL", DXGI_FORMAT_R32G32B32_FLOAT)
+        .Add("TANGENT", DXGI_FORMAT_R32G32B32_FLOAT)
+        .Add("BITANGENT", DXGI_FORMAT_R32G32B32_FLOAT)
+        .Add("TEXCOORD", DXGI_FORMAT_R32G32_FLOAT);
 
+    hr = m_shaderProgram.init(m_device, "Assets/Shaders/PBRShader.hlsl", builder);
+    if (FAILED(hr)) hr = m_shaderProgram.init(m_device, "PBRShader.hlsl", builder);
+    if (FAILED(hr)) return hr;
+
+    hr = m_constantBuffer.init(m_device, sizeof(CBMain));
+    if (FAILED(hr)) return hr;
+
+    // =========================================================
+    // ESTADOS GLOBALES DE RENDERIZADO (Sampler, Rasterizer)
+    // =========================================================
+    hr = m_defaultRasterizer.init(m_device, D3D11_FILL_SOLID, D3D11_CULL_NONE, false, true);
+    if (FAILED(hr)) return hr;
+
+    hr = m_defaultDepthStencil.init(m_device, true, D3D11_DEPTH_WRITE_MASK_ALL, D3D11_COMPARISON_LESS);
+    if (FAILED(hr)) return hr;
+
+    hr = m_defaultSampler.init(m_device); // NUEVO: Inicializar Sampler
+    if (FAILED(hr)) return hr;
+
+    // =========================================================
+    // CREACIÓN DE MATERIALES (PBR Base)
+    // =========================================================
+    m_pbrMaterial.setShader(&m_shaderProgram);
+    m_pbrMaterial.setRasterizerState(&m_defaultRasterizer);
+    m_pbrMaterial.setDepthStencilState(&m_defaultDepthStencil);
+    m_pbrMaterial.setSamplerState(&m_defaultSampler);
+    m_pbrMaterial.setDomain(MaterialDomain::Opaque);
+    m_pbrMaterial.setBlendMode(BlendMode::Opaque);
+
+    m_transparentPbrMaterial.setShader(&m_shaderProgram);
+    m_transparentPbrMaterial.setRasterizerState(&m_defaultRasterizer);
+    m_transparentPbrMaterial.setDepthStencilState(&m_defaultDepthStencil);
+    m_transparentPbrMaterial.setSamplerState(&m_defaultSampler);
+    m_transparentPbrMaterial.setDomain(MaterialDomain::Transparent);
+    m_transparentPbrMaterial.setBlendMode(BlendMode::Alpha);
+
+    // =========================================================
+    // CARGA DE RECURSOS DEL USUARIO (Skybox y Moto Repsol)
+    // =========================================================
     std::array<std::string, 6> faces = {
         "Assets/Skybox/cubemap_0.png",
         "Assets/Skybox/cubemap_1.png",
@@ -133,46 +168,86 @@ HRESULT BaseApp::init() {
     };
     m_skyboxTex.CreateCubemap(m_device, m_deviceContext, faces, false);
 
-    // Crear y ensamblar el Actor Principal (Moto Repsol)
     m_cyberGun = EU::MakeShared<Actor>(m_device);
 
     if (!m_cyberGun.isNull()) {
-        // Cargar Modelo de TU Moto
-        std::vector<MeshComponent> meshes;
         m_model = new Model3D("Assets/Moto/repsol3.obj", ModelType::OBJ);
-        meshes = m_model->GetMeshes();
+        if (!m_model) return E_FAIL;
 
-        // Cargar Tu Textura Base
         hr = m_AlbedoSRV.init(m_device, "Assets/Textures/BaseColor", ExtensionType::PNG);
-        if (FAILED(hr)) {
-            ERROR("Main", "InitDevice", "Failed to load texture BaseColor.png.");
-            return hr;
+        if (FAILED(hr)) return hr;
+
+        // Configurar la instancia del Material para tu Moto (Fingiendo PBR con tu única textura)
+        m_cyberGunMaterial.setMaterial(&m_pbrMaterial);
+        m_cyberGunMaterial.setAlbedo(&m_AlbedoSRV);
+        m_cyberGunMaterial.setNormal(&m_AlbedoSRV);
+        m_cyberGunMaterial.setMetallic(&m_AlbedoSRV);
+        m_cyberGunMaterial.setRoughness(&m_AlbedoSRV);
+        m_cyberGunMaterial.setAO(&m_AlbedoSRV);
+
+        m_cyberGunMaterial.getParams().baseColor = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+        m_cyberGunMaterial.getParams().metallic = 0.0f; // Bajamos el metálico para que no se vea negra tu moto
+        m_cyberGunMaterial.getParams().roughness = 0.8f;
+        m_cyberGunMaterial.getParams().ao = 1.0f;
+        m_cyberGunMaterial.getParams().normalScale = 1.0f;
+        m_cyberGunMaterial.getParams().emissiveStrength = 0.0f;
+        m_cyberGunMaterial.getParams().alphaCutoff = 0.5f;
+
+        // Construir la Malla en el formato que exige el nuevo Renderer
+        m_cyberGunRenderMesh.destroy();
+        for (const MeshComponent& meshComponent : m_model->GetMeshes()) {
+            Submesh submesh{};
+            hr = submesh.vertexBuffer.init(m_device, meshComponent, D3D11_BIND_VERTEX_BUFFER);
+            if (FAILED(hr)) return hr;
+
+            hr = submesh.indexBuffer.init(m_device, meshComponent, D3D11_BIND_INDEX_BUFFER);
+            if (FAILED(hr)) return hr;
+
+            submesh.indexCount = meshComponent.m_numIndex;
+            submesh.materialSlot = 0;
+            m_cyberGunRenderMesh.getSubmeshes().push_back(std::move(submesh));
         }
 
-        // Engañamos al shader PBR pasándole tu textura base en todos los canales (Color, Normal, Metal, Rough, AO)
-        std::vector<Texture> textures;
-        textures.push_back(m_AlbedoSRV);
-        textures.push_back(m_AlbedoSRV);
-        textures.push_back(m_AlbedoSRV);
-        textures.push_back(m_AlbedoSRV);
-        textures.push_back(m_AlbedoSRV);
+        // Asignar el componente de Renderizado al Actor
+        EU::TSharedPointer<MeshRendererComponent> meshRenderer = m_cyberGun->getComponent<MeshRendererComponent>();
+        if (!meshRenderer) {
+            meshRenderer = EU::MakeShared<MeshRendererComponent>();
+            m_cyberGun->addComponent(meshRenderer);
+        }
+        meshRenderer->setMesh(&m_cyberGunRenderMesh);
+        meshRenderer->setMaterialInstance(&m_cyberGunMaterial);
+        meshRenderer->setVisible(true);
+        meshRenderer->setCastShadow(true);
 
-        // Asignar al Actor
-        m_cyberGun->setMesh(m_device, meshes);
-        m_cyberGun->setTextures(textures);
         m_cyberGun->setName("RepsolBike");
         m_actors.push_back(m_cyberGun);
 
-        // Posición Inicial para que la moto se vea bien
         m_cyberGun->getComponent<Transform>()->setTransform(
             EU::Vector3(0.0f, -4.0f, 0.0f),
             EU::Vector3(0.0f, 0.0f, 0.0f),
             EU::Vector3(5.0f, 5.0f, 5.0f)
         );
     }
-    else {
-        ERROR("Main", "InitDevice", "Failed to create main Actor.");
-        return E_FAIL;
+
+    // =========================================================
+    // CREACIÓN DEL ACTOR LUZ DIRECCIONAL (NUEVO)
+    // =========================================================
+    m_directionalLightActor = EU::MakeShared<Actor>(m_device);
+    if (!m_directionalLightActor.isNull()) {
+        m_directionalLightActor->setName("DirectionalLight");
+        EU::TSharedPointer<LightComponent> lightComponent = m_directionalLightActor->getComponent<LightComponent>();
+        if (!lightComponent) {
+            lightComponent = EU::MakeShared<LightComponent>();
+            m_directionalLightActor->addComponent(lightComponent);
+        }
+
+        lightComponent->getLightData().type = LightType::Directional;
+        lightComponent->getLightData().direction = EU::Vector3(-0.20f, -1.0f, 1.0f);
+        lightComponent->getLightData().color = EU::Vector3(1.0f, 1.0f, 1.0f);
+        lightComponent->getLightData().intensity = 1.0f;
+        lightComponent->setCastShadow(false);
+
+        m_actors.push_back(m_directionalLightActor); // Lo agregamos a la lista
     }
 
     // Registrar actores en el Grafo de Escena
@@ -181,54 +256,24 @@ HRESULT BaseApp::init() {
     }
 
     // =========================================================
-    // CONFIGURACIÓN DE SHADERS Y CONSTANT BUFFERS
+    // INICIALIZACIÓN DE SUBSISTEMAS RESTANTES
     // =========================================================
-
-    LayoutBuilder builder;
-    builder.Add("POSITION", DXGI_FORMAT_R32G32B32_FLOAT)
-        .Add("NORMAL", DXGI_FORMAT_R32G32B32_FLOAT)
-        .Add("TANGENT", DXGI_FORMAT_R32G32B32_FLOAT)
-        .Add("BITANGENT", DXGI_FORMAT_R32G32B32_FLOAT)
-        .Add("TEXCOORD", DXGI_FORMAT_R32G32_FLOAT);
-
-    // NUEVO SHADER DEL PROFE: PBRShader.hlsl (Busca primero en Assets, luego en la raíz)
-    hr = m_shaderProgram.init(m_device, "Assets/Shaders/PBRShader.hlsl", builder);
-    if (FAILED(hr)) hr = m_shaderProgram.init(m_device, "PBRShader.hlsl", builder);
-    if (FAILED(hr)) {
-        ERROR("Main", "InitDevice", ("Failed to initialize PBRShader. HRESULT: " + std::to_string(hr)).c_str());
-        return hr;
-    }
-
-    // NUEVO CONSTANT BUFFER UNIFICADO
-    hr = m_constantBuffer.init(m_device, sizeof(CBMain));
-    if (FAILED(hr)) {
-        ERROR("Main", "InitDevice", ("Failed to initialize m_constantBuffer. HRESULT: " + std::to_string(hr)).c_str());
-        return hr;
-    }
-
-    // 10. Configurar Cámara
     m_camera.setLens(XM_PIDIV4, m_window.m_width / (float)m_window.m_height, 0.01f, 100.0f);
     m_camera.setPosition(0.0f, 3.0f, -6.0f);
 
-    // Inicializar propiedades de luz en la estructura
     m_constantBufferStruct.LightColor = EU::Vector3(1.0f, 1.0f, 1.0f);
     m_constantBufferStruct.LightDir = EU::Vector3(-0.20f, -1.0f, 1.0f);
 
-    // 11. Inicializar Skybox y Estados Base
     m_skybox.init(m_device, &m_deviceContext, m_skyboxTex);
 
-    hr = m_defaultRasterizer.init(m_device, D3D11_FILL_SOLID, D3D11_CULL_NONE, false, true); // Cull None para la moto
-    if (FAILED(hr)) return hr;
-
-    hr = m_defaultDepthStencil.init(m_device, true, D3D11_DEPTH_WRITE_MASK_ALL, D3D11_COMPARISON_LESS);
-    if (FAILED(hr)) return hr;
-
-    // 12. Inicializar el Pase de Editor (VITAL PARA EL VIEWPORT)
     hr = m_editorViewportPass.init(m_device, 1280, 720);
-    if (FAILED(hr)) {
-        ERROR("Main", "InitDevice", "Failed to initialize EditorViewportPass.");
-        return hr;
-    }
+    if (FAILED(hr)) return hr;
+
+    hr = m_forwardRenderer.init(m_device); // Inicializar nuevo Forward Renderer
+    if (FAILED(hr)) return hr;
+
+    // Intentar cargar escena predeterminada
+    loadScene(getDefaultScenePath());
 
     return S_OK;
 }
@@ -236,36 +281,68 @@ HRESULT BaseApp::init() {
 // ======================================================================================
 // FASE 4: UPDATE (Lógica de cada Frame)
 // ======================================================================================
-void
-BaseApp::update(float deltaTime) {
+void BaseApp::update(float deltaTime) {
 
     // Actualización de la GUI (ImGui)
     m_gui.update(m_viewport, m_window);
 
+    m_gui.drawViewportPanel(m_editorViewportPass.getSRV());
+
+    // Configuración de UI del Inspector
+    m_gui.outliner(m_actors);
+    EU::TSharedPointer<Actor> selectedActor;
+    if (m_gui.selectedActorIndex >= 0 && m_gui.selectedActorIndex < static_cast<int>(m_actors.size())) {
+        selectedActor = m_actors[m_gui.selectedActorIndex];
+    }
+    m_gui.inspectorGeneral(selectedActor);
+    m_gui.editTransform(m_camera, m_window, selectedActor);
+
+    // Captura del evento "Save Scene" desde ImGui
+    // asumiendo que el profe añadió m_gui.consumeSaveSceneRequest() en GUI.h
+    // Si tienes error aquí, coméntalo hasta que el profe pase su GUI actualizado.
+    // if (m_gui.consumeSaveSceneRequest()) { saveScene(getDefaultScenePath()); }
+
     // =========================================================
-    // CREACIÓN DINÁMICA DE OBJETOS (Llamada desde la UI)
+    // LÓGICA DE CREACIÓN DE CUBO ADAPTADA A LA NUEVA ARQUITECTURA
     // =========================================================
     if (m_gui.m_requestSpawnCube) {
         auto newCube = EU::MakeShared<Actor>(m_device);
         if (!newCube.isNull()) {
-            // AVISO: Asegúrate de tener un cube.obj en tu carpeta Assets/Models, si no esto crasheará al picarle.
-            Model3D* cubeModel = new Model3D("Assets/Models/cube.obj", ModelType::OBJ);
-            newCube->setMesh(m_device, cubeModel->GetMeshes());
+            static Model3D* s_cubeModel = nullptr;
+            static Mesh* s_cubeMesh = nullptr;
+            static MaterialInstance* s_cubeMat = nullptr;
 
-            // Le asignamos las texturas PBR falsas para que el shader no falle
-            std::vector<Texture> textures;
-            textures.push_back(m_AlbedoSRV);
-            textures.push_back(m_AlbedoSRV);
-            textures.push_back(m_AlbedoSRV);
-            textures.push_back(m_AlbedoSRV);
-            textures.push_back(m_AlbedoSRV);
-            newCube->setTextures(textures);
+            // Instanciar malla en memoria solo la primera vez para no generar memory leaks
+            if (!s_cubeModel) {
+                s_cubeModel = new Model3D("Assets/Models/cube.obj", ModelType::OBJ);
+                s_cubeMesh = new Mesh();
+                for (const auto& mc : s_cubeModel->GetMeshes()) {
+                    Submesh sm;
+                    sm.vertexBuffer.init(m_device, mc, D3D11_BIND_VERTEX_BUFFER);
+                    sm.indexBuffer.init(m_device, mc, D3D11_BIND_INDEX_BUFFER);
+                    sm.indexCount = mc.m_numIndex;
+                    sm.materialSlot = 0;
+                    s_cubeMesh->getSubmeshes().push_back(std::move(sm));
+                }
+                s_cubeMat = new MaterialInstance();
+                s_cubeMat->setMaterial(&m_pbrMaterial);
+                s_cubeMat->setAlbedo(&m_AlbedoSRV); // Material blanco base
+                s_cubeMat->setNormal(&m_AlbedoSRV);
+                s_cubeMat->setMetallic(&m_AlbedoSRV);
+                s_cubeMat->setRoughness(&m_AlbedoSRV);
+                s_cubeMat->setAO(&m_AlbedoSRV);
+            }
+
+            auto mr = EU::MakeShared<MeshRendererComponent>();
+            mr->setMesh(s_cubeMesh);
+            mr->setMaterialInstance(s_cubeMat);
+            mr->setVisible(true);
+            mr->setCastShadow(true);
+            newCube->addComponent(mr);
 
             newCube->setName("New Part");
             newCube->getComponent<Transform>()->setTransform(
-                EU::Vector3(0.0f, 0.0f, 0.0f),
-                EU::Vector3(0.0f, 0.0f, 0.0f),
-                EU::Vector3(1.0f, 1.0f, 1.0f)
+                EU::Vector3(0.0f, 0.0f, 0.0f), EU::Vector3(0.0f, 0.0f, 0.0f), EU::Vector3(1.0f, 1.0f, 1.0f)
             );
 
             m_actors.push_back(newCube);
@@ -275,37 +352,29 @@ BaseApp::update(float deltaTime) {
     }
 
     // =========================================================
-    // PANELES DEL EDITOR
+    // LUZ EN INTERFAZ
     // =========================================================
-    m_gui.drawViewportPanel(m_editorViewportPass.getSRV());
-
-    // Controles de luz expuestos a la UI (Añadido por el profe)
     ImGui::Begin("Lighting Settings");
-
-    // 1. Extraer los datos a un arreglo temporal (Dirección)
     float fDir[3] = { m_constantBufferStruct.LightDir.x, m_constantBufferStruct.LightDir.y, m_constantBufferStruct.LightDir.z };
-    // 2. ImGui modifica el arreglo temporal
     m_gui.vec3Control("Light Direction", fDir, 0.1f);
-    // 3. Regresar los datos actualizados a la estructura original
     m_constantBufferStruct.LightDir = EU::Vector3(fDir[0], fDir[1], fDir[2]);
 
-    // 1. Extraer los datos a un arreglo temporal (Color)
     float fCol[3] = { m_constantBufferStruct.LightColor.x, m_constantBufferStruct.LightColor.y, m_constantBufferStruct.LightColor.z };
-    // 2. ImGui modifica el arreglo temporal
     m_gui.vec3Control("Light Color", fCol, 0.1f);
-    // 3. Regresar los datos actualizados a la estructura original
     m_constantBufferStruct.LightColor = EU::Vector3(fCol[0], fCol[1], fCol[2]);
-
     ImGui::End();
 
-    m_gui.outliner(m_actors);
-    if (!m_actors.empty() && m_gui.selectedActorIndex >= 0 && m_gui.selectedActorIndex < m_actors.size()) {
-        m_gui.inspectorGeneral(m_actors[m_gui.selectedActorIndex]);
-        m_gui.editTransform(m_camera, m_window, m_actors[m_gui.selectedActorIndex]);
+    // Sincronizar el componente de luz del actor con el Constant Buffer
+    if (!m_directionalLightActor.isNull()) {
+        EU::TSharedPointer<LightComponent> lightComponent = m_directionalLightActor->getComponent<LightComponent>();
+        if (lightComponent) {
+            lightComponent->getLightData().direction = m_constantBufferStruct.LightDir;
+            lightComponent->getLightData().color = m_constantBufferStruct.LightColor;
+        }
     }
 
     // =========================================================
-    // LÓGICA DE REDIMENSIONAMIENTO DEL EDITOR VIEWPORT
+    // REDIMENSIONAMIENTO DEL EDITOR VIEWPORT
     // =========================================================
     unsigned int desiredW = static_cast<unsigned int>(m_gui.m_viewportSize.x);
     unsigned int desiredH = static_cast<unsigned int>(m_gui.m_viewportSize.y);
@@ -332,97 +401,74 @@ BaseApp::update(float deltaTime) {
         }
     }
 
-    // =========================================================
-    // ACTUALIZACIÓN DE MATRICES Y CONSTANT BUFFER
-    // =========================================================
+    // Actualización de matrices
     m_camera.updateViewMatrix();
-
-    // Actualizar la estructura CBMain con la vista de la cámara
     XMStoreFloat4x4(&m_constantBufferStruct.View, XMMatrixTranspose(m_camera.getView()));
     XMStoreFloat4x4(&m_constantBufferStruct.Projection, XMMatrixTranspose(m_camera.getProj()));
     m_constantBufferStruct.CameraPos = m_camera.getPosition();
 
-    // Actualizar el Skybox
     m_skybox.update(m_deviceContext, m_camera);
-
-    // Enviar los datos actualizados a la GPU
     m_constantBuffer.update(m_deviceContext, nullptr, 0, nullptr, &m_constantBufferStruct, 0, 0);
-
-    // Actualizar la jerarquía de todos los actores
     m_sceneGraph.update(deltaTime, m_deviceContext);
 }
 
 // ======================================================================================
-// FASE 5: RENDER (Dibujo en GPU)
+// FASE 5: RENDER (NUEVO FORWARD RENDERER)
 // ======================================================================================
-void
-BaseApp::render() {
+void BaseApp::render() {
 
-    // 0. Redimensionar el viewport del editor si el usuario arrastró la ventana
     handleEditorViewportResize();
 
-    // =========================================================
-    // PASE 1: DIBUJAR LA ESCENA EN LA TEXTURA DEL EDITOR
-    // =========================================================
     float clearColor[4] = { 0.1f, 0.1f, 0.1f, 1.0f };
-    const float viewportClear[4] = { 0.10f, 0.10f, 0.10f, 1.0f };
 
-    m_editorViewportPass.begin(m_deviceContext, viewportClear);
-    m_editorViewportPass.setViewport(m_deviceContext);
-    m_editorViewportPass.clearDepth(m_deviceContext);
+    // 1. Recolectar objetos de la escena para enviarlos al motor de renderizado
+    m_renderScene.clear();
+    m_sceneGraph.gatherRenderScene(m_renderScene, m_camera);
+    m_renderScene.skybox = &m_skybox;
 
-    // A) Dibujar el Fondo (Skybox)
-    m_skybox.render(m_deviceContext);
+    // 2. Ejecutar el pipeline moderno (Reemplaza las docenas de llamadas previas)
+    m_forwardRenderer.render(
+        m_deviceContext,
+        m_camera,
+        m_renderScene,
+        m_editorViewportPass
+    );
 
-    // B) Restaurar estados para los modelos
-    m_defaultRasterizer.render(m_deviceContext);
-    m_defaultDepthStencil.render(m_deviceContext, 0, false);
-
-    // Configurar Shader Principal
-    m_shaderProgram.render(m_deviceContext);
-
-    // Vincular el único Constant Buffer a la GPU (Sustituye a los dos antiguos)
-    m_constantBuffer.render(m_deviceContext, 0, 1, true);
-
-    // C) Dibujar la Escena (Los Modelos)
-    m_sceneGraph.render(m_deviceContext);
-
-    // =========================================================
-    // PASE 2: DIBUJAR IMGUI EN EL BACKBUFFER DE LA PANTALLA
-    // =========================================================
+    // 3. Dibujar al BackBuffer principal (Lienzo final)
     m_renderTargetView.render(m_deviceContext, m_depthStencilView, 1, clearColor);
     m_viewport.render(m_deviceContext);
     m_depthStencilView.render(m_deviceContext);
 
-    // Dibujar la interfaz de ImGui encima de todo
+    // 4. Dibujar Interfaz y Presentar
     m_gui.render();
-
-    // 5. Intercambiar los buffers (VSync)
     m_swapChain.present();
 }
 
 // ======================================================================================
 // FASE 6: DESTROY (Limpieza de Memoria)
 // ======================================================================================
-void
-BaseApp::destroy() {
+void BaseApp::destroy() {
     if (m_deviceContext.m_deviceContext) m_deviceContext.m_deviceContext->ClearState();
-
-    if (g_pRasterizerStateNoCull) { g_pRasterizerStateNoCull->Release(); g_pRasterizerStateNoCull = nullptr; }
 
     m_sceneGraph.destroy();
     m_editorViewportPass.destroy();
+    m_forwardRenderer.destroy();
+    m_cyberGunRenderMesh.destroy();
+    m_drakefireRenderMesh.destroy();
 
-    // Solo tenemos una textura viva para la moto, la limpiamos
     m_AlbedoSRV.destroy();
+    m_MetallicSRV.destroy();
+    m_NormalSRV.destroy();
+    m_RoughnessSRV.destroy();
+    m_AOSRV.destroy();
+    m_EmissiveSRV.destroy();
 
     m_skybox.destroy();
     m_defaultRasterizer.destroy();
     m_defaultDepthStencil.destroy();
+    m_defaultSampler.destroy();
 
-    // Limpiar el nuevo Constant Buffer
     m_constantBuffer.destroy();
-
     m_shaderProgram.destroy();
     m_depthStencil.destroy();
     m_depthStencilView.destroy();
@@ -430,12 +476,173 @@ BaseApp::destroy() {
     m_swapChain.destroy();
     m_backBuffer.destroy();
 
-    m_gui.destroy();
+    if (m_guiInitialized) {
+        m_gui.destroy();
+        m_guiInitialized = false;
+    }
 
-    if (m_model) { delete m_model; m_model = nullptr; }
+    delete m_model;
+    m_model = nullptr;
 
     m_deviceContext.destroy();
     m_device.destroy();
+}
+
+// ======================================================================================
+// NUEVAS FUNCIONES DE GUARDADO / CARGA DE ESCENAS
+// ======================================================================================
+std::string BaseApp::getDefaultScenePath() const {
+    CreateDirectoryA("Saved", nullptr);
+    return "Saved/DefaultScene.wvscene";
+}
+
+bool BaseApp::saveScene(const std::string& path) {
+    std::ofstream stream(path, std::ios::trunc);
+    if (!stream.is_open()) {
+        ERROR("Main", "saveScene", ("Failed to open scene file for writing: " + path).c_str());
+        return false;
+    }
+
+    stream << "WVSCENE 1\n";
+    stream << "ACTOR_COUNT " << m_actors.size() << "\n";
+
+    for (size_t actorIndex = 0; actorIndex < m_actors.size(); ++actorIndex) {
+        const EU::TSharedPointer<Actor>& actor = m_actors[actorIndex];
+        if (actor.isNull()) continue;
+
+        stream << "ACTOR " << actorIndex << " " << std::quoted(actor->getName()) << "\n";
+
+        EU::TSharedPointer<Transform> transform = actor->getComponent<Transform>();
+        if (transform) {
+            const EU::Vector3& position = transform->getPosition();
+            const EU::Vector3& rotation = transform->getRotation();
+            const EU::Vector3& scale = transform->getScale();
+            stream << "POSITION " << position.x << " " << position.y << " " << position.z << "\n";
+            stream << "ROTATION " << rotation.x << " " << rotation.y << " " << rotation.z << "\n";
+            stream << "SCALE " << scale.x << " " << scale.y << " " << scale.z << "\n";
+        }
+
+        EU::TSharedPointer<MeshRendererComponent> meshRenderer = actor->getComponent<MeshRendererComponent>();
+        if (meshRenderer) {
+            stream << "VISIBLE " << (meshRenderer->isVisible() ? 1 : 0) << "\n";
+            stream << "CAST_SHADOW " << (meshRenderer->canCastShadow() ? 1 : 0) << "\n";
+
+            const std::vector<MaterialInstance*>& materials = meshRenderer->getMaterialInstances();
+            stream << "MATERIAL_COUNT " << materials.size() << "\n";
+            for (size_t i = 0; i < materials.size(); ++i) {
+                MaterialInstance* materialInstance = materials[i];
+                if (!materialInstance) {
+                    stream << "MATERIAL " << i << " 0 0 1 1 1 1 0 1 1 1 0.5\n";
+                    continue;
+                }
+
+                Material* material = materialInstance->getMaterial();
+                const MaterialParams& params = materialInstance->getParams();
+                const int domain = material ? static_cast<int>(material->getDomain()) : 0;
+                const int blendMode = material ? static_cast<int>(material->getBlendMode()) : 0;
+
+                stream << "MATERIAL " << i << " " << domain << " " << blendMode << " "
+                    << params.baseColor.x << " " << params.baseColor.y << " " << params.baseColor.z << " " << params.baseColor.w << " "
+                    << params.metallic << " " << params.roughness << " " << params.ao << " "
+                    << params.normalScale << " " << params.alphaCutoff << "\n";
+            }
+        }
+        stream << "END_ACTOR\n";
+    }
+
+    stream << "LIGHT "
+        << m_constantBufferStruct.LightDir.x << " " << m_constantBufferStruct.LightDir.y << " " << m_constantBufferStruct.LightDir.z << " "
+        << m_constantBufferStruct.LightColor.x << " " << m_constantBufferStruct.LightColor.y << " " << m_constantBufferStruct.LightColor.z << "\n";
+
+    stream << "END_SCENE\n";
+    const std::wstring pathW(path.begin(), path.end());
+    MESSAGE("Main", "saveScene", L"Saved scene to '" << pathW << L"'")
+        return true;
+}
+
+bool BaseApp::loadScene(const std::string& path) {
+    std::ifstream stream(path);
+    if (!stream.is_open()) return false;
+
+    std::string token;
+    stream >> token;
+    if (token != "WVSCENE") return false;
+
+    int version = 0;
+    stream >> version;
+    if (version != 1) return false;
+
+    EU::TSharedPointer<Actor> currentActor;
+    while (stream >> token) {
+        if (token == "ACTOR_COUNT") { size_t ignoredCount = 0; stream >> ignoredCount; }
+        else if (token == "ACTOR") {
+            size_t actorIndex = 0; std::string actorName;
+            stream >> actorIndex >> std::quoted(actorName);
+            currentActor = EU::TSharedPointer<Actor>();
+            if (actorIndex < m_actors.size()) currentActor = m_actors[actorIndex];
+            if (!currentActor.isNull()) currentActor->setName(actorName);
+        }
+        else if (token == "POSITION" && !currentActor.isNull()) {
+            float x = 0.0f, y = 0.0f, z = 0.0f; stream >> x >> y >> z;
+            EU::TSharedPointer<Transform> transform = currentActor->getComponent<Transform>();
+            if (transform) transform->setPosition(EU::Vector3(x, y, z));
+        }
+        else if (token == "ROTATION" && !currentActor.isNull()) {
+            float x = 0.0f, y = 0.0f, z = 0.0f; stream >> x >> y >> z;
+            EU::TSharedPointer<Transform> transform = currentActor->getComponent<Transform>();
+            if (transform) transform->setRotation(EU::Vector3(x, y, z));
+        }
+        else if (token == "SCALE" && !currentActor.isNull()) {
+            float x = 1.0f, y = 1.0f, z = 1.0f; stream >> x >> y >> z;
+            EU::TSharedPointer<Transform> transform = currentActor->getComponent<Transform>();
+            if (transform) transform->setScale(EU::Vector3(x, y, z));
+        }
+        else if (token == "VISIBLE" && !currentActor.isNull()) {
+            int value = 1; stream >> value;
+            EU::TSharedPointer<MeshRendererComponent> meshRenderer = currentActor->getComponent<MeshRendererComponent>();
+            if (meshRenderer) meshRenderer->setVisible(value != 0);
+        }
+        else if (token == "CAST_SHADOW" && !currentActor.isNull()) {
+            int value = 1; stream >> value;
+            EU::TSharedPointer<MeshRendererComponent> meshRenderer = currentActor->getComponent<MeshRendererComponent>();
+            if (meshRenderer) meshRenderer->setCastShadow(value != 0);
+        }
+        else if (token == "MATERIAL_COUNT") { size_t ignoredCount = 0; stream >> ignoredCount; }
+        else if (token == "MATERIAL" && !currentActor.isNull()) {
+            size_t materialIndex = 0; int domain = 0; int blendMode = 0; MaterialParams params{};
+            stream >> materialIndex >> domain >> blendMode >> params.baseColor.x >> params.baseColor.y >> params.baseColor.z >> params.baseColor.w
+                >> params.metallic >> params.roughness >> params.ao >> params.normalScale >> params.alphaCutoff;
+
+            EU::TSharedPointer<MeshRendererComponent> meshRenderer = currentActor->getComponent<MeshRendererComponent>();
+            if (meshRenderer) {
+                const std::vector<MaterialInstance*>& materials = meshRenderer->getMaterialInstances();
+                if (materialIndex < materials.size() && materials[materialIndex]) {
+                    materials[materialIndex]->getParams() = params;
+                    Material* material = materials[materialIndex]->getMaterial();
+                    if (material) {
+                        material->setDomain(static_cast<MaterialDomain>(domain));
+                        material->setBlendMode(static_cast<BlendMode>(blendMode));
+                    }
+                }
+            }
+        }
+        else if (token == "LIGHT") {
+            stream >> m_constantBufferStruct.LightDir.x >> m_constantBufferStruct.LightDir.y >> m_constantBufferStruct.LightDir.z
+                >> m_constantBufferStruct.LightColor.x >> m_constantBufferStruct.LightColor.y >> m_constantBufferStruct.LightColor.z;
+            if (!m_directionalLightActor.isNull()) {
+                EU::TSharedPointer<LightComponent> lightComponent = m_directionalLightActor->getComponent<LightComponent>();
+                if (lightComponent) {
+                    lightComponent->getLightData().direction = m_constantBufferStruct.LightDir;
+                    lightComponent->getLightData().color = m_constantBufferStruct.LightColor;
+                }
+            }
+        }
+        else if (token == "END_ACTOR") { currentActor = EU::TSharedPointer<Actor>(); }
+        else if (token == "END_SCENE") { break; }
+    }
+    const std::wstring pathW(path.begin(), path.end());
+    MESSAGE("Main", "loadScene", L"Loaded scene from '" << pathW << L"'")
+        return true;
 }
 
 // ======================================================================================
@@ -478,8 +685,7 @@ LRESULT BaseApp::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 // ======================================================================================
 // REDIMENSIONAMIENTO WINDOWS
 // ======================================================================================
-void
-BaseApp::onResize(UINT newW, UINT newH) {
+void BaseApp::onResize(UINT newW, UINT newH) {
     if (!m_d3dReady) {
         m_window.m_width = (int)newW;
         m_window.m_height = (int)newH;
@@ -509,6 +715,7 @@ BaseApp::onResize(UINT newW, UINT newH) {
     hr = m_renderTargetView.init(m_device, m_backBuffer, DXGI_FORMAT_R8G8B8A8_UNORM);
     if (FAILED(hr)) return;
 
+    // MSAA Fix conservado: 4, 16
     hr = m_depthStencil.init(m_device, newW, newH, DXGI_FORMAT_D24_UNORM_S8_UINT, D3D11_BIND_DEPTH_STENCIL, 4, 16);
     if (FAILED(hr)) return;
 
@@ -519,15 +726,10 @@ BaseApp::onResize(UINT newW, UINT newH) {
     m_camera.setLens(XM_PIDIV4, newW / (float)newH, 0.01f, 100.0f);
 }
 
-// ======================================================================================
-// REDIMENSIONAMIENTO EDITOR IMGUI
-// ======================================================================================
-void
-BaseApp::handleEditorViewportResize() {
+void BaseApp::handleEditorViewportResize() {
     if (!m_editorViewportResizePending) return;
 
     m_deviceContext.m_deviceContext->OMSetRenderTargets(0, nullptr, nullptr);
-
     ID3D11ShaderResourceView* nullSRVs[D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT] = {};
     m_deviceContext.m_deviceContext->PSSetShaderResources(0, D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT, nullSRVs);
 

@@ -17,33 +17,34 @@ public:
      * @brief Constructor por defecto.
      * Inicializa la identidad (Pos: 0,0,0 | Rot: 0,0,0 | Escala: 0,0,0 -> Ojo, se corrige en init).
      */
-    Transform() : position(),
+    Transform() :
+        position(),
         rotation(),
         scale(),
         matrix(),
+        worldMatrix(), // Añadido por el profe para soportar jerarquías
         Component(ComponentType::TRANSFORM) {
     }
 
     /**
      * @brief Inicializa los valores por defecto.
      *
-     * Establece la escala en (1, 1, 1) y resetea la matriz a Identidad.
+     * Establece la escala en (1, 1, 1) y resetea las matrices a Identidad.
      */
-    void
-        init() override {
+    void init() override {
         scale.one(); // Asume que tu clase Vector3 tiene este método
         matrix = XMMatrixIdentity();
+        worldMatrix = XMMatrixIdentity(); // Añadido por el profe
     }
 
     /**
-     * @brief Calcula la matriz de transformación final (World Matrix).
+     * @brief Calcula la matriz de transformación final.
      *
      * Aplica las transformaciones en el orden estándar SRT (Scale -> Rotate -> Translate).
      *
      * @param deltaTime Tiempo transcurrido (no se usa para el cálculo directo, pero requerido por herencia).
      */
-    void
-        update(float deltaTime) override {
+    void update(float deltaTime) override {
         // 1. Matriz de Escala
         XMMATRIX scaleMatrix = XMMatrixScaling(scale.x, scale.y, scale.z);
         // 2. Matriz de Rotación (Euler: Pitch, Yaw, Roll)
@@ -55,6 +56,10 @@ public:
         // El orden de multiplicación es CRÍTICO. En DirectX (Row-Major logic) es:
         // Final = Escala * Rotación * Traslación.
         matrix = scaleMatrix * rotationMatrix * translationMatrix;
+
+        // El profe iguala la matriz global a la local por ahora. 
+        // El SceneGraph se encargará de multiplicar esto por la matriz del "padre" más adelante.
+        worldMatrix = matrix;
     }
 
     /**
@@ -65,50 +70,42 @@ public:
      *
      * @param deviceContext Contexto gráfico.
      */
-    void
-        render(DeviceContext& deviceContext) override {}
+    void render(DeviceContext& deviceContext) override {}
 
     /**
      * @brief Libera recursos.
      */
-    void
-        destroy() override {}
+    void destroy() override {}
 
     // ------------------------------------------------------------------------
     // GETTERS & SETTERS (POSICIÓN)
     // ------------------------------------------------------------------------
 
     /** @brief Obtiene la posición global actual. */
-    const EU::Vector3&
-        getPosition() const { return position; }
+    const EU::Vector3& getPosition() const { return position; }
 
     /** @brief Asigna una nueva posición absoluta. */
-    void
-        setPosition(const EU::Vector3& newPos) { position = newPos; }
+    void setPosition(const EU::Vector3& newPos) { position = newPos; }
 
     // ------------------------------------------------------------------------
     // GETTERS & SETTERS (ROTACIÓN)
     // ------------------------------------------------------------------------
 
     /** @brief Obtiene la rotación actual (en radianes). */
-    const EU::Vector3&
-        getRotation() const { return rotation; }
+    const EU::Vector3& getRotation() const { return rotation; }
 
     /** @brief Asigna una nueva rotación absoluta (en radianes). */
-    void
-        setRotation(const EU::Vector3& newRot) { rotation = newRot; }
+    void setRotation(const EU::Vector3& newRot) { rotation = newRot; }
 
     // ------------------------------------------------------------------------
     // GETTERS & SETTERS (ESCALA)
     // ------------------------------------------------------------------------
 
     /** @brief Obtiene la escala actual. */
-    const EU::Vector3&
-        getScale() const { return scale; }
+    const EU::Vector3& getScale() const { return scale; }
 
     /** @brief Asigna una nueva escala absoluta. */
-    void
-        setScale(const EU::Vector3& newScale) { scale = newScale; }
+    void setScale(const EU::Vector3& newScale) { scale = newScale; }
 
     /**
      * @brief Establece los tres valores de transformación de una vez.
@@ -117,10 +114,9 @@ public:
      * @param newRot Nueva rotación (radianes).
      * @param newSca Nueva escala.
      */
-    void
-        setTransform(const EU::Vector3& newPos,
-            const EU::Vector3& newRot,
-            const EU::Vector3& newSca) {
+    void setTransform(const EU::Vector3& newPos,
+        const EU::Vector3& newRot,
+        const EU::Vector3& newSca) {
         position = newPos;
         rotation = newRot;
         scale = newSca;
@@ -131,8 +127,7 @@ public:
      *
      * @param translation Vector delta a sumar a la posición actual.
      */
-    void
-        translate(const EU::Vector3& translation);
+    void translate(const EU::Vector3& translation);
 
 private:
     EU::Vector3 position;  ///< Coordenadas X, Y, Z en el espacio.
@@ -141,10 +136,13 @@ private:
 
 public:
     /**
-     * @brief La Matriz de Mundo resultante.
-     *
-     * Esta es la matriz que se envía al Vertex Shader (cbuffer "mWorld") para
-     * dibujar el objeto en el lugar correcto. Se recalcula en cada update().
+     * @brief Matriz de transformación local (relativa al padre).
      */
     XMMATRIX matrix;
+
+    /**
+     * @brief Matriz de transformación global (relativa al mundo).
+     * Esta es la que se envía al Vertex Shader para dibujar el objeto.
+     */
+    XMMATRIX worldMatrix;
 };

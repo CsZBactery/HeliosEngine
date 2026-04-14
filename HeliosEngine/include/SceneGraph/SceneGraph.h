@@ -4,6 +4,8 @@
 
 class Entity;
 class DeviceContext;
+class Camera;       // Añadido por el profe para la nueva arquitectura de Render
+class RenderScene;  // Añadido por el profe para la nueva arquitectura de Render
 
 /**
  * @class SceneGraph
@@ -33,6 +35,13 @@ public:
     void update(float deltaTime, DeviceContext& deviceContext);
 
     void render(DeviceContext& deviceContext);
+
+    /**
+     * @brief Recolecta todas las entidades visibles y las empaqueta para el Forward Renderer.
+     * * @param outScene Estructura que almacena mallas, materiales y luces a dibujar.
+     * @param camera Cámara actual (útil para cálculos de profundidad o culling).
+     */
+    void gatherRenderScene(RenderScene& outScene, const Camera& camera);
 
     void destroy();
 

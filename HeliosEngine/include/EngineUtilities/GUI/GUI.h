@@ -60,11 +60,11 @@ public:
     /** @brief Carga de datos de ayuda y tooltips para los botones. */
     void toolTipData();
 
-    /** @brief Estilizado visual estilo macOS / Apple Liquid. */
+    /** @brief Estilizado visual estilo macOS / Apple Liquid / UE5. */
     void appleLiquidStyle(float opacity = 1.0f, ImVec4 accent = ImVec4(0.04f, 0.52f, 1.0f, 1.0f));
 
     /** @brief Widget personalizado para edición de vectores XYZ (Transform). */
-    void vec3Control(const std::string& label, float* values, float resetValues = 0.0f, float columnWidth = 100.0f);
+    void vec3Control(const std::string& label, float* values, float resetValue = 0.0f, float columnWidth = 100.0f, bool displayAsDegrees = false);
 
     /** @brief Panel de propiedades del Actor seleccionado. */
     void inspectorGeneral(EU::TSharedPointer<Actor> actor);
@@ -99,6 +99,13 @@ public:
         memcpy(dest, &temp, sizeof(float) * 16);
     }
 
+    /** @brief Consume la petición de guardado lanzada por la UI (NUEVO DEL PROFE). */
+    bool consumeSaveSceneRequest() {
+        bool req = m_requestSaveScene;
+        m_requestSaveScene = false;
+        return req;
+    }
+
 private:
     bool m_checkboxValue = true;
     bool m_checkboxValue2 = false;
@@ -108,6 +115,8 @@ private:
     bool m_showExitPopup = false;
     ImDrawList* m_viewportDrawList = nullptr;
     bool m_viewportActive = false;
+
+    bool m_requestSaveScene = false; // <-- Almacena si el usuario presionó Guardar Escena
 
 public:
     // Estados de interacción y lógica

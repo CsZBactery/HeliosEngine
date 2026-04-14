@@ -33,7 +33,7 @@ public:
      * 1. Localiza la fábrica DXGI (Factory).
      * 2. Configura el formato de píxel y el muestreo MSAA.
      * 3. Crea la conexión física con el HWND de la ventana proporcionada.
-     * * @param device Referencia al dispositivo físico (GPU).
+     * @param device Referencia al dispositivo físico (GPU).
      * @param deviceContext Contexto para la ejecución de comandos.
      * @param backBuffer Textura donde se almacenará el búfer de dibujo.
      * @param window Instancia de la ventana de aplicación.

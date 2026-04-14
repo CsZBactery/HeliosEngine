@@ -5,6 +5,14 @@
 #include "DeviceContext.h"
 #include <algorithm>
 
+// NUEVOS INCLUDES PARA EL RENDERER
+#include "ECS/LightComponent.h"
+#include "ECS/MeshRendererComponent.h"
+#include "EngineUtilities/Utilities/Camera.h"
+#include "Rendering/Material.h"
+#include "Rendering/MaterialInstance.h"
+#include "Rendering/RenderScene.h"
+
 // Prepara el grafo vaciando la lista de entidades registradas
 void SceneGraph::init() {
     m_entities.clear();
@@ -176,29 +184,84 @@ void SceneGraph::updateWorldRecursive(Entity* node, const XMMATRIX& parentWorld)
     auto t = node->getComponent<Transform>();
     auto h = node->getComponent<HierarchyComponent>();
 
-    if (!t) return;
+    if (!t || !h) return;
 
     // CÁLCULO MATEMÁTICO:
-    // La posición final (Mundo) es la posición local multiplicada por la del padre.
+    // La matriz World final es la matriz local (t->matrix) multiplicada por la del padre.
     // Esto hace que si mueves al padre, el hijo se mueva con él.
     XMMATRIX worldMatrix = t->matrix * parentWorld;
 
-    // Guardamos el resultado en el componente para que el Render sepa dónde dibujar
-    t->matrix = worldMatrix;
+    // Guardamos el resultado en la variable worldMatrix (NUEVO DEL PROFE)
+    t->worldMatrix = worldMatrix;
 
-    // Si tiene hijos, repetimos el proceso para cada uno de ellos usando nuestra nueva matriz
-    if (h) {
-        for (Entity* c : h->m_children) {
-            updateWorldRecursive(c, worldMatrix);
-        }
+    // Si tiene hijos, repetimos el proceso para cada uno de ellos usando nuestra nueva matriz global
+    for (Entity* c : h->m_children) {
+        updateWorldRecursive(c, worldMatrix);
     }
 }
 
-// Dibuja todas las entidades que están en el grafo
+// Dibuja todas las entidades (MÉTODO LEGACY, ahora se usa gatherRenderScene)
 void SceneGraph::render(DeviceContext& deviceContext) {
     for (auto& e : m_entities) {
         if (e) {
             e->render(deviceContext);
+        }
+    }
+}
+
+// ======================================================================================
+// NUEVO MÉTODO DEL PROFE: Recolectar datos para el Forward Renderer
+// ======================================================================================
+void SceneGraph::gatherRenderScene(RenderScene& outScene, const Camera& camera) {
+    for (Entity* entity : m_entities) {
+        if (!entity) continue;
+
+        // 1. Buscar Luces
+        auto lightComponent = entity->getComponent<LightComponent>();
+        if (lightComponent) {
+            outScene.directionalLights.push_back(lightComponent->getLightData());
+        }
+
+        // 2. Buscar Mallas Renderizables
+        auto meshRenderer = entity->getComponent<MeshRendererComponent>();
+        auto transform = entity->getComponent<Transform>();
+
+        // Si no tiene malla, no tiene transform, o está invisible, lo ignoramos
+        if (!meshRenderer || !transform || !meshRenderer->isVisible()) {
+            continue;
+        }
+
+        // 3. Empaquetar el Objeto
+        RenderObject renderObject{};
+        renderObject.mesh = meshRenderer->getMesh();
+        renderObject.materialInstance = meshRenderer->getMaterialInstance();
+        renderObject.materialInstances = meshRenderer->getMaterialInstances();
+        renderObject.world = transform->worldMatrix; // Usamos la matriz global calculada
+        renderObject.castShadow = meshRenderer->canCastShadow();
+
+        // 4. Calcular distancia a la cámara (útil para ordenar transparencias)
+        EU::Vector3 cameraPos = camera.getPosition();
+        XMFLOAT4X4 worldMatrix{};
+        XMStoreFloat4x4(&worldMatrix, transform->worldMatrix);
+        EU::Vector3 objectPos = EU::Vector3(worldMatrix._41, worldMatrix._42, worldMatrix._43);
+
+        float dx = objectPos.x - cameraPos.x;
+        float dy = objectPos.y - cameraPos.y;
+        float dz = objectPos.z - cameraPos.z;
+        renderObject.distanceToCamera = dx * dx + dy * dy + dz * dz;
+
+        // 5. Clasificar si es un objeto Opaco o Transparente
+        MaterialDomain domain = MaterialDomain::Opaque;
+        if (renderObject.materialInstance && renderObject.materialInstance->getMaterial()) {
+            domain = renderObject.materialInstance->getMaterial()->getDomain();
+        }
+
+        renderObject.transparent = (domain == MaterialDomain::Transparent);
+        if (renderObject.transparent) {
+            outScene.transparentObjects.push_back(renderObject);
+        }
+        else {
+            outScene.opaqueObjects.push_back(renderObject);
         }
     }
 }

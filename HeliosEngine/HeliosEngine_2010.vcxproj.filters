@@ -63,6 +63,12 @@
     <Filter Include="source\SceneGraph">
       <UniqueIdentifier>{b1436ddd-ab6b-43ff-a02c-04fa32ca9e3f}</UniqueIdentifier>
     </Filter>
+    <Filter Include="include\Rendering">
+      <UniqueIdentifier>{fbaa5096-2def-4abc-9197-521ccb479d36}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="source\Rendering">
+      <UniqueIdentifier>{da5a8419-5506-4c0b-bb21-c49c6e28036d}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="HeliosEngine.cpp">
@@ -160,6 +166,15 @@
     </ClCompile>
     <ClCompile Include="include\EditorViewportPass.cpp">
       <Filter>source</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Rendering\ForwardRenderer.cpp">
+      <Filter>source\Rendering</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Rendering\MaterialInstance.cpp">
+      <Filter>source\Rendering</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Rendering\RenderScene.cpp">
+      <Filter>source\Rendering</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -349,6 +364,30 @@
     </ClInclude>
     <ClInclude Include="include\EngineUtilities\Utilities\EditorViewportPass.h">
       <Filter>include\Utilities</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ECS\LightComponent.h">
+      <Filter>include\ECS</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ECS\MeshRendererComponent.h">
+      <Filter>include\ECS</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Rendering\ForwardRenderer.h">
+      <Filter>include\Rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Rendering\Material.h">
+      <Filter>include\Rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Rendering\MaterialInstance.h">
+      <Filter>include\Rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Rendering\Mesh.h">
+      <Filter>include\Rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Rendering\RenderScene.h">
+      <Filter>include\Rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Rendering\RenderTypes.h">
+      <Filter>include\Rendering</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

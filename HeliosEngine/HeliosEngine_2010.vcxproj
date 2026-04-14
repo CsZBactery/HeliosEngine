@@ -479,6 +479,9 @@
     <ClCompile Include="source\InputLayout.cpp" />
     <ClCompile Include="source\Model3D.cpp" />
     <ClCompile Include="source\RasterizerState.cpp" />
+    <ClCompile Include="source\Rendering\ForwardRenderer.cpp" />
+    <ClCompile Include="source\Rendering\MaterialInstance.cpp" />
+    <ClCompile Include="source\Rendering\RenderScene.cpp" />
     <ClCompile Include="source\RenderTargetView.cpp" />
     <ClCompile Include="source\SamplerState.cpp" />
     <ClCompile Include="source\SceneGraph\SceneGraph.cpp" />
@@ -495,6 +498,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\DepthStencilState.h" />
+    <ClInclude Include="include\ECS\LightComponent.h" />
+    <ClInclude Include="include\ECS\MeshRendererComponent.h" />
     <ClInclude Include="include\EngineUtilities\Utilities\EditorViewportPass.h" />
     <ClInclude Include="include\EngineUtilities\Utilities\LayoutBuilder.h" />
     <ClInclude Include="include\EngineUtilities\Utilities\Skybox.h" />
@@ -540,6 +545,12 @@
     <ClInclude Include="include\MeshComponent.h" />
     <ClInclude Include="include\Model3D.h" />
     <ClInclude Include="include\Prerequisites.h" />
+    <ClInclude Include="include\Rendering\ForwardRenderer.h" />
+    <ClInclude Include="include\Rendering\Material.h" />
+    <ClInclude Include="include\Rendering\MaterialInstance.h" />
+    <ClInclude Include="include\Rendering\Mesh.h" />
+    <ClInclude Include="include\Rendering\RenderScene.h" />
+    <ClInclude Include="include\Rendering\RenderTypes.h" />
     <ClInclude Include="include\RenderTargetView.h" />
     <ClInclude Include="include\Resource.h" />
     <ClInclude Include="include\ResourceManager.h" />
