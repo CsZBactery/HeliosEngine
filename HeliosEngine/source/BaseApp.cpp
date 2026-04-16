@@ -172,7 +172,13 @@ HRESULT BaseApp::init() {
 
     if (!m_cyberGun.isNull()) {
         m_model = new Model3D("Assets/Moto/repsol3.obj", ModelType::OBJ);
-        if (!m_model) return E_FAIL;
+
+        // --- ¡AQUÍ ESTÁ LA CORRECCIÓN CLAVE! ---
+        if (!m_model || !m_model->load("Assets/Moto/repsol3.obj")) {
+            ERROR("Main", "InitDevice", "Failed to load RepsolBike model.");
+            return E_FAIL;
+        }
+        // ----------------------------------------
 
         hr = m_AlbedoSRV.init(m_device, "Assets/Textures/BaseColor", ExtensionType::PNG);
         if (FAILED(hr)) return hr;

@@ -17,7 +17,8 @@
 // ======================================================================================
 namespace {
     constexpr uint32_t kModelCacheMagic = 0x48564D57; // "WMVH"
-    constexpr uint32_t kModelCacheVersion = 1;
+    // --- CORRECCIÓN 1: Subimos la versión del caché a 2 para forzar la regeneración ---
+    constexpr uint32_t kModelCacheVersion = 2;
 
     struct ModelCacheEntry {
         std::vector<MeshComponent> meshes;
@@ -563,11 +564,20 @@ std::vector<MeshComponent> Model3D::LoadOBJModel(const std::string& filePath) {
             vertex.Tangent = vertex.Tangent - (vertex.Normal * tangentDotNormal);
             normalize(vertex.Tangent);
 
-            vertex.Bitangent = EU::Vector3(
+            // --- CORRECCIÓN 2: HANDEDNESS PARA EVITAR NORMALES INVERTIDAS EN OBJs ---
+            EU::Vector3 Bcalc(
                 vertex.Normal.y * vertex.Tangent.z - vertex.Normal.z * vertex.Tangent.y,
                 vertex.Normal.z * vertex.Tangent.x - vertex.Normal.x * vertex.Tangent.z,
                 vertex.Normal.x * vertex.Tangent.y - vertex.Normal.y * vertex.Tangent.x);
+
+            // Evaluamos hacia donde debe apuntar
+            float hand = (Bcalc.x * vertex.Bitangent.x +
+                Bcalc.y * vertex.Bitangent.y +
+                Bcalc.z * vertex.Bitangent.z < 0.0f) ? -1.0f : 1.0f;
+
+            vertex.Bitangent = EU::Vector3(Bcalc.x * hand, Bcalc.y * hand, Bcalc.z * hand);
             normalize(vertex.Bitangent);
+            // ------------------------------------------------------------------------
         }
         };
 

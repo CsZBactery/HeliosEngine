@@ -124,7 +124,7 @@ private:
     Texture m_NormalSRV;
     Texture m_EmissiveSRV;  /**< Mapa de emisión de luz (NUEVO). */
 
-    // Texturas extra del profe (Por si las llega a llamar en el .cpp para que no crashee)
+    // Texturas
     Texture m_drakefireAlbedoSRV;
     Texture m_drakefireNormalSRV;
     Texture m_drakefireMetallicSRV;
