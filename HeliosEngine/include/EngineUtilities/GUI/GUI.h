@@ -1,6 +1,7 @@
 ﻿/**
  * @file GUI.h
  * @brief Interfaz Gráfica de Usuario (Editor) basada en ImGui e ImGuizmo para HeliosEngine.
+ * @details Versión adaptada para el nuevo Pipeline de Renderizado Diferido.
  */
 
 #pragma once
@@ -23,9 +24,9 @@ class Camera;
 
 /**
  * @class GUI
- * @brief Orquesta todos los paneles del editor, la gestión de ventanas y herramientas de transformación.
- * @details Se encarga de dibujar el Outliner (jerarquía), el Inspector (propiedades),
- * los Gizmos (manipuladores 3D) y el Dockspace que organiza el layout del motor.
+ * @brief Orquesta todos los paneles del editor, la gestión de ventanas y herramientas de depuración.
+ * @details Se encarga de dibujar el Outliner, Inspector, Gizmos y los nuevos paneles de inspección
+ * del G-Buffer necesarios para el Deferred Rendering.
  */
 class GUI {
 public:
@@ -83,6 +84,21 @@ public:
     void drawEditorDockspace();
 
     // -----------------------------------------------------------
+    // NUEVOS: PANELES DE DEPURACIÓN DE RENDER (DEFERRED)
+    // -----------------------------------------------------------
+
+    /** @brief Panel para comparar la profundidad de sombras, el viewport final y el mapa de sombras crudo. */
+    void drawRenderDebugPanel(ID3D11ShaderResourceView* preShadowSRV,
+        ID3D11ShaderResourceView* finalViewportSRV,
+        ID3D11ShaderResourceView* shadowMapSRV);
+
+    /** @brief Panel crítico para inspeccionar las capas del G-Buffer (Albedo, Normales, WorldAO, Emisivos). */
+    void drawGBufferDebugPanel(ID3D11ShaderResourceView* albedoMetallicSRV,
+        ID3D11ShaderResourceView* normalRoughnessSRV,
+        ID3D11ShaderResourceView* worldAoSRV,
+        ID3D11ShaderResourceView* emissiveAlphaSRV);
+
+    // -----------------------------------------------------------
     // GIZMOS Y MATRICES
     // -----------------------------------------------------------
 
@@ -99,7 +115,7 @@ public:
         memcpy(dest, &temp, sizeof(float) * 16);
     }
 
-    /** @brief Consume la petición de guardado lanzada por la UI (NUEVO DEL PROFE). */
+    /** @brief Consume la petición de guardado lanzada por la UI. */
     bool consumeSaveSceneRequest() {
         bool req = m_requestSaveScene;
         m_requestSaveScene = false;
@@ -116,19 +132,22 @@ private:
     ImDrawList* m_viewportDrawList = nullptr;
     bool m_viewportActive = false;
 
-    bool m_requestSaveScene = false; // <-- Almacena si el usuario presionó Guardar Escena
+    bool m_requestSaveScene = false;
 
 public:
     // Estados de interacción y lógica
     bool m_isUsingGizmo = false;
     bool m_showGizmo = false;
-    bool m_requestSpawnCube = false; // <-- Bandera para decirle al motor que instancie algo
+    bool m_requestSpawnCube = false;
     int  selectedActorIndex = -1;
     bool m_isInitialized = false;
 
+    // --- NUEVO: Visualización de sombras en diferido ---
+    bool m_visualizeDeferredShadowFactor = false;
+
     // Estados de Paneles
-    bool m_showExplorer = true;      // <-- Controla la visibilidad del Outliner (Hierarchy)
-    bool m_showProperties = true;    // <-- Controla la visibilidad del Inspector
+    bool m_showExplorer = true;
+    bool m_showProperties = true;
 
     // Datos del Viewport del Editor
     ImVec2 m_viewportPos = ImVec2(0.0f, 0.0f);

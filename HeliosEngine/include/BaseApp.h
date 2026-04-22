@@ -34,7 +34,8 @@
 #include "Rendering/Material.h"
 #include "Rendering/MaterialInstance.h"
 #include "Rendering/Mesh.h"
-#include "Rendering/ForwardRenderer.h"
+// --- ELIMINADO: #include "Rendering/ForwardRenderer.h" ---
+#include "Rendering/RenderPipeline.h" // <-- NUEVO: Pipeline Diferido
 #include "Rendering/RenderScene.h"
 #include <string>
 
@@ -165,13 +166,14 @@ private:
     Mesh             m_cyberGunRenderMesh;   /**< Malla adaptada al nuevo renderer. */
     Mesh             m_drakefireRenderMesh;
 
-    Material         m_pbrMaterial;            /**< Material base PBR Opaco. */
+    Material         m_pbrMaterial;          /**< Material base PBR Opaco. */
     Material         m_transparentPbrMaterial; /**< Material base PBR Transparente. */
 
     MaterialInstance m_cyberGunMaterial;     /**< Material instanciado para TU modelo. */
     MaterialInstance m_drakefireMaterial;
 
-    ForwardRenderer  m_forwardRenderer;      /**< Motor de renderizado en cascada (Forward). */
+    // --- ELIMINADO: ForwardRenderer  m_forwardRenderer; ---
+    RenderPipeline   m_renderPipeline;       /**< NUEVO: Gestor del Pipeline (Deferred/Forward). */
     RenderScene      m_renderScene;          /**< Contenedor lógico de la escena a renderizar. */
 
     // ==========================================

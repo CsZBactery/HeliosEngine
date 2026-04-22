@@ -1,7 +1,7 @@
 // ======================================================================================
 // Archivo: GUI.cpp
 // Implementación de la Interfaz de Usuario del Editor usando ImGui e ImGuizmo.
-// Tema Personalizado: Industrial Dark (Estilo UE5) adaptado con los nuevos sistemas ECS
+// Tema Personalizado: Industrial Dark adaptado con los sistemas Deferred y ECS.
 // ======================================================================================
 
 #include "EngineUtilities/GUI/GUI.h"
@@ -25,10 +25,16 @@ static ImGuizmo::OPERATION mCurrentGizmoOperation(ImGuizmo::TRANSLATE);
 static ImGuizmo::MODE mCurrentGizmoMode(ImGuizmo::LOCAL);
 
 // ======================================================================================
-// HELPER FUNCTIONS INTERNAS (Nuevas del Profe para estilizar el Inspector)
+// HELPER FUNCTIONS INTERNAS
 // ======================================================================================
 namespace {
     const char* GetLightTypeLabel(LightType type);
+
+    struct DebugTextureItem {
+        const char* label;
+        const char* channels;
+        ID3D11ShaderResourceView* srv;
+    };
 
     ImU32 AccentU32(const ImVec4& color) {
         return ImGui::ColorConvertFloat4ToU32(color);
@@ -40,6 +46,29 @@ namespace {
 
     float DegToRad(float degrees) {
         return XMConvertToRadians(degrees);
+    }
+
+    void DrawDebugTextureEntry(const DebugTextureItem& item, int index, int& selectedView, float thumbnailHeight) {
+        ImGui::PushID(index);
+        if (ImGui::Selectable(item.label, selectedView == index, 0, ImVec2(0.0f, 20.0f))) {
+            selectedView = index;
+        }
+
+        if (item.channels != nullptr && item.channels[0] != '\0') {
+            ImGui::TextDisabled("%s", item.channels);
+        }
+
+        if (item.srv) {
+            const float thumbnailWidth = thumbnailHeight * 1.6f;
+            ImGui::Image((ImTextureID)item.srv, ImVec2(thumbnailWidth, thumbnailHeight));
+        }
+        else {
+            ImGui::Dummy(ImVec2(thumbnailHeight * 1.6f, thumbnailHeight));
+            ImGui::SameLine(0.0f, 0.0f);
+            ImGui::TextDisabled("Unavailable");
+        }
+
+        ImGui::PopID();
     }
 
     void DrawInspectorPill(const char* text, const ImVec4& color) {
@@ -191,7 +220,7 @@ void GUI::init(Window& window, Device& device, DeviceContext& deviceContext) {
         style.Colors[ImGuiCol_WindowBg].w = 1.0f;
     }
 
-    // Tu Tema UE5 Personalizado
+    // Tu Tema UE5 Personalizado (Con acento naranja/dorado)
     appleLiquidStyle(0.98f, ImVec4(0.8f, 0.4f, 0.0f, 1.0f));
 
     ImGui_ImplWin32_Init(window.m_hWnd);
@@ -213,7 +242,6 @@ void GUI::update(Viewport& viewport, Window& window) {
     ImGuizmo::BeginFrame();
     ImGuiIO& io = ImGui::GetIO();
 
-    // NUEVO: Atajo de teclado para guardar
     if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_S, false)) {
         m_requestSaveScene = true;
     }
@@ -223,7 +251,7 @@ void GUI::update(Viewport& viewport, Window& window) {
     drawStudioTopRibbon();
     drawEditorDockspace();
     closeApp();
-    drawGizmoToolbar(); // Nueva toolbar del profe
+    drawGizmoToolbar();
 }
 
 // ======================================================================================
@@ -249,7 +277,7 @@ void GUI::destroy() {
 }
 
 // ======================================================================================
-// CONTROLES MATEMÁTICOS AVANZADOS (Actualizados por el profe)
+// CONTROLES MATEMÁTICOS AVANZADOS
 // ======================================================================================
 void GUI::vec3Control(const std::string& label, float* values, float resetValue, float columnWidth, bool displayAsDegrees) {
     ImGuiIO& io = ImGui::GetIO();
@@ -350,7 +378,7 @@ void GUI::vec3Control(const std::string& label, float* values, float resetValue,
 }
 
 // ======================================================================================
-// PANELES DE PROPIEDADES E INSPECTOR (Actualizados por el Profe)
+// PANELES DE PROPIEDADES E INSPECTOR (Con soporte PBR y Luces)
 // ======================================================================================
 void GUI::inspectorGeneral(EU::TSharedPointer<Actor> actor) {
     if (!m_showProperties) return;
@@ -541,7 +569,7 @@ void GUI::inspectorContainer(EU::TSharedPointer<Actor> actor) {
 }
 
 // ======================================================================================
-// PANEL OUTLINER (Actualizado por el Profe)
+// PANEL OUTLINER (Con etiquetas de componentes)
 // ======================================================================================
 void GUI::outliner(const std::vector<EU::TSharedPointer<Actor>>& actors) {
     if (!m_showExplorer) return;
@@ -606,7 +634,7 @@ void GUI::outliner(const std::vector<EU::TSharedPointer<Actor>>& actors) {
 }
 
 // ======================================================================================
-// GIZMOS Y TOOLBAR
+// GIZMOS Y MATRICES
 // ======================================================================================
 void GUI::editTransform(Camera& cam, Window& window, EU::TSharedPointer<Actor> actor) {
     if (actor.isNull()) return;
@@ -712,12 +740,11 @@ void GUI::drawGizmoToolbar() {
 }
 
 // ======================================================================================
-// MENÚ SUPERIOR Y BARRA DE HERRAMIENTAS DE TU THEMA (Conservado y Adaptado)
+// MENÚ SUPERIOR Y BARRA DE HERRAMIENTAS
 // ======================================================================================
 void GUI::drawStudioTopRibbon() {
     if (ImGui::BeginMainMenuBar()) {
         if (ImGui::BeginMenu("File")) {
-            // NUEVO: Opción de guardar adaptada a tu menú
             if (ImGui::MenuItem("Save Scene", "Ctrl+S")) m_requestSaveScene = true;
             ImGui::Separator();
             if (ImGui::MenuItem("Exit", "Alt+F4")) m_showExitPopup = true;
@@ -741,7 +768,7 @@ void GUI::drawStudioTopRibbon() {
 
     ImVec2 btnSize(65.0f, 50.0f);
 
-    // GRUPO 1: TRANSFORMACIÓN (Gizmos)
+    // GRUPO 1: TRANSFORMACIÓN
     bool isSelect = !m_showGizmo;
     if (isSelect) ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive));
     if (ImGui::Button("Select\n(Q)", btnSize)) m_showGizmo = false;
@@ -765,7 +792,7 @@ void GUI::drawStudioTopRibbon() {
     if (ImGui::Button("Rotate\n(E)", btnSize)) { mCurrentGizmoOperation = ImGuizmo::ROTATE; m_showGizmo = true; }
     if (isRotate) ImGui::PopStyleColor();
 
-    // GRUPO 2: CREACIÓN Y EDICIÓN
+    // GRUPO 2: CREACIÓN
     ImGui::SameLine(0, 15.0f);
     ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
     ImGui::SameLine(0, 15.0f);
@@ -780,7 +807,7 @@ void GUI::drawStudioTopRibbon() {
     ImGui::SameLine();
     if (ImGui::Button("Color\nPicker", btnSize)) {}
 
-    // GRUPO 3: GESTIÓN DE PANELES
+    // GRUPO 3: PANELES
     ImGui::SameLine(0, 15.0f);
     ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
     ImGui::SameLine(0, 15.0f);
@@ -802,7 +829,94 @@ void GUI::drawStudioTopRibbon() {
 }
 
 // ======================================================================================
-// HELPER: VIEWPORT DOCKING Y TEMA UE5 (Conservados)
+// PANELES DE DEPURACIÓN (Nuevos de Render Diferido)
+// ======================================================================================
+void GUI::drawRenderDebugPanel(ID3D11ShaderResourceView* preShadowSRV, ID3D11ShaderResourceView* finalViewportSRV, ID3D11ShaderResourceView* shadowMapSRV) {
+    ImGui::Begin("Render Debug");
+
+    DebugTextureItem items[] = {
+        { "Pre-Shadow", "", preShadowSRV },
+        { "Scene Final", "", finalViewportSRV },
+        { "Shadow Map", "", shadowMapSRV }
+    };
+
+    static int selectedView = 0;
+    const float thumbnailHeight = 120.0f;
+
+    ImGui::TextDisabled("Generated pass textures");
+    ImGui::Separator();
+
+    for (int i = 0; i < IM_ARRAYSIZE(items); ++i) {
+        DrawDebugTextureEntry(items[i], i, selectedView, thumbnailHeight);
+        if (i + 1 < IM_ARRAYSIZE(items)) ImGui::Separator();
+    }
+
+    ImGui::Separator();
+    ImGui::Text("Focused View: %s", items[selectedView].label);
+
+    ImVec2 available = ImGui::GetContentRegionAvail();
+    if (items[selectedView].srv && available.x > 16.0f && available.y > 16.0f) {
+        ImGui::Image((ImTextureID)items[selectedView].srv, available);
+    }
+    else {
+        ImGui::Dummy(available);
+        ImGui::SameLine(0.0f, 0.0f);
+        ImGui::TextDisabled("No texture bound for this view");
+    }
+
+    ImGui::End();
+}
+
+void GUI::drawGBufferDebugPanel(ID3D11ShaderResourceView* albedoMetallicSRV, ID3D11ShaderResourceView* normalRoughnessSRV, ID3D11ShaderResourceView* worldAoSRV, ID3D11ShaderResourceView* emissiveAlphaSRV) {
+    DebugTextureItem items[] = {
+        { "Albedo + Metallic", "RGB: Albedo | A: Metallic", albedoMetallicSRV },
+        { "Normal + Roughness", "RGB: Normal (packed) | A: Roughness", normalRoughnessSRV },
+        { "World + AO", "RGB: World Position | A: Ambient Occlusion", worldAoSRV },
+        { "Emissive + Alpha", "RGB: Emissive | A: Alpha", emissiveAlphaSRV }
+    };
+
+    bool hasAnyTexture = false;
+    for (int i = 0; i < IM_ARRAYSIZE(items); ++i) {
+        if (items[i].srv != nullptr) { hasAnyTexture = true; break; }
+    }
+
+    if (!hasAnyTexture) return;
+
+    ImGui::Begin("GBuffer Debug");
+
+    static int selectedView = 0;
+    if (selectedView >= IM_ARRAYSIZE(items)) selectedView = 0;
+
+    const float thumbnailHeight = 96.0f;
+
+    ImGui::TextDisabled("Deferred attachments");
+    ImGui::Checkbox("Visualize Shadow Factor", &m_visualizeDeferredShadowFactor);
+    ImGui::Separator();
+
+    for (int i = 0; i < IM_ARRAYSIZE(items); ++i) {
+        DrawDebugTextureEntry(items[i], i, selectedView, thumbnailHeight);
+        if (i + 1 < IM_ARRAYSIZE(items)) ImGui::Separator();
+    }
+
+    ImGui::Separator();
+    ImGui::Text("Focused Attachment: %s", items[selectedView].label);
+    ImGui::TextDisabled("%s", items[selectedView].channels);
+
+    ImVec2 available = ImGui::GetContentRegionAvail();
+    if (items[selectedView].srv && available.x > 16.0f && available.y > 16.0f) {
+        ImGui::Image((ImTextureID)items[selectedView].srv, available);
+    }
+    else {
+        ImGui::Dummy(available);
+        ImGui::SameLine(0.0f, 0.0f);
+        ImGui::TextDisabled("No texture bound for this attachment");
+    }
+
+    ImGui::End();
+}
+
+// ======================================================================================
+// HELPER: VIEWPORT DOCKING Y ESTILOS UE5
 // ======================================================================================
 void GUI::drawViewportPanel(ID3D11ShaderResourceView* viewportSRV) {
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoCollapse;
@@ -888,39 +1002,90 @@ void GUI::appleLiquidStyle(float opacity, ImVec4 accent) {
     ImGuiStyle& style = ImGui::GetStyle();
     ImVec4* colors = style.Colors;
 
-    style.WindowRounding = 2.0f;
-    style.FrameRounding = 2.0f;
-    style.ScrollbarRounding = 2.0f;
-    style.GrabRounding = 2.0f;
-    style.PopupRounding = 2.0f;
-    style.ChildRounding = 2.0f;
-    style.WindowBorderSize = 1.0f;
-    style.FrameBorderSize = 1.0f;
+    style.WindowRounding = 14.0f;
+    style.ChildRounding = 14.0f;
+    style.PopupRounding = 14.0f;
+    style.FrameRounding = 10.0f;
+    style.GrabRounding = 10.0f;
+    style.ScrollbarRounding = 12.0f;
+    style.TabRounding = 10.0f;
 
-    colors[ImGuiCol_WindowBg] = ImVec4(0.05f, 0.05f, 0.05f, opacity);
-    colors[ImGuiCol_ChildBg] = ImVec4(0.08f, 0.08f, 0.08f, opacity);
-    colors[ImGuiCol_PopupBg] = ImVec4(0.05f, 0.05f, 0.05f, 0.98f);
-    colors[ImGuiCol_Header] = ImVec4(0.15f, 0.15f, 0.15f, 1.0f);
-    colors[ImGuiCol_HeaderHovered] = accent;
-    colors[ImGuiCol_HeaderActive] = accent;
-    colors[ImGuiCol_Button] = ImVec4(0.15f, 0.15f, 0.15f, 1.0f);
-    colors[ImGuiCol_ButtonHovered] = accent;
-    colors[ImGuiCol_ButtonActive] = ImVec4(accent.x * 0.8f, accent.y * 0.8f, accent.z * 0.8f, 1.0f);
-    colors[ImGuiCol_FrameBg] = ImVec4(0.02f, 0.02f, 0.02f, 1.0f);
-    colors[ImGuiCol_FrameBgHovered] = ImVec4(0.10f, 0.10f, 0.10f, 1.0f);
-    colors[ImGuiCol_FrameBgActive] = ImVec4(0.15f, 0.15f, 0.15f, 1.0f);
-    colors[ImGuiCol_TitleBg] = ImVec4(0.02f, 0.02f, 0.02f, 1.0f);
-    colors[ImGuiCol_TitleBgActive] = ImVec4(0.02f, 0.02f, 0.02f, 1.0f);
-    colors[ImGuiCol_Tab] = ImVec4(0.08f, 0.08f, 0.08f, 1.0f);
-    colors[ImGuiCol_TabHovered] = accent;
-    colors[ImGuiCol_TabActive] = accent;
-    colors[ImGuiCol_TabUnfocused] = ImVec4(0.05f, 0.05f, 0.05f, 1.0f);
-    colors[ImGuiCol_TabUnfocusedActive] = ImVec4(0.08f, 0.08f, 0.08f, 1.0f);
-    colors[ImGuiCol_DockingPreview] = accent;
-    colors[ImGuiCol_DockingEmptyBg] = ImVec4(0.05f, 0.05f, 0.05f, 1.0f);
-    colors[ImGuiCol_Border] = ImVec4(0.2f, 0.2f, 0.2f, 1.0f);
+    style.WindowBorderSize = 1.0f;
+    style.FrameBorderSize = 0.0f;
+    style.PopupBorderSize = 1.0f;
+    style.TabBorderSize = 0.0f;
+
+    style.WindowPadding = ImVec2(14, 12);
+    style.FramePadding = ImVec2(12, 8);
+    style.ItemSpacing = ImVec2(8, 8);
+    style.ItemInnerSpacing = ImVec2(8, 6);
+
+    const float o = opacity;
+    const ImVec4 txt = ImVec4(1, 1, 1, 0.95f);
+    const ImVec4 pane = ImVec4(0.16f, 0.16f, 0.18f, o);
+    const ImVec4 paneHi = ImVec4(0.20f, 0.20f, 0.22f, o);
+    const ImVec4 paneLo = ImVec4(0.13f, 0.13f, 0.15f, o * 0.85f);
+
+    colors[ImGuiCol_Text] = txt;
+    colors[ImGuiCol_TextDisabled] = ImVec4(1, 1, 1, 0.45f);
+    colors[ImGuiCol_WindowBg] = pane;
+    colors[ImGuiCol_ChildBg] = paneLo;
+    colors[ImGuiCol_PopupBg] = paneHi;
+    colors[ImGuiCol_Border] = ImVec4(1, 1, 1, 0.10f);
+    colors[ImGuiCol_BorderShadow] = ImVec4(0, 0, 0, 0.0f);
+
+    colors[ImGuiCol_FrameBg] = paneLo;
+    colors[ImGuiCol_FrameBgHovered] = pane;
+    colors[ImGuiCol_FrameBgActive] = paneHi;
+
+    colors[ImGuiCol_TitleBg] = pane;
+    colors[ImGuiCol_TitleBgActive] = paneHi;
+    colors[ImGuiCol_TitleBgCollapsed] = paneLo;
+
+    colors[ImGuiCol_MenuBarBg] = pane;
+
+    colors[ImGuiCol_ScrollbarBg] = ImVec4(0, 0, 0, 0.0f);
+    colors[ImGuiCol_ScrollbarGrab] = ImVec4(1, 1, 1, 0.10f);
+    colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(1, 1, 1, 0.18f);
+    colors[ImGuiCol_ScrollbarGrabActive] = ImVec4(1, 1, 1, 0.26f);
+
+    colors[ImGuiCol_CheckMark] = accent;
+    colors[ImGuiCol_SliderGrab] = accent;
+    colors[ImGuiCol_SliderGrabActive] = ImVec4(accent.x, accent.y, accent.z, 1.0f);
+
+    colors[ImGuiCol_Button] = paneLo;
+    colors[ImGuiCol_ButtonHovered] = pane;
+    colors[ImGuiCol_ButtonActive] = paneHi;
+
+    colors[ImGuiCol_Header] = paneLo;
+    colors[ImGuiCol_HeaderHovered] = pane;
+    colors[ImGuiCol_HeaderActive] = paneHi;
+
+    colors[ImGuiCol_Separator] = ImVec4(1, 1, 1, 0.10f);
+    colors[ImGuiCol_SeparatorHovered] = ImVec4(1, 1, 1, 0.18f);
+    colors[ImGuiCol_SeparatorActive] = ImVec4(1, 1, 1, 0.30f);
+
+    colors[ImGuiCol_Tab] = paneLo;
+    colors[ImGuiCol_TabHovered] = pane;
+    colors[ImGuiCol_TabActive] = paneHi;
+    colors[ImGuiCol_TabUnfocused] = paneLo;
+    colors[ImGuiCol_TabUnfocusedActive] = pane;
+
+    colors[ImGuiCol_DockingPreview] = ImVec4(accent.x, accent.y, accent.z, 0.35f);
+    colors[ImGuiCol_DockingEmptyBg] = ImVec4(0, 0, 0, 0.0f);
+
+    colors[ImGuiCol_TableHeaderBg] = pane;
+    colors[ImGuiCol_TableBorderStrong] = ImVec4(1, 1, 1, 0.08f);
+    colors[ImGuiCol_TableBorderLight] = ImVec4(1, 1, 1, 0.04f);
+    colors[ImGuiCol_TableRowBg] = ImVec4(1, 1, 1, 0.03f);
+    colors[ImGuiCol_TableRowBgAlt] = ImVec4(1, 1, 1, 0.06f);
+
+    colors[ImGuiCol_TextSelectedBg] = ImVec4(accent.x, accent.y, accent.z, 0.35f);
+    colors[ImGuiCol_NavHighlight] = ImVec4(accent.x, accent.y, accent.z, 0.50f);
+    colors[ImGuiCol_NavWindowingHighlight] = ImVec4(1, 1, 1, 0.30f);
+    colors[ImGuiCol_NavWindowingDimBg] = ImVec4(0, 0, 0, 0.20f);
+    colors[ImGuiCol_ModalWindowDimBg] = ImVec4(0, 0, 0, 0.35f);
 }
 
-// Declaraciones vacías obligatorias para el .h
 void GUI::ToolBar() {}
 void GUI::toolTipData() {}

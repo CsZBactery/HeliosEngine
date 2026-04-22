@@ -1,11 +1,13 @@
-﻿#pragma once
-#include "Prerequisites.h"
-
-/**
+﻿/**
  * @file SwapChain.h
- * @brief Gestión de la infraestructura DXGI y el intercambio de buffers.
+ * @brief Gestión de la infraestructura DXGI y el intercambio de buffers de presentación.
+ * @ingroup core
  */
 
+#pragma once
+#include "Prerequisites.h"
+
+ // Forward Declarations
 class Device;
 class DeviceContext;
 class Window;
@@ -14,84 +16,103 @@ class Texture;
 /**
  * @class SwapChain
  * @brief Encapsula la cadena de intercambio (IDXGISwapChain) para la gestión del Double Buffering.
- * @details El Swap Chain es el puente crítico entre la GPU y la ventana de Windows. Administra:
- * 1. El Front Buffer: Imagen visible actualmente.
- * 2. El Back Buffer: Imagen donde se realiza el renderizado actual.
- * Facilita el intercambio de estos buffers para evitar el parpadeo visual (tearing).
+ * @details El Swap Chain es el componente crítico que conecta la GPU con la ventana de Windows.
+ * Administra el ciclo de vida de dos recursos principales:
+ * 1. **Front Buffer:** La imagen que el usuario está viendo actualmente en el monitor.
+ * 2. **Back Buffer:** El lienzo oculto donde el motor realiza el renderizado del frame actual.
+ *
+ * Facilita el intercambio (Flip) de estos buffers para eliminar el parpadeo visual y el "tearing".
+ * Además, gestiona la configuración de **MSAA (Multisample Anti-Aliasing)** para el suavizado de bordes.
  */
 class SwapChain {
 public:
-    /** @brief Constructor por defecto. */
+    /** @brief Constructor por defecto. No reserva recursos COM. */
     SwapChain() = default;
 
-    /** @brief Destructor por defecto. Libera mediante destroy(). */
+    /** @brief Destructor por defecto. Se debe liberar manualmente con destroy(). */
     ~SwapChain() = default;
 
     /**
      * @brief Inicializa la infraestructura DXGI y vincula la cadena con la ventana.
-     * @details
-     * 1. Localiza la fábrica DXGI (Factory).
-     * 2. Configura el formato de píxel y el muestreo MSAA.
-     * 3. Crea la conexión física con el HWND de la ventana proporcionada.
+     * @details Realiza las siguientes operaciones críticas:
+     * 1. Localiza la fábrica DXGI (IDXGIFactory) para la creación de recursos.
+     * 2. Configura el formato de píxel, la resolución y el muestreo MSAA.
+     * 3. Crea la conexión física (SwapChain) con el manejador de ventana (HWND).
+     *
      * @param device Referencia al dispositivo físico (GPU).
      * @param deviceContext Contexto para la ejecución de comandos.
-     * @param backBuffer Textura donde se almacenará el búfer de dibujo.
+     * @param backBuffer Textura donde se recibirá el recurso del búfer de dibujo.
      * @param window Instancia de la ventana de aplicación.
-     * @return HRESULT S_OK si la operación fue exitosa.
+     * @return S_OK si la creación fue exitosa; código HRESULT en caso de error.
+     * @post Si retorna S_OK, m_swapChain != nullptr.
      */
     HRESULT init(Device& device, DeviceContext& deviceContext, Texture& backBuffer, Window window);
 
-    /** @brief Actualización lógica de la cadena (Placeholder). */
+    /**
+     * @brief Actualiza parámetros internos de la cadena.
+     * @note Placeholder para soportar cambios dinámicos de configuración en caliente.
+     */
     void update();
 
-    /** @brief Operaciones de renderizado previas a la presentación. */
+    /**
+     * @brief Operaciones de renderizado previas a la presentación.
+     * @note Placeholder para sincronización de buffers si fuera necesario.
+     */
     void render();
 
-    /** @brief Libera todas las interfaces DXGI y el SwapChain. */
+    /**
+     * @brief Libera todas las interfaces DXGI y el objeto SwapChain de la memoria.
+     * @details Limpia de forma segura m_swapChain, m_dxgiDevice, m_dxgiAdapter y m_dxgiFactory.
+     * @post m_swapChain == nullptr.
+     */
     void destroy();
 
     /**
      * @brief Presenta el Back Buffer en la pantalla (Flip).
-     * @details Envía el contenido renderizado al monitor y sincroniza con el refresco vertical (V-Sync).
+     * @details Envía el contenido renderizado al monitor. Si se implementa V-Sync,
+     * este método sincroniza la presentación con la frecuencia de refresco vertical.
      */
     void present();
 
     /**
      * @brief Ajusta el tamaño de los buffers internos al cambiar el tamaño de la ventana.
-     * @param width Nuevo ancho en píxeles.
-     * @param height Nuevo alto en píxeles.
+     * @details Esencial para mantener la fidelidad visual tras un evento de Resize.
+     * @param width Nuevo ancho en píxeles del área cliente.
+     * @param height Nuevo alto en píxeles del área cliente.
+     * @return S_OK si los buffers se redimensionaron correctamente.
      */
     HRESULT resizeBuffers(unsigned int width, unsigned int height);
 
     /**
      * @brief Recupera la textura del Back Buffer desde la cadena de intercambio.
-     * @param backBuffer Referencia a la textura que recibirá el recurso.
+     * @param backBuffer Referencia al objeto Texture que recibirá el recurso subyacente.
+     * @return S_OK si se obtuvo el acceso al buffer.
      */
     HRESULT getBackBuffer(Texture& backBuffer);
 
 public:
-    /** @brief Puntero a la interfaz nativa de DirectX Graphics Infrastructure. */
+    /** @brief Objeto principal del Swap Chain en Direct3D 11. */
     IDXGISwapChain* m_swapChain = nullptr;
 
-    /** @brief Especifica el tipo de controlador utilizado por D3D11. */
+    /** @brief Especifica el tipo de controlador utilizado (Hardware, Software, Reference). */
     D3D_DRIVER_TYPE m_driverType = D3D_DRIVER_TYPE_NULL;
 
 private:
-    /** @brief Máximo nivel de hardware soportado por la tarjeta de video. */
+    /** @brief Nivel de características de hardware soportado por el dispositivo. */
     D3D_FEATURE_LEVEL m_featureLevel = D3D_FEATURE_LEVEL_11_0;
 
-    /** @brief Cantidad de muestras por píxel para Anti-Aliasing (Multi-Sampling). */
+    /** @brief Cantidad de muestras por píxel para Anti-Aliasing (ej: 4 = 4x MSAA). */
     unsigned int m_sampleCount;
 
-    /** @brief Niveles de calidad técnica para el suavizado de bordes. */
+    /** @brief Niveles de calidad técnica soportados para el suavizado de bordes. */
     unsigned int m_qualityLevels;
 
-    /** @brief Interfaz DXGI para la comunicación con el dispositivo. */
+    /** @brief Interfaz DXGI para la comunicación con el dispositivo gráfico. */
     IDXGIDevice* m_dxgiDevice = nullptr;
 
-    /** @brief Interfaz que representa el adaptador físico (GPU). */
+    /** @brief Interfaz que representa el adaptador físico (la tarjeta de video). */
     IDXGIAdapter* m_dxgiAdapter = nullptr;
 
-    /** @brief Fábrica responsable de generar el SwapChain. */
+    /** @brief Fábrica DXGI responsable de la creación del SwapChain. */
     IDXGIFactory* m_dxgiFactory = nullptr;
 };

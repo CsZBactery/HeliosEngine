@@ -1,5 +1,12 @@
+/**
+ * @file ForwardRenderer.cpp
+ * @brief Implementación del pipeline de renderizado Forward con soporte de sombras.
+ * @details Gestiona colas de renderizado, estados de mezcla y generación de Shadow Maps.
+ */
+
 #include "Rendering/ForwardRenderer.h"
 #include <algorithm>
+#include <cmath>
 #include "Device.h"
 #include "DeviceContext.h"
 #include "Rendering/Material.h"
@@ -8,319 +15,367 @@
 #include "SamplerState.h"
 #include "EngineUtilities/Utilities/Camera.h"
 #include "EngineUtilities/Utilities/EditorViewportPass.h"
+#include "EngineUtilities/Utilities/LayoutBuilder.h"
 #include "EngineUtilities/Utilities/Skybox.h"
 
-HRESULT
-ForwardRenderer::init(Device& device) {
-	HRESULT hr = m_perFrameBuffer.init(device, sizeof(CBPerFrame));
-	if (FAILED(hr)) {
-		return hr;
-	}
+ // ======================================================================================
+ // CICLO DE VIDA (Inicialización y Destrucción)
+ // ======================================================================================
 
-	hr = m_perObjectBuffer.init(device, sizeof(CBPerObject));
-	if (FAILED(hr)) {
-		return hr;
-	}
+HRESULT ForwardRenderer::init(Device& device) {
+    HRESULT hr = m_perFrameBuffer.init(device, sizeof(CBPerFrame));
+    if (FAILED(hr)) return hr;
 
-	hr = m_perMaterialBuffer.init(device, sizeof(CBPerMaterial));
-	if (FAILED(hr)) {
-		return hr;
-	}
+    hr = m_perObjectBuffer.init(device, sizeof(CBPerObject));
+    if (FAILED(hr)) return hr;
 
-	hr = m_transparentDepthStencil.init(device,
-		true,
-		D3D11_DEPTH_WRITE_MASK_ZERO,
-		D3D11_COMPARISON_LESS_EQUAL);
-	if (FAILED(hr)) {
-		return hr;
-	}
+    hr = m_perMaterialBuffer.init(device, sizeof(CBPerMaterial));
+    if (FAILED(hr)) return hr;
 
-	hr = createBlendStates(device);
-	if (FAILED(hr)) {
-		return hr;
-	}
+    hr = m_transparentDepthStencil.init(device, true, D3D11_DEPTH_WRITE_MASK_ZERO, D3D11_COMPARISON_LESS_EQUAL);
+    if (FAILED(hr)) return hr;
 
-	return S_OK;
+    hr = m_shadowDepthStencil.init(device, true, D3D11_DEPTH_WRITE_MASK_ALL, D3D11_COMPARISON_LESS);
+    if (FAILED(hr)) return hr;
+
+    hr = createShadowResources(device);
+    if (FAILED(hr)) return hr;
+
+    hr = m_preShadowDebugPass.init(device, 1280, 720);
+    if (FAILED(hr)) return hr;
+
+    hr = createBlendStates(device);
+    if (FAILED(hr)) return hr;
+
+    return S_OK;
 }
 
-void
-ForwardRenderer::resize(Device& device, unsigned int width, unsigned int height) {
-	(void)device;
-	(void)width;
-	(void)height;
+void ForwardRenderer::resize(Device& device, unsigned int width, unsigned int height) {
+    m_preShadowDebugPass.resize(device, width, height);
 }
 
-void
-ForwardRenderer::updatePerFrame(const Camera& camera,
-	const RenderScene& scene,
-	DeviceContext& deviceContext) {
-	XMStoreFloat4x4(&m_cbPerFrame.View, XMMatrixTranspose(camera.getView()));
-	XMStoreFloat4x4(&m_cbPerFrame.Projection, XMMatrixTranspose(camera.getProj()));
-	m_cbPerFrame.CameraPos = camera.getPosition();
-	m_cbPerFrame.LightDir = EU::Vector3(0.0f, -1.0f, 0.0f);
-	m_cbPerFrame.LightColor = EU::Vector3(1.0f, 1.0f, 1.0f);
+void ForwardRenderer::destroy() {
+    m_opaqueQueue.clear();
+    m_transparentQueue.clear();
 
-	if (!scene.directionalLights.empty()) {
-		const LightData& mainLight = scene.directionalLights.front();
-		m_cbPerFrame.LightDir = mainLight.direction;
-		m_cbPerFrame.LightColor = mainLight.color * mainLight.intensity;
-	}
+    SAFE_RELEASE(m_alphaBlendState);
+    SAFE_RELEASE(m_opaqueBlendState);
+    SAFE_RELEASE(m_additiveBlendState);
+    SAFE_RELEASE(m_premultipliedBlendState);
 
-	m_perFrameBuffer.update(deviceContext, nullptr, 0, nullptr, &m_cbPerFrame, 0, 0);
+    m_shadowRasterizer.destroy();
+    m_shadowShader.destroy();
+    m_shadowDSV.destroy();
+    m_shadowDepthSRV.destroy();
+    m_shadowDepthTexture.destroy();
+
+    m_transparentDepthStencil.destroy();
+    m_shadowDepthStencil.destroy();
+    m_perMaterialBuffer.destroy();
+    m_perObjectBuffer.destroy();
+    m_perFrameBuffer.destroy();
+    m_preShadowDebugPass.destroy();
 }
 
-void
-ForwardRenderer::render(DeviceContext& deviceContext,
-	const Camera& camera,
-	RenderScene& scene,
-	EditorViewportPass& viewportPass) {
-	const float viewportClear[4] = { 0.10f, 0.10f, 0.10f, 1.0f };
-	viewportPass.begin(deviceContext, viewportClear);
-	viewportPass.setViewport(deviceContext);
-	viewportPass.clearDepth(deviceContext);
+// ======================================================================================
+// GESTIÓN DE COLAS Y ACTUALIZACIÓN
+// ======================================================================================
 
-	buildQueues(scene, camera);
-	updatePerFrame(camera, scene, deviceContext);
+void ForwardRenderer::buildQueues(RenderScene& scene, const Camera& camera) {
+    (void)camera;
+    m_opaqueQueue.clear();
+    m_transparentQueue.clear();
 
-	renderSkyboxPass(deviceContext, scene);
-	renderOpaquePass(deviceContext);
-	renderTransparentPass(deviceContext);
+    for (auto& object : scene.opaqueObjects) m_opaqueQueue.push_back(&object);
+    for (auto& object : scene.transparentObjects) m_transparentQueue.push_back(&object);
+
+    std::sort(m_opaqueQueue.begin(), m_opaqueQueue.end(),
+        [](const RenderObject* lhs, const RenderObject* rhs) {
+            if (lhs->materialInstance != rhs->materialInstance) {
+                return lhs->materialInstance < rhs->materialInstance;
+            }
+            return lhs->distanceToCamera < rhs->distanceToCamera;
+        });
+
+    std::sort(m_transparentQueue.begin(), m_transparentQueue.end(),
+        [](const RenderObject* lhs, const RenderObject* rhs) {
+            return lhs->distanceToCamera > rhs->distanceToCamera;
+        });
 }
 
-void
-ForwardRenderer::destroy() {
-	m_opaqueQueue.clear();
-	m_transparentQueue.clear();
-	SAFE_RELEASE(m_alphaBlendState);
-	SAFE_RELEASE(m_opaqueBlendState);
-	SAFE_RELEASE(m_additiveBlendState);
-	SAFE_RELEASE(m_premultipliedBlendState);
-	m_transparentDepthStencil.destroy();
-	m_perMaterialBuffer.destroy();
-	m_perObjectBuffer.destroy();
-	m_perFrameBuffer.destroy();
+void ForwardRenderer::updatePerFrame(const Camera& camera, const RenderScene& scene, DeviceContext& deviceContext) {
+    updateLightMatrices(camera, scene);
+
+    XMStoreFloat4x4(&m_cbPerFrame.View, XMMatrixTranspose(camera.getView()));
+    XMStoreFloat4x4(&m_cbPerFrame.Projection, XMMatrixTranspose(camera.getProj()));
+    m_cbPerFrame.CameraPos = camera.getPosition();
+
+    m_cbPerFrame.LightDir = EU::Vector3(0.0f, -1.0f, 0.0f);
+    m_cbPerFrame.LightColor = EU::Vector3(1.0f, 1.0f, 1.0f);
+
+    if (!scene.directionalLights.empty()) {
+        const LightData& mainLight = scene.directionalLights.front();
+        m_cbPerFrame.LightDir = mainLight.direction;
+        m_cbPerFrame.LightColor = mainLight.color * mainLight.intensity;
+    }
+
+    m_perFrameBuffer.update(deviceContext, nullptr, 0, nullptr, &m_cbPerFrame, 0, 0);
 }
 
-void
-ForwardRenderer::buildQueues(RenderScene& scene, const Camera& camera) {
-	(void)camera;
-	m_opaqueQueue.clear();
-	m_transparentQueue.clear();
+// ======================================================================================
+// PROCESO DE RENDERIZADO (PIPELINE)
+// ======================================================================================
 
-	for (auto& object : scene.opaqueObjects) {
-		m_opaqueQueue.push_back(&object);
-	}
+void ForwardRenderer::render(DeviceContext& deviceContext, const Camera& camera, RenderScene& scene, EditorViewportPass& viewportPass) {
+    const float viewportClear[4] = { 0.10f, 0.10f, 0.10f, 1.0f };
 
-	for (auto& object : scene.transparentObjects) {
-		m_transparentQueue.push_back(&object);
-	}
+    buildQueues(scene, camera);
+    updatePerFrame(camera, scene, deviceContext);
 
-	std::sort(m_opaqueQueue.begin(), m_opaqueQueue.end(),
-		[](const RenderObject* lhs, const RenderObject* rhs) {
-			if (lhs->materialInstance != rhs->materialInstance) {
-				return lhs->materialInstance < rhs->materialInstance;
-			}
-			return lhs->distanceToCamera < rhs->distanceToCamera;
-		});
+    renderPreShadowDebugPass(deviceContext, scene);
+    renderShadowPass(deviceContext);
 
-	std::sort(m_transparentQueue.begin(), m_transparentQueue.end(),
-		[](const RenderObject* lhs, const RenderObject* rhs) {
-			return lhs->distanceToCamera > rhs->distanceToCamera;
-		});
+    viewportPass.begin(deviceContext, viewportClear);
+    viewportPass.setViewport(deviceContext);
+    viewportPass.clearDepth(deviceContext);
+
+    renderSkyboxPass(deviceContext, scene);
+    renderOpaquePass(deviceContext);
+    renderTransparentPass(deviceContext);
 }
 
-void
-ForwardRenderer::renderOpaquePass(DeviceContext& deviceContext) {
-	m_perFrameBuffer.render(deviceContext, 0, 1, true);
-	deviceContext.OMSetBlendState(m_opaqueBlendState, m_blendFactor, 0xffffffff);
+void ForwardRenderer::renderOpaquePass(DeviceContext& deviceContext) {
+    m_perFrameBuffer.render(deviceContext, 0, 1, true);
 
-	for (const RenderObject* object : m_opaqueQueue) {
-		if (!object) {
-			continue;
-		}
-		renderObject(deviceContext, *object, RenderPassType::Opaque);
-	}
+    if (m_applyShadows && m_shadowDepthSRV.m_textureFromImg) {
+        deviceContext.m_deviceContext->PSSetShaderResources(6, 1, &m_shadowDepthSRV.m_textureFromImg);
+    }
+    else {
+        ID3D11ShaderResourceView* nullShadowSRV[1] = { nullptr };
+        deviceContext.m_deviceContext->PSSetShaderResources(6, 1, nullShadowSRV);
+    }
+
+    deviceContext.m_deviceContext->OMSetBlendState(m_opaqueBlendState, m_blendFactor, 0xffffffff);
+
+    for (const RenderObject* object : m_opaqueQueue) {
+        if (object) renderObject(deviceContext, *object, RenderPassType::Opaque);
+    }
 }
 
-void
-ForwardRenderer::renderTransparentPass(DeviceContext& deviceContext) {
-	m_perFrameBuffer.render(deviceContext, 0, 1, true);
+void ForwardRenderer::renderTransparentPass(DeviceContext& deviceContext) {
+    m_perFrameBuffer.render(deviceContext, 0, 1, true);
 
-	for (const RenderObject* object : m_transparentQueue) {
-		if (!object) {
-			continue;
-		}
-		Material* material = object->materialInstance ? object->materialInstance->getMaterial() : nullptr;
-		deviceContext.OMSetBlendState(resolveBlendState(material), m_blendFactor, 0xffffffff);
-		renderObject(deviceContext, *object, RenderPassType::Transparent);
-	}
+    if (m_applyShadows && m_shadowDepthSRV.m_textureFromImg) {
+        deviceContext.m_deviceContext->PSSetShaderResources(6, 1, &m_shadowDepthSRV.m_textureFromImg);
+    }
 
-	deviceContext.OMSetBlendState(m_opaqueBlendState, m_blendFactor, 0xffffffff);
+    for (const RenderObject* object : m_transparentQueue) {
+        if (!object) continue;
+        Material* material = object->materialInstance ? object->materialInstance->getMaterial() : nullptr;
+        deviceContext.m_deviceContext->OMSetBlendState(resolveBlendState(material), m_blendFactor, 0xffffffff);
+        renderObject(deviceContext, *object, RenderPassType::Transparent);
+    }
+
+    deviceContext.m_deviceContext->OMSetBlendState(m_opaqueBlendState, m_blendFactor, 0xffffffff);
 }
 
-void
-ForwardRenderer::renderSkyboxPass(DeviceContext& deviceContext, RenderScene& scene) {
-	if (!scene.skybox) {
-		return;
-	}
-	scene.skybox->render(deviceContext);
+void ForwardRenderer::renderObject(DeviceContext& deviceContext, const RenderObject& object, RenderPassType passType) {
+    if (!object.mesh || (!object.materialInstance && object.materialInstances.empty())) return;
+
+    XMStoreFloat4x4(&m_cbPerObject.World, XMMatrixTranspose(object.world));
+    m_perObjectBuffer.update(deviceContext, nullptr, 0, nullptr, &m_cbPerObject, 0, 0);
+    m_perObjectBuffer.render(deviceContext, 1, 1, true);
+
+    deviceContext.m_deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+    for (Submesh& submesh : object.mesh->getSubmeshes()) {
+        MaterialInstance* matInst = object.materialInstance;
+        if (submesh.materialSlot < object.materialInstances.size() && object.materialInstances[submesh.materialSlot]) {
+            matInst = object.materialInstances[submesh.materialSlot];
+        }
+
+        if (!matInst || !matInst->getMaterial()) continue;
+
+        Material* material = matInst->getMaterial();
+
+        if (material->getRasterizerState()) material->getRasterizerState()->render(deviceContext);
+
+        if (passType == RenderPassType::Transparent) {
+            m_transparentDepthStencil.render(deviceContext, 0, false);
+        }
+        else if (material->getDepthStencilState()) {
+            material->getDepthStencilState()->render(deviceContext, 0, false);
+        }
+
+        if (material->getShader()) material->getShader()->render(deviceContext);
+        if (material->getSamplerState()) material->getSamplerState()->render(deviceContext, 0, 1);
+
+        matInst->bindTextures(deviceContext);
+
+        const MaterialParams& params = matInst->getParams();
+        m_cbPerMaterial.BaseColor = params.baseColor;
+        m_cbPerMaterial.Metallic = params.metallic;
+        m_cbPerMaterial.Roughness = params.roughness;
+        m_cbPerMaterial.AO = params.ao;
+        m_cbPerMaterial.NormalScale = params.normalScale;
+        m_cbPerMaterial.EmissiveStrength = params.emissiveStrength;
+        m_cbPerMaterial.AlphaCutoff = (material->getDomain() == MaterialDomain::Masked) ? params.alphaCutoff : 0.0f;
+
+        m_perMaterialBuffer.update(deviceContext, nullptr, 0, nullptr, &m_cbPerMaterial, 0, 0);
+        m_perMaterialBuffer.render(deviceContext, 2, 1, true);
+
+        submesh.vertexBuffer.render(deviceContext, 0, 1);
+        submesh.indexBuffer.render(deviceContext, 0, 1, false, DXGI_FORMAT_R32_UINT);
+        deviceContext.m_deviceContext->DrawIndexed(submesh.indexCount, submesh.startIndex, 0);
+    }
 }
 
-void
-ForwardRenderer::renderObject(DeviceContext& deviceContext,
-	const RenderObject& object,
-	RenderPassType passType) {
-	if (!object.mesh || (!object.materialInstance && object.materialInstances.empty())) {
-		return;
-	}
+// ======================================================================================
+// SOMBRAS (SHADOW MAPPING LOGIC)
+// ======================================================================================
 
-	XMStoreFloat4x4(&m_cbPerObject.World, XMMatrixTranspose(object.world));
-	m_perObjectBuffer.update(deviceContext, nullptr, 0, nullptr, &m_cbPerObject, 0, 0);
-	m_perObjectBuffer.render(deviceContext, 1, 1, true);
+void ForwardRenderer::renderShadowPass(DeviceContext& deviceContext) {
+    if (!m_shadowDSV.m_depthStencilView || !m_shadowShader.m_VertexShader) return;
 
-	deviceContext.IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    ID3D11ShaderResourceView* nullShadowSRV[1] = { nullptr };
+    deviceContext.m_deviceContext->PSSetShaderResources(6, 1, nullShadowSRV);
+    deviceContext.m_deviceContext->OMSetRenderTargets(0, nullptr, m_shadowDSV.m_depthStencilView);
+    deviceContext.m_deviceContext->ClearDepthStencilView(m_shadowDSV.m_depthStencilView, D3D11_CLEAR_DEPTH, 1.0f, 0);
 
-	std::vector<Submesh>& submeshes = object.mesh->getSubmeshes();
-	for (Submesh& submesh : submeshes) {
-		MaterialInstance* materialInstance = object.materialInstance;
-		if (submesh.materialSlot < object.materialInstances.size() &&
-			object.materialInstances[submesh.materialSlot]) {
-			materialInstance = object.materialInstances[submesh.materialSlot];
-		}
+    D3D11_VIEWPORT shadowViewport{ 0.0f, 0.0f, (float)m_shadowMapSize, (float)m_shadowMapSize, 0.0f, 1.0f };
+    deviceContext.m_deviceContext->RSSetViewports(1, &shadowViewport);
 
-		if (!materialInstance) {
-			continue;
-		}
+    m_shadowRasterizer.render(deviceContext);
+    m_shadowDepthStencil.render(deviceContext, 0, false);
+    m_perFrameBuffer.render(deviceContext, 0, 1, false);
 
-		Material* material = materialInstance->getMaterial();
-		if (!material) {
-			continue;
-		}
-
-		if (material->getRasterizerState()) {
-			material->getRasterizerState()->render(deviceContext);
-		}
-
-		if (passType == RenderPassType::Transparent) {
-			m_transparentDepthStencil.render(deviceContext, 0, false);
-		}
-		else if (material->getDepthStencilState()) {
-			material->getDepthStencilState()->render(deviceContext, 0, false);
-		}
-
-		if (material->getShader()) {
-			material->getShader()->render(deviceContext);
-		}
-
-		if (material->getSamplerState()) {
-			material->getSamplerState()->render(deviceContext, 0, 1);
-		}
-
-		materialInstance->bindTextures(deviceContext);
-
-		const MaterialParams& params = materialInstance->getParams();
-		m_cbPerMaterial.BaseColor = params.baseColor;
-		m_cbPerMaterial.Metallic = params.metallic;
-		m_cbPerMaterial.Roughness = params.roughness;
-		m_cbPerMaterial.AO = params.ao;
-		m_cbPerMaterial.NormalScale = params.normalScale;
-		m_cbPerMaterial.EmissiveStrength = params.emissiveStrength;
-		m_cbPerMaterial.AlphaCutoff = 0.0f;
-		if (material->getDomain() == MaterialDomain::Masked) {
-			m_cbPerMaterial.AlphaCutoff = params.alphaCutoff;
-		}
-		m_perMaterialBuffer.update(deviceContext, nullptr, 0, nullptr, &m_cbPerMaterial, 0, 0);
-		m_perMaterialBuffer.render(deviceContext, 2, 1, true);
-
-		submesh.vertexBuffer.render(deviceContext, 0, 1);
-		submesh.indexBuffer.render(deviceContext, 0, 1, false, DXGI_FORMAT_R32_UINT);
-		deviceContext.DrawIndexed(submesh.indexCount, submesh.startIndex, 0);
-	}
+    for (const RenderObject* object : m_opaqueQueue) {
+        if (object && object->castShadow) renderShadowObject(deviceContext, *object);
+    }
 }
 
-HRESULT
-ForwardRenderer::createBlendStates(Device& device) {
-	if (!device.m_device) {
-		return E_POINTER;
-	}
+void ForwardRenderer::renderShadowObject(DeviceContext& deviceContext, const RenderObject& object) {
+    if (!object.mesh) return;
 
-	D3D11_BLEND_DESC blendDesc{};
-	blendDesc.AlphaToCoverageEnable = FALSE;
-	blendDesc.IndependentBlendEnable = FALSE;
+    XMStoreFloat4x4(&m_cbPerObject.World, XMMatrixTranspose(object.world));
+    m_perObjectBuffer.update(deviceContext, nullptr, 0, nullptr, &m_cbPerObject, 0, 0);
+    m_perObjectBuffer.render(deviceContext, 1, 1, false);
 
-	D3D11_RENDER_TARGET_BLEND_DESC& renderTarget = blendDesc.RenderTarget[0];
-	renderTarget.BlendEnable = FALSE;
-	renderTarget.SrcBlend = D3D11_BLEND_ONE;
-	renderTarget.DestBlend = D3D11_BLEND_ZERO;
-	renderTarget.BlendOp = D3D11_BLEND_OP_ADD;
-	renderTarget.SrcBlendAlpha = D3D11_BLEND_ONE;
-	renderTarget.DestBlendAlpha = D3D11_BLEND_ZERO;
-	renderTarget.BlendOpAlpha = D3D11_BLEND_OP_ADD;
-	renderTarget.RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+    m_shadowShader.render(deviceContext);
+    deviceContext.m_deviceContext->PSSetShader(nullptr, nullptr, 0);
+    deviceContext.m_deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-	HRESULT hr = device.m_device->CreateBlendState(&blendDesc, &m_opaqueBlendState);
-	if (FAILED(hr)) {
-		return hr;
-	}
-
-	renderTarget.BlendEnable = TRUE;
-	renderTarget.SrcBlend = D3D11_BLEND_SRC_ALPHA;
-	renderTarget.DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
-	renderTarget.BlendOp = D3D11_BLEND_OP_ADD;
-	renderTarget.SrcBlendAlpha = D3D11_BLEND_ONE;
-	renderTarget.DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
-	renderTarget.BlendOpAlpha = D3D11_BLEND_OP_ADD;
-
-	hr = device.m_device->CreateBlendState(&blendDesc, &m_alphaBlendState);
-	if (FAILED(hr)) {
-		return hr;
-	}
-
-	renderTarget.BlendEnable = TRUE;
-	renderTarget.SrcBlend = D3D11_BLEND_SRC_ALPHA;
-	renderTarget.DestBlend = D3D11_BLEND_ONE;
-	renderTarget.BlendOp = D3D11_BLEND_OP_ADD;
-	renderTarget.SrcBlendAlpha = D3D11_BLEND_ONE;
-	renderTarget.DestBlendAlpha = D3D11_BLEND_ONE;
-	renderTarget.BlendOpAlpha = D3D11_BLEND_OP_ADD;
-
-	hr = device.m_device->CreateBlendState(&blendDesc, &m_additiveBlendState);
-	if (FAILED(hr)) {
-		return hr;
-	}
-
-	renderTarget.BlendEnable = TRUE;
-	renderTarget.SrcBlend = D3D11_BLEND_ONE;
-	renderTarget.DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
-	renderTarget.BlendOp = D3D11_BLEND_OP_ADD;
-	renderTarget.SrcBlendAlpha = D3D11_BLEND_ONE;
-	renderTarget.DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
-	renderTarget.BlendOpAlpha = D3D11_BLEND_OP_ADD;
-
-	return device.m_device->CreateBlendState(&blendDesc, &m_premultipliedBlendState);
+    for (Submesh& submesh : object.mesh->getSubmeshes()) {
+        submesh.vertexBuffer.render(deviceContext, 0, 1);
+        submesh.indexBuffer.render(deviceContext, 0, 1, false, DXGI_FORMAT_R32_UINT);
+        deviceContext.m_deviceContext->DrawIndexed(submesh.indexCount, submesh.startIndex, 0);
+    }
 }
 
-ID3D11BlendState*
-ForwardRenderer::resolveBlendState(const Material* material) const {
-	if (!material) {
-		return m_opaqueBlendState;
-	}
+HRESULT ForwardRenderer::createShadowResources(Device& device) {
+    HRESULT hr = m_shadowDepthTexture.init(device, m_shadowMapSize, m_shadowMapSize, DXGI_FORMAT_R24G8_TYPELESS, D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE);
+    if (FAILED(hr)) return hr;
 
-	if (material->getDomain() != MaterialDomain::Transparent) {
-		return m_opaqueBlendState;
-	}
+    hr = m_shadowDepthSRV.init(device, m_shadowDepthTexture, DXGI_FORMAT_R24_UNORM_X8_TYPELESS);
+    if (FAILED(hr)) return hr;
 
-	switch (material->getBlendMode()) {
-	case BlendMode::Additive:
-		return m_additiveBlendState ? m_additiveBlendState : m_alphaBlendState;
-	case BlendMode::PremultipliedAlpha:
-		return m_premultipliedBlendState ? m_premultipliedBlendState : m_alphaBlendState;
-	case BlendMode::Alpha:
-	case BlendMode::Opaque:
-	default:
-		return m_alphaBlendState ? m_alphaBlendState : m_opaqueBlendState;
-	}
+    hr = m_shadowDSV.init(device, m_shadowDepthTexture, DXGI_FORMAT_D24_UNORM_S8_UINT, D3D11_DSV_DIMENSION_TEXTURE2D);
+    if (FAILED(hr)) return hr;
+
+    LayoutBuilder builder;
+    builder.Add("POSITION", DXGI_FORMAT_R32G32B32_FLOAT).Add("NORMAL", DXGI_FORMAT_R32G32B32_FLOAT)
+        .Add("TANGENT", DXGI_FORMAT_R32G32B32_FLOAT).Add("BITANGENT", DXGI_FORMAT_R32G32B32_FLOAT)
+        .Add("TEXCOORD", DXGI_FORMAT_R32G32_FLOAT);
+
+    hr = m_shadowShader.init(device, "Assets/Shaders/ShadowMap.hlsl", builder);
+    if (FAILED(hr)) return hr;
+
+    return m_shadowRasterizer.init(device, D3D11_FILL_SOLID, D3D11_CULL_BACK, false, true);
 }
 
+void ForwardRenderer::updateLightMatrices(const Camera& camera, const RenderScene& scene) {
+    EU::Vector3 lightDir = EU::Vector3(0.0f, -1.0f, 0.0f);
+    if (!scene.directionalLights.empty()) lightDir = scene.directionalLights.front().direction;
 
+    XMVECTOR lightDirVec = XMVector3Normalize(XMVectorSet(lightDir.x, lightDir.y, lightDir.z, 0.0f));
+    XMVECTOR cameraPos = XMVectorSet(camera.getPosition().x, camera.getPosition().y, camera.getPosition().z, 1.0f);
 
+    XMVECTOR lightTarget = cameraPos;
+    XMVECTOR lightEye = XMVectorSubtract(lightTarget, XMVectorScale(lightDirVec, 35.0f));
+    XMVECTOR worldUp = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+
+    if (fabsf(XMVectorGetX(XMVector3Dot(lightDirVec, worldUp))) > 0.98f) worldUp = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
+
+    XMMATRIX lightView = XMMatrixLookAtLH(lightEye, lightTarget, worldUp);
+    XMMATRIX lightProjection = XMMatrixOrthographicLH(40.0f, 40.0f, 1.0f, 80.0f);
+    XMStoreFloat4x4(&m_cbPerFrame.LightViewProjection, XMMatrixTranspose(lightView * lightProjection));
+}
+
+void ForwardRenderer::renderPreShadowDebugPass(DeviceContext& deviceContext, RenderScene& scene) {
+    if (!m_preShadowDebugPass.isValid()) return;
+    const float clearColor[4] = { 0.10f, 0.10f, 0.10f, 1.0f };
+    ID3D11ShaderResourceView* nullShadowSRV[1] = { nullptr };
+    deviceContext.m_deviceContext->PSSetShaderResources(6, 1, nullShadowSRV);
+    m_applyShadows = false;
+    m_preShadowDebugPass.begin(deviceContext, clearColor);
+    m_preShadowDebugPass.setViewport(deviceContext);
+    m_preShadowDebugPass.clearDepth(deviceContext);
+    renderSkyboxPass(deviceContext, scene);
+    renderOpaquePass(deviceContext);
+    renderTransparentPass(deviceContext);
+    m_applyShadows = true;
+}
+
+void ForwardRenderer::renderSkyboxPass(DeviceContext& deviceContext, RenderScene& scene) {
+    if (!scene.skybox) return;
+    scene.skybox->render(deviceContext);
+}
+
+HRESULT ForwardRenderer::createBlendStates(Device& device) {
+    if (!device.m_device) return E_POINTER;
+    D3D11_BLEND_DESC blendDesc{};
+    blendDesc.AlphaToCoverageEnable = FALSE;
+    blendDesc.IndependentBlendEnable = FALSE;
+    D3D11_RENDER_TARGET_BLEND_DESC& renderTarget = blendDesc.RenderTarget[0];
+    renderTarget.BlendEnable = FALSE;
+    renderTarget.SrcBlend = D3D11_BLEND_ONE;
+    renderTarget.DestBlend = D3D11_BLEND_ZERO;
+    renderTarget.BlendOp = D3D11_BLEND_OP_ADD;
+    renderTarget.SrcBlendAlpha = D3D11_BLEND_ONE;
+    renderTarget.DestBlendAlpha = D3D11_BLEND_ZERO;
+    renderTarget.BlendOpAlpha = D3D11_BLEND_OP_ADD;
+    renderTarget.RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+    HRESULT hr = device.m_device->CreateBlendState(&blendDesc, &m_opaqueBlendState);
+    if (FAILED(hr)) return hr;
+    renderTarget.BlendEnable = TRUE;
+    renderTarget.SrcBlend = D3D11_BLEND_SRC_ALPHA;
+    renderTarget.DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+    renderTarget.BlendOp = D3D11_BLEND_OP_ADD;
+    renderTarget.SrcBlendAlpha = D3D11_BLEND_ONE;
+    renderTarget.DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+    renderTarget.BlendOpAlpha = D3D11_BLEND_OP_ADD;
+    hr = device.m_device->CreateBlendState(&blendDesc, &m_alphaBlendState);
+    if (FAILED(hr)) return hr;
+    renderTarget.SrcBlend = D3D11_BLEND_SRC_ALPHA;
+    renderTarget.DestBlend = D3D11_BLEND_ONE;
+    renderTarget.SrcBlendAlpha = D3D11_BLEND_ONE;
+    renderTarget.DestBlendAlpha = D3D11_BLEND_ONE;
+    hr = device.m_device->CreateBlendState(&blendDesc, &m_additiveBlendState);
+    if (FAILED(hr)) return hr;
+    renderTarget.SrcBlend = D3D11_BLEND_ONE;
+    renderTarget.DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+    renderTarget.SrcBlendAlpha = D3D11_BLEND_ONE;
+    renderTarget.DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+    return device.m_device->CreateBlendState(&blendDesc, &m_premultipliedBlendState);
+}
+
+ID3D11BlendState* ForwardRenderer::resolveBlendState(const Material* material) const {
+    if (!material || material->getDomain() != MaterialDomain::Transparent) return m_opaqueBlendState;
+    switch (material->getBlendMode()) {
+    case BlendMode::Additive: return m_additiveBlendState ? m_additiveBlendState : m_alphaBlendState;
+    case BlendMode::PremultipliedAlpha: return m_premultipliedBlendState ? m_premultipliedBlendState : m_alphaBlendState;
+    case BlendMode::Alpha:
+    case BlendMode::Opaque:
+    default: return m_alphaBlendState ? m_alphaBlendState : m_opaqueBlendState;
+    }
+}

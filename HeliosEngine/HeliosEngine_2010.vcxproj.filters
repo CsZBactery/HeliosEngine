@@ -176,6 +176,12 @@
     <ClCompile Include="source\Rendering\RenderScene.cpp">
       <Filter>source\Rendering</Filter>
     </ClCompile>
+    <ClCompile Include="source\Rendering\DeferredRenderer.cpp">
+      <Filter>source\Rendering</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Rendering\RenderPipeline.cpp">
+      <Filter>source\Rendering</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="HeliosEngine.fx">
@@ -387,6 +393,15 @@
       <Filter>include\Rendering</Filter>
     </ClInclude>
     <ClInclude Include="include\Rendering\RenderTypes.h">
+      <Filter>include\Rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Rendering\DeferredRenderer.h">
+      <Filter>include\Rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Rendering\ISceneRenderer.h">
+      <Filter>include\Rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Rendering\RenderPipeline.h">
       <Filter>include\Rendering</Filter>
     </ClInclude>
   </ItemGroup>
