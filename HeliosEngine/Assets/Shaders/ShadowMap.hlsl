@@ -56,6 +56,7 @@ VS_OUTPUT VS(VS_INPUT input)
 // ==========================================================
 // Para mapas de sombras direccionales solo nos importa la profundidad (Z-Buffer).
 // No necesitamos calcular colores, la GPU escribe la profundidad automáticamente.
-void PS(VS_OUTPUT input)
+float4 PS(VS_OUTPUT input) : SV_Target
 {
+    return float4(0.0f, 0.0f, 0.0f, 0.0f);
 }

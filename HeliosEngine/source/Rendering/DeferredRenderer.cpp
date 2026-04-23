@@ -543,7 +543,8 @@ HRESULT DeferredRenderer::createShadowResources(Device& device) {
         .Add("BITANGENT", DXGI_FORMAT_R32G32B32_FLOAT)
         .Add("TEXCOORD", DXGI_FORMAT_R32G32_FLOAT);
 
-    hr = m_shadowShader.init(device, "ShadowMap.hlsl", builder);
+    // CORRECCIÓN: Ruta del shader añadida
+    hr = m_shadowShader.init(device, "Assets/Shaders/ShadowMap.hlsl", builder);
     if (FAILED(hr)) return hr;
 
     return m_shadowRasterizer.init(device, D3D11_FILL_SOLID, D3D11_CULL_BACK, false, true);
@@ -593,7 +594,8 @@ HRESULT DeferredRenderer::createLightingResources(Device& device) {
         .Add("BITANGENT", DXGI_FORMAT_R32G32B32_FLOAT)
         .Add("TEXCOORD", DXGI_FORMAT_R32G32_FLOAT);
 
-    HRESULT hr = m_gBufferShader.init(device, "DeferredGBuffer.hlsl", geometryBuilder);
+    // CORRECCIÓN: Ruta del shader añadida
+    HRESULT hr = m_gBufferShader.init(device, "Assets/Shaders/DeferredGBuffer.hlsl", geometryBuilder);
     if (FAILED(hr)) return hr;
 
     LayoutBuilder fullscreenBuilder;
@@ -603,7 +605,8 @@ HRESULT DeferredRenderer::createLightingResources(Device& device) {
         .Add("BITANGENT", DXGI_FORMAT_R32G32B32_FLOAT)
         .Add("TEXCOORD", DXGI_FORMAT_R32G32_FLOAT);
 
-    hr = m_deferredLightingShader.init(device, "DeferredLighting.hlsl", fullscreenBuilder);
+    // CORRECCIÓN: Ruta del shader añadida
+    hr = m_deferredLightingShader.init(device, "Assets/Shaders/DeferredLighting.hlsl", fullscreenBuilder);
     if (FAILED(hr)) return hr;
 
     hr = m_lightingSampler.init(device);

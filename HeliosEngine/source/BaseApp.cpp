@@ -283,7 +283,7 @@ HRESULT BaseApp::init() {
     }
 
     // 7. INICIALIZACIÓN DEL PIPELINE Y VIEWPORT
-    m_camera.setLens(XM_PIDIV4, m_window.m_width / (float)m_window.m_height, 0.01f, 100.0f);
+    m_camera.setLens(XM_PIDIV4, m_window.m_width / (float)m_window.m_height, 0.01f, 1000.0f);
     m_camera.setPosition(0.0f, 3.0f, -6.0f);
 
     m_constantBufferStruct.LightColor = EU::Vector3(1.0f, 1.0f, 1.0f);
@@ -308,7 +308,10 @@ HRESULT BaseApp::init() {
 // FASE 4: UPDATE (Lógica de cada Frame)
 // ======================================================================================
 void BaseApp::update(float deltaTime) {
-    // 1. Actualización de la GUI (ImGui)
+    // 1. IMPORTANTE: Procesamos cualquier cambio de tamaño ANTES de que ImGui lo lea
+    handleEditorViewportResize();
+
+    // 2. Actualización de la GUI (ImGui)
     m_gui.update(m_viewport, m_window);
 
     // DIBUJAR PANELES DE DEPURACIÓN (G-Buffer & Shadows)
@@ -334,7 +337,7 @@ void BaseApp::update(float deltaTime) {
         saveScene(getDefaultScenePath());
     }
 
-    // 2. LÓGICA DE CREACIÓN DE CUBO
+    // 3. LÓGICA DE CREACIÓN DE CUBO
     if (m_gui.m_requestSpawnCube) {
         auto newCube = EU::MakeShared<Actor>(m_device);
         if (!newCube.isNull()) {
@@ -382,7 +385,7 @@ void BaseApp::update(float deltaTime) {
         m_gui.m_requestSpawnCube = false;
     }
 
-    // 3. LUZ EN INTERFAZ
+    // 4. LUZ EN INTERFAZ
     ImGui::Begin("Lighting Settings");
     float fDir[3] = { m_constantBufferStruct.LightDir.x, m_constantBufferStruct.LightDir.y, m_constantBufferStruct.LightDir.z };
     m_gui.vec3Control("Light Direction", fDir, 0.1f);
@@ -401,7 +404,7 @@ void BaseApp::update(float deltaTime) {
         }
     }
 
-    // 4. REDIMENSIONAMIENTO DEL EDITOR VIEWPORT
+    // 5. REDIMENSIONAMIENTO DEL EDITOR VIEWPORT (Solo registra la intención para el próximo frame)
     unsigned int desiredW = static_cast<unsigned int>(m_gui.m_viewportSize.x);
     unsigned int desiredH = static_cast<unsigned int>(m_gui.m_viewportSize.y);
     const unsigned int kMinViewportSize = 64;
@@ -427,7 +430,7 @@ void BaseApp::update(float deltaTime) {
         }
     }
 
-    // 5. ACTUALIZACIÓN MATRICES Y CÁMARA
+    // 6. ACTUALIZACIÓN MATRICES Y CÁMARA
     m_camera.updateViewMatrix();
     XMStoreFloat4x4(&m_constantBufferStruct.View, XMMatrixTranspose(m_camera.getView()));
     XMStoreFloat4x4(&m_constantBufferStruct.Projection, XMMatrixTranspose(m_camera.getProj()));
@@ -442,7 +445,7 @@ void BaseApp::update(float deltaTime) {
 // FASE 5: RENDER (Render Pipeline Moderno)
 // ======================================================================================
 void BaseApp::render() {
-    handleEditorViewportResize();
+    // Ya no hacemos handleEditorViewportResize() aquí. Se movió a update()
 
     float clearColor[4] = { 0.1f, 0.1f, 0.1f, 1.0f };
 
@@ -598,18 +601,22 @@ void BaseApp::onResize(UINT newW, UINT newH) {
 void BaseApp::handleEditorViewportResize() {
     if (!m_editorViewportResizePending) return;
 
+    // 1. Limpiamos la tubería de DirectX para que suelte las texturas
     m_deviceContext.m_deviceContext->OMSetRenderTargets(0, nullptr, nullptr);
     ID3D11ShaderResourceView* nullSRVs[D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT] = {};
     m_deviceContext.m_deviceContext->PSSetShaderResources(0, D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT, nullSRVs);
 
-    EditorViewportPass newPass;
-    HRESULT hr = newPass.init(m_device, m_pendingViewportWidth, m_pendingViewportHeight);
+    // 2. Destruimos el pase viejo directamente (¡Sin usar swaps temporales!)
+    m_editorViewportPass.destroy();
+
+    // 3. Lo inicializamos con el nuevo tamaño
+    HRESULT hr = m_editorViewportPass.init(m_device, m_pendingViewportWidth, m_pendingViewportHeight);
     if (FAILED(hr)) {
         m_editorViewportResizePending = false;
         return;
     }
 
-    m_editorViewportPass.swap(newPass);
+    // 4. Redimensionamos el G-Buffer del Deferred Renderer
     m_renderPipeline.resize(m_device, m_pendingViewportWidth, m_pendingViewportHeight);
     m_editorViewportResizePending = false;
 }
