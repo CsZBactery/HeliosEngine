@@ -1,9 +1,3 @@
-/**
- * @file ForwardRenderer.cpp
- * @brief Implementación del pipeline de renderizado Forward con soporte de sombras.
- * @details Gestiona colas de renderizado, estados de mezcla y generación de Shadow Maps.
- */
-
 #include "Rendering/ForwardRenderer.h"
 #include <algorithm>
 #include <cmath>

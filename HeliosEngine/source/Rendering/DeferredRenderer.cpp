@@ -1,9 +1,3 @@
-/**
- * @file DeferredRenderer.cpp
- * @brief Implementación del Pipeline de Renderizado Diferido.
- * @details Gestiona el G-Buffer, Shadow Mapping y la composición final de iluminación.
- */
-
 #include "Rendering/DeferredRenderer.h"
 #include <algorithm>
 #include <cmath>
